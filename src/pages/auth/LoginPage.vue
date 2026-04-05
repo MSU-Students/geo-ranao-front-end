@@ -1,19 +1,118 @@
 <template>
-  <q-page>
-    <h1>Login Page</h1>
-    <p>This is the login page. You can add your login form here.</p>
-    <q-input filled v-model="username" label="Username" />
-    <q-input filled v-model="password" label="Password" type="password" />
-    <q-btn label="Login" color="primary" @click="handleLogin" />
+  <q-page class="window-height window-width row justify-center items-center bg-blue-grey-1">
+    <q-card
+      class="shadow-24 row"
+      style="width: 900px; max-width: 95vw; min-height: 550px; border-radius: 20px"
+    >
+      <div class="col-md-6 col-12 bg-primary text-white flex flex-center rounded-left">
+        <div class="text-center q-pa-xl">
+          <q-icon name="water_drop" size="80px" class="q-mb-md opacity-80" />
+          <h2 class="text-h3 text-weight-bolder q-mb-sm q-mt-none tracking-tight">AQUALANAOGIS</h2>
+          <p class="text-h6 text-weight-light opacity-80">
+            Water Quality Mapping & Visualization System for Lake Lanao
+          </p>
+        </div>
+      </div>
+
+      <div class="col-md-6 col-12 bg-white flex flex-center rounded-right">
+        <div class="q-pa-xl full-width" style="max-width: 420px">
+          <div class="text-center q-mb-lg">
+            <q-img src="~assets/cics-logo.webp" style="width: 100px; height: 100px" fit="contain" />
+          </div>
+
+          <div class="text-h5 text-weight-bold text-center text-grey-9 q-mb-xs">Welcome Back</div>
+          <div class="text-subtitle1 text-center text-grey-6 q-mb-xl">
+            Please enter your details to sign in.
+          </div>
+
+          <q-form @submit="handleLogin" class="q-gutter-y-md">
+            <q-input
+              outlined
+              v-model="username"
+              label="Username"
+              color="primary"
+              lazy-rules
+              :rules="[(val) => !!val || 'Username is required']"
+            >
+              <template v-slot:prepend>
+                <q-icon name="person" class="text-grey-7" />
+              </template>
+            </q-input>
+
+            <q-input
+              outlined
+              v-model="password"
+              label="Password"
+              type="password"
+              color="primary"
+              lazy-rules
+              :rules="[(val) => !!val || 'Password is required']"
+            >
+              <template v-slot:prepend>
+                <q-icon name="lock" class="text-grey-7" />
+              </template>
+            </q-input>
+
+            <div class="row justify-between items-center q-pb-sm">
+              <q-checkbox v-model="remember" label="Remember me" color="primary" dense />
+              <a
+                href="#"
+                class="text-primary text-weight-medium"
+                style="text-decoration: none; font-size: 14px"
+              >
+                Forgot password?
+              </a>
+            </div>
+
+            <q-btn
+              unelevated
+              size="lg"
+              color="primary"
+              class="full-width text-weight-bold"
+              label="Sign In"
+              type="submit"
+              style="border-radius: 8px"
+            />
+          </q-form>
+        </div>
+      </div>
+    </q-card>
   </q-page>
 </template>
+
 <script setup lang="ts">
 import { ref } from 'vue';
 
 const username = ref('');
 const password = ref('');
+const remember = ref(false);
 
 function handleLogin() {
   // Handle login logic here
+  console.log('Attempting login with:', username.value);
 }
 </script>
+
+<style scoped>
+/* Custom border radius to keep the card edges smooth */
+.rounded-left {
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+}
+.rounded-right {
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
+}
+
+/* On smaller screens, remove the specific border radius so the stacked layout looks normal */
+@media (max-width: 1023px) {
+  .rounded-left {
+    border-bottom-left-radius: 0;
+    border-top-right-radius: 20px;
+  }
+  .rounded-right {
+    border-top-right-radius: 0;
+    border-bottom-left-radius: 20px;
+  }
+}
+</style>
