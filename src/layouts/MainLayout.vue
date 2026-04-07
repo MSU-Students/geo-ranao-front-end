@@ -6,14 +6,20 @@
 
         <q-toolbar-title> Quasar App </q-toolbar-title>
 
-        <div>Quasar v{{ $q.version }}</div>
+        <q-space />
+
+        <q-btn
+          flat
+          label="Login"
+          icon="login"
+          @click="handleLogin"
+        />
       </q-toolbar>
     </q-header>
 
     <q-drawer v-model="leftDrawerOpen" show-if-above bordered>
       <q-list>
         <q-item-label header> Essential Links </q-item-label>
-
         <FishLink v-for="link in linksList" :key="link.title" v-bind="link" />
       </q-list>
     </q-drawer>
@@ -26,7 +32,10 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useRouter } from 'vue-router'; // Import the router
 import FishLink, { type EssentialLinkProps } from 'components/FishLink.vue';
+
+const router = useRouter();
 
 const linksList: EssentialLinkProps[] = [
   {
@@ -41,5 +50,13 @@ const leftDrawerOpen = ref(false);
 
 function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value;
+}
+
+// Function to handle the login click
+function handleLogin() {
+  router.push('auth/login')
+    .catch(err => {
+      console.error('Navigation error:', err);
+    });
 }
 </script>
