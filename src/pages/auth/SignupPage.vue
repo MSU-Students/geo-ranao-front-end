@@ -14,7 +14,7 @@
       </q-card-section>
 
       <q-card-section>
-        <q-form @submit="onSubmit" class="q-gutter-sm">
+        <q-form class="q-gutter-sm">
           <q-input
             filled
             v-model="formData.username"
@@ -103,7 +103,12 @@
       <q-card-section class="text-center q-pt-none">
         <p class="text-grey-7">
           Already have an account?
-          <router-link to="/login" class="text-primary text-weight-bold" style="text-decoration:none">Login</router-link>
+          <a
+            href="#"
+            class="text-primary"
+            style="text-decoration: none; font-size: 14px">
+            Login
+          </a>
         </p>
       </q-card-section>
     </q-card>
@@ -128,19 +133,6 @@ const isValidEmail = (email: string) => {
   return /^(?=[^@]{1,64}@)(?=[^@]*\.[^@]*$)[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
 };
 
-const onSubmit = () => {
-  $q.loading.show({ message: 'Registering account...' });
-
-  // Logic for your backend (Axios call) goes here
-  setTimeout(() => {
-    $q.loading.hide();
-    $q.notify({
-      type: 'positive',
-      message: `Welcome, ${formData.username}! Registered as ${formData.role}.`,
-      position: 'top'
-    });
-  }, 1500);
-};
 
 const loginWithGoogle = () => {
   // Logic to trigger Google Auth
@@ -150,6 +142,7 @@ const loginWithGoogle = () => {
     icon: 'auth'
   });
 };
+
 </script>
 
 <style scoped>
