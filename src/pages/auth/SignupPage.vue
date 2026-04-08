@@ -9,7 +9,7 @@
     <q-card class="signup-card q-pa-lg">
       <q-card-section class="text-center q-pb-none">
         <q-avatar size="70px" font-size="52px" color="primary" text-color="white" icon="water_drop" />
-        <div class="text-h5 text-weight-bolder q-mt-md text-primary">AQUALANAOGIS</div>
+        <div class="text-h5 text-weight-bolder q-mt-md text-primary">RANAO AQUA PROJECT</div>
         <div class="text-subtitle2 text-grey-8">Create your account</div>
       </q-card-section>
 

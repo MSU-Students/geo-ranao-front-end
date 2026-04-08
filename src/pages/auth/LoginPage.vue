@@ -13,7 +13,7 @@
       <div class="col-md-6 col-12 bg-primary text-white flex flex-center rounded-left">
         <div class="text-center q-pa-xl">
           <q-icon name="water_drop" size="80px" class="q-mb-md opacity-80" />
-          <h2 class="text-h3 text-weight-bolder q-mb-sm q-mt-none tracking-tight">AQUALANAOGIS</h2>
+          <h2 class="text-h3 text-weight-bolder q-mb-sm q-mt-none tracking-tight">RANAO AQUA PROJECT</h2>
           <p class="text-h6 text-weight-light opacity-80">
             Water Quality Mapping & Fish Observation System for Lake Lanao
           </p>
