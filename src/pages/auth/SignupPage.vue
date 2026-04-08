@@ -3,7 +3,7 @@
     <q-img
       src="https://phworldexpo.tpb.gov.ph/wp-content/uploads/2025/05/Lake-Lanao.png"
       class="absolute-full"
-      style="filter: blur(10px) brightness(0.5); z-index: 0;"
+      style="filter: blur(5px) brightness(0.5); z-index: 0;"
     />
 
     <q-card class="signup-card q-pa-lg">

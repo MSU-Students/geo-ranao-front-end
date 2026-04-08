@@ -1,5 +1,11 @@
 <template>
   <q-page class="window-height window-width row justify-center items-center bg-blue-grey-1">
+    <q-img
+      src="https://phworldexpo.tpb.gov.ph/wp-content/uploads/2025/05/Lake-Lanao.png"
+      class="absolute-full"
+      style="filter: blur(5px) brightness(0.5); z-index: 0;"
+    />
+
     <q-card
       class="shadow-24 row"
       style="width: 900px; max-width: 95vw; min-height: 550px; border-radius: 20px"
@@ -9,7 +15,7 @@
           <q-icon name="water_drop" size="80px" class="q-mb-md opacity-80" />
           <h2 class="text-h3 text-weight-bolder q-mb-sm q-mt-none tracking-tight">AQUALANAOGIS</h2>
           <p class="text-h6 text-weight-light opacity-80">
-            Water Quality Mapping & Visualization System for Lake Lanao
+            Water Quality Mapping & Fish Observation System for Lake Lanao
           </p>
         </div>
       </div>
@@ -20,7 +26,7 @@
             <q-img src="~assets/cics-logo.webp" style="width: 100px; height: 100px" fit="contain" />
           </div>
 
-          <div class="text-h5 text-weight-bold text-center text-grey-9 q-mb-xs">Welcome Back</div>
+          <div class="text-h5 text-weight-bold text-center text-grey-9 q-mb-xs">Welcome</div>
           <div class="text-subtitle1 text-center text-grey-6 q-mb-xl">
             Please enter your details to sign in.
           </div>
@@ -74,6 +80,18 @@
               style="border-radius: 8px"
             />
           </q-form>
+          <div class="text-center q-mt-lg">
+            <span class="text-grey-6">Don't have an account?</span>
+           <q-btn
+              @click.prevent="handlesignup"
+              type="submit"
+              label="Create Account"
+              class="q-ma-sm"
+              color="primary"
+              unelevated
+              style="border-radius: 10px; font-size: 12px"
+            />
+          </div>
         </div>
       </div>
     </q-card>
@@ -82,6 +100,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
 
 const username = ref('');
 const password = ref('');
@@ -90,6 +111,13 @@ const remember = ref(false);
 function handleLogin() {
   // Handle login logic here
   console.log('Attempting login with:', username.value);
+}
+
+function handlesignup() {
+  router.push('/auth/signup').catch((err) => {
+    console.error('Navigation error:', err);
+  });
+
 }
 </script>
 
