@@ -103,12 +103,15 @@
       <q-card-section class="text-center q-pt-none">
         <p class="text-grey-7">
           Already have an account?
-          <a
-            href="#"
-            class="text-primary"
-            style="text-decoration: none; font-size: 14px">
-            Login
-          </a>
+          <q-btn
+              @click.prevent="handleLogin"
+              type="submit"
+              label="Login"
+              class="q-ma-sm"
+              color="primary"
+              unelevated
+              style="border-radius: 10px; font-size: 12px"
+            />
         </p>
       </q-card-section>
     </q-card>
@@ -118,7 +121,9 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
 import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
 
+const router = useRouter();
 const $q = useQuasar();
 const showPassword = ref(false);
 
@@ -142,6 +147,12 @@ const loginWithGoogle = () => {
     icon: 'auth'
   });
 };
+
+function handleLogin() {
+  router.push('/auth/login').catch((err) => {
+    console.error('Navigation error:', err);
+  });
+}
 
 </script>
 
