@@ -24,6 +24,7 @@
         <div class="q-pa-xl full-width" style="max-width: 420px">
           <div class="text-center q-mb-lg">
             <q-img src="~assets/cics-logo.webp" style="width: 100px; height: 100px" fit="contain" />
+            <q-img src="~assets/CFAS-Logo.png" style="width: 100px; height: 90px" fit="contain" />
           </div>
 
           <div class="text-h5 text-weight-bold text-center text-grey-9 q-mb-xs">Welcome</div>
