@@ -1,5 +1,5 @@
 <template>
-  <q-page class="window-height window-width row justify-center items-center bg-blue-grey-1">
+  <q-page class="q-pa-xl window-width row justify-center items-center bg-blue-grey-1">
     <q-img
       src="https://phworldexpo.tpb.gov.ph/wp-content/uploads/2025/05/Lake-Lanao.png"
       class="absolute-full"
