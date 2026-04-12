@@ -11,12 +11,13 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
-    path : '/auth',
+    path: '/auth',
     component: () => import('layouts/PlainLayout.vue'),
     children: [
       { path: 'login', component: () => import('pages/auth/LoginPage.vue') },
       { path: 'signup', component: () => import('pages/auth/SignupPage.vue') },
-    ]
+      { path: 'water-quality', component: () => import('pages/auth/WaterQualityDashboard.vue') },
+    ],
   },
 
   // Always leave this as last one,
