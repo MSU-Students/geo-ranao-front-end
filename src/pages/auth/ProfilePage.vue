@@ -241,9 +241,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { useAuthStore } from 'src/stores/auth-store';
+import { computed, onMounted, ref } from 'vue';
 
 const tab = ref('settings');
+const authStore = useAuthStore();
 
 interface User {
   name: string;
@@ -272,15 +274,21 @@ interface Upload {
   status: string;
   timestamp: string;
 }
-
-const user = ref<User>({
-  name: 'Dr. Juan Dela Cruz',
-  username: 'jdelacruz_msu',
-  email: 'j.delacruz@msumain.edu.ph',
-  role: 'Researcher',
-  institution: 'Mindanao State University - Main Campus',
-  avatar: '',
-  bio: 'Specializing in water quality analysis and limnological studies of Lake Lanao. Focus on nitrate and phosphorous level monitoring.',
+onMounted(async () => {
+  if (!authStore.user) {
+    await authStore.authorizeUser();
+  }
+})
+const user = computed<User>(() => {
+  return {
+    name: 'Dr. Juan Dela Cruz',
+    username: authStore.user?.username || 'jdelacruz',
+    email: authStore.user?.username || 'NONE',
+    role: 'Researcher',
+    institution: 'Mindanao State University - Main Campus',
+    avatar: '',
+    bio: 'Specializing in water quality analysis and limnological studies of Lake Lanao. Focus on nitrate and phosphorous level monitoring.',
+  }
 });
 
 const timeline = ref<TimelineItem[]>([

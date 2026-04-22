@@ -100,17 +100,24 @@
 </template>
 
 <script setup lang="ts">
+import { useAuthStore } from 'src/stores/auth-store';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-
+const authStore = useAuthStore();
 const username = ref('');
 const password = ref('');
 const remember = ref(false);
 
-function handleLogin() {
+async function handleLogin() {
   // Handle login logic here
+  try {
+    await authStore.signIn(username.value, password.value);
+    void router.push('/auth/profile');
+  } catch (error) {
+    console.error('Login error:', error);
+  }
   console.log('Attempting login with:', username.value);
 }
 

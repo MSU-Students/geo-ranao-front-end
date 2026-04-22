@@ -1,0 +1,14 @@
+.gitignore
+.npmignore
+api.ts
+base.ts
+common.ts
+configuration.ts
+docs/AppApi.md
+docs/AuthApi.md
+docs/CatsApi.md
+docs/LoginDto.md
+docs/LoginResponseDto.md
+docs/ProfileDto.md
+git_push.sh
+index.ts

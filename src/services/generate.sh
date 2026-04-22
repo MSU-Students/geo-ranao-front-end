@@ -1,1 +1,1 @@
-openapi-generator-cli generate -g typescription-axios -o sdk -i api.json
+openapi-generator-cli generate -g typescript-axios -o sdk -i api.json
