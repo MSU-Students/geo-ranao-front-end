@@ -3,12 +3,18 @@
     <q-img
       src="https://phworldexpo.tpb.gov.ph/wp-content/uploads/2025/05/Lake-Lanao.png"
       class="absolute-full"
-      style="filter: blur(5px) brightness(0.5); z-index: 0;"
+      style="filter: blur(5px) brightness(0.5); z-index: 0"
     />
 
     <q-card class="signup-card q-pa-lg">
       <q-card-section class="text-center q-pb-none">
-        <q-avatar size="70px" font-size="52px" color="primary" text-color="white" icon="water_drop" />
+        <q-avatar
+          size="70px"
+          font-size="52px"
+          color="primary"
+          text-color="white"
+          icon="water_drop"
+        />
         <div class="text-h5 text-weight-bolder q-mt-md text-primary">RANAO AQUA PROJECT</div>
         <div class="text-subtitle2 text-grey-8">Create your account</div>
       </q-card-section>
@@ -20,7 +26,7 @@
             v-model="formData.username"
             label="Username"
             lazy-rules
-            :rules="[val => val && val.length > 3 || 'Username must be at least 4 characters']"
+            :rules="[(val) => (val && val.length > 3) || 'Username must be at least 4 characters']"
           >
             <template v-slot:prepend><q-icon name="person" /></template>
           </q-input>
@@ -31,7 +37,10 @@
             v-model="formData.email"
             label="Email Address"
             lazy-rules
-            :rules="[val => !!val || 'Email is required', val => isValidEmail(val) || 'Invalid email']"
+            :rules="[
+              (val) => !!val || 'Email is required',
+              (val) => isValidEmail(val) || 'Invalid email',
+            ]"
           >
             <template v-slot:prepend><q-icon name="email" /></template>
           </q-input>
@@ -42,7 +51,7 @@
             :type="showPassword ? 'text' : 'password'"
             label="Password"
             lazy-rules
-            :rules="[val => val && val.length >= 8 || 'Password must be at least 8 characters']"
+            :rules="[(val) => (val && val.length >= 8) || 'Password must be at least 8 characters']"
           >
             <template v-slot:prepend><q-icon name="lock" /></template>
             <template v-slot:append>
@@ -62,7 +71,7 @@
             emit-value
             map-options
             behavior="menu"
-            :rules="[val => !!val || 'Please select a role']"
+            :rules="[(val) => !!val || 'Please select a role']"
           >
             <template v-slot:prepend><q-icon name="badge" /></template>
           </q-select>
@@ -104,14 +113,14 @@
         <p class="text-grey-7">
           Already have an account?
           <q-btn
-              @click.prevent="handleLogin"
-              type="submit"
-              label="Login"
-              class="q-ma-sm"
-              color="primary"
-              unelevated
-              style="border-radius: 10px; font-size: 12px"
-            />
+            @click.prevent="handleLogin"
+            type="submit"
+            label="Login"
+            class="q-ma-sm"
+            color="primary"
+            unelevated
+            style="border-radius: 10px; font-size: 12px"
+          />
         </p>
       </q-card-section>
     </q-card>
@@ -131,20 +140,21 @@ const formData = reactive({
   username: '',
   email: '',
   password: '',
-  role: 'Public User' // Default
+  role: 'Public User', // Default
 });
 
 const isValidEmail = (email: string) => {
-  return /^(?=[^@]{1,64}@)(?=[^@]*\.[^@]*$)[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+  // A standard, reliable email validation regex
+  const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailPattern.test(email);
 };
-
 
 const loginWithGoogle = () => {
   // Logic to trigger Google Auth
   $q.notify({
     message: 'Connecting to Google Services...',
     color: 'info',
-    icon: 'auth'
+    icon: 'auth',
   });
 };
 
@@ -153,7 +163,6 @@ function handleLogin() {
     console.error('Navigation error:', err);
   });
 }
-
 </script>
 
 <style scoped>

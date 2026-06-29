@@ -32,6 +32,14 @@
             Please enter your details to sign in.
           </div>
 
+          <!-- Error message -->
+          <q-banner v-if="errorMsg" class="bg-red-1 text-red q-mb-md" rounded>
+            <template #avatar>
+              <q-icon name="error" color="red" />
+            </template>
+            {{ errorMsg }}
+          </q-banner>
+
           <q-form @submit="handleLogin" class="q-gutter-y-md">
             <q-input
               outlined
@@ -78,20 +86,26 @@
               class="full-width text-weight-bold"
               label="Sign In"
               type="submit"
+              :loading="loading"
               style="border-radius: 8px"
             />
           </q-form>
+
           <div class="text-center q-mt-lg">
             <span class="text-grey-6">Don't have an account?</span>
-           <q-btn
+            <q-btn
               @click.prevent="handlesignup"
-              type="submit"
               label="Create Account"
               class="q-ma-sm"
               color="primary"
               unelevated
               style="border-radius: 10px; font-size: 12px"
             />
+          </div>
+
+          <!-- Temp note -->
+          <div class="text-center q-mt-md">
+            <span class="text-grey-4 text-caption">Use any username and password to continue</span>
           </div>
         </div>
       </div>
@@ -108,22 +122,35 @@ const router = useRouter();
 const username = ref('');
 const password = ref('');
 const remember = ref(false);
+const loading = ref(false);
+const errorMsg = ref('');
 
 function handleLogin() {
-  // Handle login logic here
-  console.log('Attempting login with:', username.value);
+  errorMsg.value = '';
+
+  // Temporary bypass — accepts any username and password
+  if (!username.value || !password.value) {
+    errorMsg.value = 'Please enter your username and password.';
+    return;
+  }
+
+  loading.value = true;
+
+  // Simulate a short loading delay then go to home
+  setTimeout(() => {
+    loading.value = false;
+    router.push('/');
+  }, 800);
 }
 
 function handlesignup() {
   router.push('/auth/signup').catch((err) => {
     console.error('Navigation error:', err);
   });
-
 }
 </script>
 
 <style scoped>
-/* Custom border radius to keep the card edges smooth */
 .rounded-left {
   border-top-left-radius: 20px;
   border-bottom-left-radius: 20px;
@@ -133,7 +160,6 @@ function handlesignup() {
   border-bottom-right-radius: 20px;
 }
 
-/* On smaller screens, remove the specific border radius so the stacked layout looks normal */
 @media (max-width: 1023px) {
   .rounded-left {
     border-bottom-left-radius: 0;
