@@ -20,7 +20,7 @@
       </q-card-section>
 
       <q-card-section>
-        <q-form class="q-gutter-sm">
+        <q-form class="q-gutter-sm" @submit="handleSignup">
           <q-input
             filled
             v-model="formData.username"
@@ -131,9 +131,11 @@
 import { ref, reactive } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth';
 
 const router = useRouter();
 const $q = useQuasar();
+const authStore = useAuthStore();
 const showPassword = ref(false);
 
 const formData = reactive({
@@ -148,6 +150,17 @@ const isValidEmail = (email: string) => {
   const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   return emailPattern.test(email);
 };
+
+function handleSignup() {
+  authStore.signup(formData.username, formData.email, formData.password, formData.role);
+  $q.notify({
+    message: 'Account created successfully!',
+    color: 'positive',
+    icon: 'check_circle',
+    position: 'top',
+  });
+  router.push('/?explore=true');
+}
 
 const loginWithGoogle = () => {
   // Logic to trigger Google Auth

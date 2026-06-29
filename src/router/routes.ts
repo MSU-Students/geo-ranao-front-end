@@ -12,6 +12,14 @@ const routes: RouteRecordRaw[] = [
         path: '/dashboard/fish',
         component: () => import('pages/dashboard/FishDashboardPage.vue'),
       },
+      {
+        path: '/researcher',
+        component: () => import('pages/researcher/ResearcherPortalPage.vue'),
+      },
+      {
+        path: '/researcher/upload',
+        component: () => import('pages/researcher/UploadDataPage.vue'),
+      },
     ],
   },
   {

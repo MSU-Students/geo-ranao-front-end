@@ -116,8 +116,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth';
 
 const router = useRouter();
+const authStore = useAuthStore();
 
 const username = ref('');
 const password = ref('');
@@ -136,10 +138,11 @@ function handleLogin() {
 
   loading.value = true;
 
-  // Simulate a short loading delay then go to home
+  // Simulate a short loading delay then go to map
   setTimeout(() => {
     loading.value = false;
-    router.push('/');
+    authStore.login(username.value, password.value);
+    router.push('/?explore=true');
   }, 800);
 }
 

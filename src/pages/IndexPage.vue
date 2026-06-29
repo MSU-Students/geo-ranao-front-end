@@ -328,16 +328,37 @@
       </div>
     </transition>
 
+    <!-- ═══ FLOATING ADD BUTTON (for logged-in researchers) ═══ -->
+    <transition name="fade-btn">
+      <q-btn
+        v-if="!showWelcomeOverlay && authStore.isLoggedIn"
+        class="fab-add-btn"
+        round
+        unelevated
+        size="lg"
+        icon="add"
+        color="teal"
+        @click="goToUpload"
+      >
+        <q-tooltip anchor="center left" self="center right" :offset="[10, 0]">
+          Add Fish Observation
+        </q-tooltip>
+      </q-btn>
+    </transition>
+
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
 
 // ═══ STATE ═══
 const showWelcomeOverlay = ref(true);
@@ -596,6 +617,10 @@ watch(mapLayers, () => {
 watch(showPanel, () => {
   setTimeout(() => map?.invalidateSize(), 300);
 });
+
+function goToUpload() {
+  router.push('/researcher/upload');
+}
 </script>
 
 <style scoped>
@@ -872,5 +897,21 @@ watch(showPanel, () => {
   .hero-stat-value {
     font-size: 1.2rem;
   }
+}
+
+/* ═══════════════════════════════════ */
+/* FLOATING ADD BUTTON                */
+/* ═══════════════════════════════════ */
+.fab-add-btn {
+  position: absolute;
+  bottom: 32px;
+  right: 24px;
+  z-index: 1001;
+  box-shadow: 0 4px 20px rgba(0, 150, 136, 0.5);
+  transition: all 0.3s ease;
+}
+.fab-add-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 30px rgba(0, 150, 136, 0.7);
 }
 </style>

@@ -12,7 +12,9 @@
 
         <q-space />
 
+        <!-- When NOT logged in: show Researcher Login -->
         <q-btn
+          v-if="!authStore.isLoggedIn"
           outline
           rounded
           color="white"
@@ -22,6 +24,31 @@
           class="q-px-md login-btn"
           @click="handleLogin"
         />
+
+        <!-- When LOGGED IN: show Profile + Logout -->
+        <template v-else>
+          <q-btn
+            unelevated
+            rounded
+            color="teal"
+            :label="authStore.displayName"
+            icon="account_circle"
+            size="sm"
+            class="q-px-md profile-btn"
+            @click="goToProfile"
+          />
+          <q-btn
+            flat
+            round
+            icon="logout"
+            color="white"
+            size="sm"
+            class="q-ml-sm"
+            @click="handleLogout"
+          >
+            <q-tooltip>Logout</q-tooltip>
+          </q-btn>
+        </template>
       </q-toolbar>
     </q-header>
 
@@ -33,7 +60,7 @@
         </q-item-label>
 
         <q-item
-          v-for="link in linksList"
+          v-for="link in visibleLinks"
           :key="link.title"
           clickable
           class="nav-item"
@@ -57,10 +84,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth';
 
 const router = useRouter();
+const authStore = useAuthStore();
 
 interface NavLink {
   title: string;
@@ -68,13 +97,20 @@ interface NavLink {
   icon: string;
   link: string;
   query?: Record<string, string>;
+  requiresAuth?: boolean;
 }
 
 const linksList: NavLink[] = [
   { title: 'Home', caption: 'Landing Page', icon: 'home', link: '/' },
   { title: 'Interactive Map', caption: 'Go to GIS Map', icon: 'map', link: '/', query: { explore: 'true' } },
   { title: 'Fish Dashboard', caption: 'Species Profiles', icon: 'set_meal', link: '/dashboard/fish' },
+  { title: 'All Submissions', caption: 'Community Data', icon: 'list_alt', link: '/researcher' },
+  { title: 'My Submissions', caption: 'Your Records', icon: 'assignment_ind', link: '/researcher', query: { tab: 'my' }, requiresAuth: true },
 ];
+
+const visibleLinks = computed(() =>
+  linksList.filter((link) => !link.requiresAuth || authStore.isLoggedIn),
+);
 
 const leftDrawerOpen = ref(false);
 const hideHeader = ref(false);
@@ -93,6 +129,21 @@ function navigateTo(link: NavLink) {
 
 function handleLogin() {
   router.push('/auth/login')
+    .catch(err => {
+      console.error('Navigation error:', err);
+    });
+}
+
+function goToProfile() {
+  router.push('/auth/profile')
+    .catch(err => {
+      console.error('Navigation error:', err);
+    });
+}
+
+function handleLogout() {
+  authStore.logout();
+  router.push('/')
     .catch(err => {
       console.error('Navigation error:', err);
     });
@@ -126,6 +177,14 @@ function handleLogin() {
 .login-btn:hover {
   background: rgba(255, 255, 255, 0.1) !important;
   border-color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.profile-btn {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+.profile-btn:hover {
+  filter: brightness(1.1);
 }
 
 .drawer-dark {
