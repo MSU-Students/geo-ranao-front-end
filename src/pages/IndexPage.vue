@@ -1,19 +1,15 @@
 <template>
-  <q-page class="relative-position overflow-hidden" style="min-height: 100vh;">
-
+  <q-page class="relative-position overflow-hidden" style="min-height: 100vh">
     <!-- ═══════════════════════════════════════════════ -->
     <!-- HERO WELCOME OVERLAY (Landing Page)            -->
     <!-- ═══════════════════════════════════════════════ -->
     <transition name="hero-fade">
-      <div
-        v-if="showWelcomeOverlay"
-        class="absolute-full z-max hero-overlay"
-      >
+      <div v-if="showWelcomeOverlay" class="absolute-full z-max hero-overlay">
         <q-img
           src="https://phworldexpo.tpb.gov.ph/wp-content/uploads/2025/05/Lake-Lanao.png"
           class="absolute-full"
           fit="cover"
-          style="filter: brightness(0.4);"
+          style="filter: brightness(0.4)"
         />
 
         <div class="particles-container absolute-full">
@@ -21,7 +17,7 @@
         </div>
 
         <div class="absolute-full flex flex-center">
-          <div class="text-center q-pa-xl hero-content" style="position: relative; z-index: 5;">
+          <div class="text-center q-pa-xl hero-content" style="position: relative; z-index: 5">
             <div class="q-mb-lg">
               <q-avatar size="90px" class="hero-logo-avatar">
                 <q-icon name="water_drop" size="50px" color="white" />
@@ -31,15 +27,11 @@
             <h1 class="hero-title q-mb-none">RANAO FISHNET</h1>
             <div class="hero-divider q-mx-auto q-my-md" />
             <p class="hero-subtitle q-mb-xs">Profiling and Mapping of Lake Lanao Fishes</p>
-            <p class="hero-description q-mb-xl">A Web-Based GIS Platform for Ecological Research and Conservation</p>
+            <p class="hero-description q-mb-xl">
+              A Web-Based GIS Platform for Ecological Research and Conservation
+            </p>
 
-            <q-btn
-              unelevated
-              rounded
-              size="lg"
-              class="explore-btn q-px-xl"
-              @click="enterDashboard"
-            >
+            <q-btn unelevated rounded size="lg" class="explore-btn q-px-xl" @click="enterDashboard">
               <q-icon name="travel_explore" class="q-mr-sm" size="sm" />
               Explore the Map
             </q-btn>
@@ -88,15 +80,29 @@
           <q-card-section class="q-pb-xs">
             <div class="row items-center no-wrap justify-between">
               <div class="row items-center no-wrap">
-                <q-avatar size="36px" class="q-mr-sm" style="background: linear-gradient(135deg, #00897b, #26a69a);">
+                <q-avatar
+                  size="36px"
+                  class="q-mr-sm"
+                  style="background: linear-gradient(135deg, #00897b, #26a69a)"
+                >
                   <q-icon name="water_drop" size="20px" color="white" />
                 </q-avatar>
                 <div>
-                  <div class="text-subtitle1 text-grey-9 text-weight-bold" style="line-height: 1.2;">Ranao FishNet</div>
+                  <div class="text-subtitle1 text-grey-9 text-weight-bold" style="line-height: 1.2">
+                    Ranao FishNet
+                  </div>
                   <div class="text-grey-6 text-caption">Ecological Dashboard</div>
                 </div>
               </div>
-              <q-btn flat dense round icon="close" color="grey-6" size="sm" @click="showPanel = false" />
+              <q-btn
+                flat
+                dense
+                round
+                icon="close"
+                color="grey-6"
+                size="sm"
+                @click="showPanel = false"
+              />
             </div>
           </q-card-section>
 
@@ -124,7 +130,6 @@
           <!-- Tab Content (Scrollable) -->
           <q-card-section class="col q-pa-none overflow-auto">
             <q-tab-panels v-model="activeTab" animated class="bg-transparent full-height">
-
               <!-- ═══ FISH TAB ═══ -->
               <q-tab-panel name="fish" class="q-pa-md">
                 <q-input
@@ -178,10 +183,14 @@
                       </q-avatar>
                     </q-item-section>
                     <q-item-section>
-                      <q-item-label class="text-weight-bold text-grey-9" style="font-size: 0.85rem;">
+                      <q-item-label class="text-weight-bold text-grey-9" style="font-size: 0.85rem">
                         {{ fish.commonName }}
                       </q-item-label>
-                      <q-item-label caption class="text-italic text-grey-6" style="font-size: 0.7rem;">
+                      <q-item-label
+                        caption
+                        class="text-italic text-grey-6"
+                        style="font-size: 0.7rem"
+                      >
                         {{ fish.scientificName }}
                       </q-item-label>
                     </q-item-section>
@@ -190,7 +199,7 @@
                         :color="getStatusColor(fish.status)"
                         :label="fish.statusShort"
                         class="text-weight-bold"
-                        style="font-size: 0.6rem;"
+                        style="font-size: 0.6rem"
                       />
                     </q-item-section>
                   </q-item>
@@ -209,22 +218,43 @@
                   <q-icon name="science" class="q-mr-xs" /> Water Quality Monitoring
                 </div>
                 <div class="text-grey-6 text-caption q-mb-lg">
-                  Visualize pH, Nitrate, Dissolved Oxygen, and temperature data across sampling stations.
+                  Visualize pH, Nitrate, Dissolved Oxygen, and temperature data across sampling
+                  stations.
                 </div>
 
                 <q-list class="q-gutter-y-xs">
-                  <q-item v-for="station in waterStations" :key="station.name" clickable class="species-item rounded-borders">
+                  <q-item
+                    v-for="station in waterStations"
+                    :key="station.name"
+                    clickable
+                    class="species-item rounded-borders"
+                  >
                     <q-item-section avatar>
                       <q-avatar color="blue-7" text-color="white" size="36px">
                         <q-icon name="pin_drop" size="18px" />
                       </q-avatar>
                     </q-item-section>
                     <q-item-section>
-                      <q-item-label class="text-weight-bold text-grey-9" style="font-size: 0.85rem;">{{ station.name }}</q-item-label>
-                      <q-item-label caption class="text-grey-6">pH: {{ station.ph }} · DO: {{ station.do }} mg/L</q-item-label>
+                      <q-item-label
+                        class="text-weight-bold text-grey-9"
+                        style="font-size: 0.85rem"
+                        >{{ station.name }}</q-item-label
+                      >
+                      <q-item-label caption class="text-grey-6"
+                        >pH: {{ station.ph }} · DO: {{ station.do }} mg/L</q-item-label
+                      >
                     </q-item-section>
                     <q-item-section side>
-                      <q-badge :color="station.quality === 'Good' ? 'green-7' : station.quality === 'Moderate' ? 'orange-7' : 'red-7'" :label="station.quality" />
+                      <q-badge
+                        :color="
+                          station.quality === 'Good'
+                            ? 'green-7'
+                            : station.quality === 'Moderate'
+                              ? 'orange-7'
+                              : 'red-7'
+                        "
+                        :label="station.quality"
+                      />
                     </q-item-section>
                   </q-item>
                 </q-list>
@@ -242,12 +272,13 @@
                     </q-item-section>
                     <q-item-section>
                       <q-item-label class="text-grey-9">{{ layer.name }}</q-item-label>
-                      <q-item-label caption class="text-grey-6">{{ layer.description }}</q-item-label>
+                      <q-item-label caption class="text-grey-6">{{
+                        layer.description
+                      }}</q-item-label>
                     </q-item-section>
                   </q-item>
                 </q-list>
               </q-tab-panel>
-
             </q-tab-panels>
           </q-card-section>
 
@@ -272,7 +303,15 @@
           <q-card-section class="q-pb-sm">
             <div class="row items-center justify-between">
               <span class="text-subtitle1 text-grey-9 text-weight-bold">Species Profile</span>
-              <q-btn flat dense round icon="close" color="grey-6" size="sm" @click="selectedFish = null" />
+              <q-btn
+                flat
+                dense
+                round
+                icon="close"
+                color="grey-6"
+                size="sm"
+                @click="selectedFish = null"
+              />
             </div>
           </q-card-section>
 
@@ -288,8 +327,12 @@
                 <q-icon name="set_meal" size="md" color="white" />
               </q-avatar>
               <div>
-                <div class="text-grey-9 text-weight-bold text-h6" style="line-height: 1.2;">{{ selectedFish.commonName }}</div>
-                <div class="text-grey-6 text-italic text-caption">{{ selectedFish.scientificName }}</div>
+                <div class="text-grey-9 text-weight-bold text-h6" style="line-height: 1.2">
+                  {{ selectedFish.commonName }}
+                </div>
+                <div class="text-grey-6 text-italic text-caption">
+                  {{ selectedFish.scientificName }}
+                </div>
                 <q-badge
                   :color="selectedFish.type === 'endemic' ? 'blue-7' : 'orange-7'"
                   :label="selectedFish.type === 'endemic' ? 'Endemic Cyprinid' : 'Invasive Species'"
@@ -319,7 +362,10 @@
                 rounded
                 size="10px"
               />
-              <div class="text-caption text-weight-bold q-mt-xs" :class="`text-${getStatusColor(selectedFish.status)}`">
+              <div
+                class="text-caption text-weight-bold q-mt-xs"
+                :class="`text-${getStatusColor(selectedFish.status)}`"
+              >
                 {{ selectedFish.status }}
               </div>
             </div>
@@ -328,24 +374,43 @@
       </div>
     </transition>
 
-    <!-- ═══ FLOATING ADD BUTTON (for logged-in researchers) ═══ -->
+    <!-- ═══ ADD DATA DROPDOWN BUTTON (for logged-in researchers) ═══ -->
     <transition name="fade-btn">
       <q-btn
         v-if="!showWelcomeOverlay && authStore.isLoggedIn"
-        class="fab-add-btn"
-        round
+        class="add-data-btn"
+        :class="{ 'add-data-btn--shifted': showPanel }"
         unelevated
-        size="lg"
+        size="sm"
         icon="add"
         color="teal"
-        @click="goToUpload"
+        no-caps
       >
-        <q-tooltip anchor="center left" self="center right" :offset="[10, 0]">
-          Add Fish Observation
-        </q-tooltip>
+        <q-menu anchor="bottom left" self="top left" :offset="[0, 6]">
+          <q-list style="min-width: 190px">
+            <q-item clickable v-close-popup @click="goToFishObservation">
+              <q-item-section avatar>
+                <q-icon name="set_meal" color="blue-7" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="text-weight-medium">Fish Observation</q-item-label>
+                <q-item-label caption>Log a new fish sighting</q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-separator />
+            <q-item clickable v-close-popup @click="goToWaterQuality">
+              <q-item-section avatar>
+                <q-icon name="opacity" color="teal-7" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="text-weight-medium">Water Quality</q-item-label>
+                <q-item-label caption>Record water quality data</q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-menu>
       </q-btn>
     </transition>
-
   </q-page>
 </template>
 
@@ -400,14 +465,118 @@ interface Fish {
 const selectedFish = ref<Fish | null>(null);
 
 const species: Fish[] = [
-  { id: 1, commonName: 'Pait', scientificName: 'Puntius sirang', type: 'endemic', status: 'Critically Endangered', statusShort: 'CR', length: '8–12 cm', weight: '20–50 g', location: 'Lake Lanao, Lanao del Sur', date: '2024', lat: 7.98, lng: 124.05 },
-  { id: 2, commonName: 'Igat', scientificName: 'Anguilla marmorata', type: 'endemic', status: 'Endangered', statusShort: 'EN', length: '60–100 cm', weight: '1–3 kg', location: 'Lake Lanao, Lanao del Sur', date: '2024', lat: 8.02, lng: 124.08 },
-  { id: 3, commonName: 'Banak', scientificName: 'Puntius lanaoensis', type: 'endemic', status: 'Critically Endangered', statusShort: 'CR', length: '10–15 cm', weight: '30–80 g', location: 'Lake Lanao, Lanao del Sur', date: '2024', lat: 7.95, lng: 124.02 },
-  { id: 4, commonName: 'Ludong', scientificName: 'Puntius tumba', type: 'endemic', status: 'Critically Endangered', statusShort: 'CR', length: '7–10 cm', weight: '15–40 g', location: 'Lake Lanao, Lanao del Sur', date: '2024', lat: 8.01, lng: 124.12 },
-  { id: 5, commonName: 'Tarong', scientificName: 'Puntius tras', type: 'endemic', status: 'Endangered', statusShort: 'EN', length: '8–13 cm', weight: '20–60 g', location: 'Lake Lanao, Lanao del Sur', date: '2024', lat: 7.96, lng: 124.06 },
-  { id: 6, commonName: 'Nile Tilapia', scientificName: 'Oreochromis niloticus', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '20–40 cm', weight: '0.5–2 kg', location: 'Lake Lanao, Lanao del Sur', date: '2024', lat: 8.00, lng: 124.04 },
-  { id: 7, commonName: 'Common Carp', scientificName: 'Cyprinus carpio', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '30–60 cm', weight: '1–4 kg', location: 'Lake Lanao, Lanao del Sur', date: '2024', lat: 7.97, lng: 124.10 },
-  { id: 8, commonName: 'Guppy', scientificName: 'Poecilia reticulata', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '2–5 cm', weight: '< 5 g', location: 'Lake Lanao, Lanao del Sur', date: '2024', lat: 8.03, lng: 124.07 },
+  {
+    id: 1,
+    commonName: 'Pait',
+    scientificName: 'Puntius sirang',
+    type: 'endemic',
+    status: 'Critically Endangered',
+    statusShort: 'CR',
+    length: '8–12 cm',
+    weight: '20–50 g',
+    location: 'Lake Lanao, Lanao del Sur',
+    date: '2024',
+    lat: 7.98,
+    lng: 124.05,
+  },
+  {
+    id: 2,
+    commonName: 'Igat',
+    scientificName: 'Anguilla marmorata',
+    type: 'endemic',
+    status: 'Endangered',
+    statusShort: 'EN',
+    length: '60–100 cm',
+    weight: '1–3 kg',
+    location: 'Lake Lanao, Lanao del Sur',
+    date: '2024',
+    lat: 8.02,
+    lng: 124.08,
+  },
+  {
+    id: 3,
+    commonName: 'Banak',
+    scientificName: 'Puntius lanaoensis',
+    type: 'endemic',
+    status: 'Critically Endangered',
+    statusShort: 'CR',
+    length: '10–15 cm',
+    weight: '30–80 g',
+    location: 'Lake Lanao, Lanao del Sur',
+    date: '2024',
+    lat: 7.95,
+    lng: 124.02,
+  },
+  {
+    id: 4,
+    commonName: 'Ludong',
+    scientificName: 'Puntius tumba',
+    type: 'endemic',
+    status: 'Critically Endangered',
+    statusShort: 'CR',
+    length: '7–10 cm',
+    weight: '15–40 g',
+    location: 'Lake Lanao, Lanao del Sur',
+    date: '2024',
+    lat: 8.01,
+    lng: 124.12,
+  },
+  {
+    id: 5,
+    commonName: 'Tarong',
+    scientificName: 'Puntius tras',
+    type: 'endemic',
+    status: 'Endangered',
+    statusShort: 'EN',
+    length: '8–13 cm',
+    weight: '20–60 g',
+    location: 'Lake Lanao, Lanao del Sur',
+    date: '2024',
+    lat: 7.96,
+    lng: 124.06,
+  },
+  {
+    id: 6,
+    commonName: 'Nile Tilapia',
+    scientificName: 'Oreochromis niloticus',
+    type: 'invasive',
+    status: 'Least Concern',
+    statusShort: 'LC',
+    length: '20–40 cm',
+    weight: '0.5–2 kg',
+    location: 'Lake Lanao, Lanao del Sur',
+    date: '2024',
+    lat: 8.0,
+    lng: 124.04,
+  },
+  {
+    id: 7,
+    commonName: 'Common Carp',
+    scientificName: 'Cyprinus carpio',
+    type: 'invasive',
+    status: 'Least Concern',
+    statusShort: 'LC',
+    length: '30–60 cm',
+    weight: '1–4 kg',
+    location: 'Lake Lanao, Lanao del Sur',
+    date: '2024',
+    lat: 7.97,
+    lng: 124.1,
+  },
+  {
+    id: 8,
+    commonName: 'Guppy',
+    scientificName: 'Poecilia reticulata',
+    type: 'invasive',
+    status: 'Least Concern',
+    statusShort: 'LC',
+    length: '2–5 cm',
+    weight: '< 5 g',
+    location: 'Lake Lanao, Lanao del Sur',
+    date: '2024',
+    lat: 8.03,
+    lng: 124.07,
+  },
 ];
 
 const fishFilters = [
@@ -439,10 +608,38 @@ const selectedFishDetails = computed(() =>
 
 // ═══ WATER QUALITY DATA ═══
 const waterStations = [
-  { name: 'Station A – Marawi North', ph: '7.2', do: '6.8', quality: 'Good', lat: 8.04, lng: 124.03 },
-  { name: 'Station B – Tugaya Shore', ph: '6.8', do: '5.1', quality: 'Moderate', lat: 7.93, lng: 124.09 },
-  { name: 'Station C – Bacolod Inlet', ph: '6.1', do: '3.4', quality: 'Poor', lat: 7.99, lng: 124.14 },
-  { name: 'Station D – Saguiaran Bay', ph: '7.4', do: '7.2', quality: 'Good', lat: 8.05, lng: 124.11 },
+  {
+    name: 'Station A – Marawi North',
+    ph: '7.2',
+    do: '6.8',
+    quality: 'Good',
+    lat: 8.04,
+    lng: 124.03,
+  },
+  {
+    name: 'Station B – Tugaya Shore',
+    ph: '6.8',
+    do: '5.1',
+    quality: 'Moderate',
+    lat: 7.93,
+    lng: 124.09,
+  },
+  {
+    name: 'Station C – Bacolod Inlet',
+    ph: '6.1',
+    do: '3.4',
+    quality: 'Poor',
+    lat: 7.99,
+    lng: 124.14,
+  },
+  {
+    name: 'Station D – Saguiaran Bay',
+    ph: '7.4',
+    do: '7.2',
+    quality: 'Good',
+    lat: 8.05,
+    lng: 124.11,
+  },
 ];
 
 // ═══ MAP LAYERS ═══
@@ -454,28 +651,51 @@ interface MapLayer {
 }
 
 const mapLayers = ref<MapLayer[]>([
-  { id: 'fish', name: 'Fish Observations', description: 'Endemic & invasive species markers', active: true },
-  { id: 'water', name: 'Water Quality Stations', description: 'pH, DO, Nitrate sampling points', active: false },
-  { id: 'boundaries', name: 'Municipal Boundaries', description: 'QGIS-exported LGU boundaries', active: false },
+  {
+    id: 'fish',
+    name: 'Fish Observations',
+    description: 'Endemic & invasive species markers',
+    active: true,
+  },
+  {
+    id: 'water',
+    name: 'Water Quality Stations',
+    description: 'pH, DO, Nitrate sampling points',
+    active: false,
+  },
+  {
+    id: 'boundaries',
+    name: 'Municipal Boundaries',
+    description: 'QGIS-exported LGU boundaries',
+    active: false,
+  },
   { id: 'bathymetry', name: 'Bathymetry', description: 'Lake depth contour lines', active: false },
 ]);
 
 // ═══ HELPERS ═══
 function getStatusColor(status: string): string {
   switch (status) {
-    case 'Critically Endangered': return 'red-7';
-    case 'Endangered': return 'orange-7';
-    case 'Vulnerable': return 'yellow-8';
-    default: return 'green-7';
+    case 'Critically Endangered':
+      return 'red-7';
+    case 'Endangered':
+      return 'orange-7';
+    case 'Vulnerable':
+      return 'yellow-8';
+    default:
+      return 'green-7';
   }
 }
 
 function getConservationValue(status: string): number {
   switch (status) {
-    case 'Critically Endangered': return 0.95;
-    case 'Endangered': return 0.7;
-    case 'Vulnerable': return 0.4;
-    default: return 0.15;
+    case 'Critically Endangered':
+      return 0.95;
+    case 'Endangered':
+      return 0.7;
+    case 'Vulnerable':
+      return 0.4;
+    default:
+      return 0.15;
   }
 }
 
@@ -510,7 +730,8 @@ function initMap() {
 
   // Light-mode map tiles (OpenStreetMap)
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
   }).addTo(map);
 
@@ -545,7 +766,12 @@ function initMap() {
   // ── Create Water Quality Layer Group ──
   waterLayerGroup = L.layerGroup();
   waterStations.forEach((station) => {
-    const qualityColor = station.quality === 'Good' ? '#388E3C' : station.quality === 'Moderate' ? '#F57C00' : '#D32F2F';
+    const qualityColor =
+      station.quality === 'Good'
+        ? '#388E3C'
+        : station.quality === 'Moderate'
+          ? '#F57C00'
+          : '#D32F2F';
     const icon = L.divIcon({
       className: 'water-marker',
       html: `<div style="background:${qualityColor}; width:14px; height:14px; border-radius:3px; border:3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.35); transform: rotate(45deg);"></div>`,
@@ -571,8 +797,8 @@ function initMap() {
 function syncLayerVisibility() {
   if (!map) return;
 
-  const fishLayer = mapLayers.value.find(l => l.id === 'fish');
-  const waterLayer = mapLayers.value.find(l => l.id === 'water');
+  const fishLayer = mapLayers.value.find((l) => l.id === 'fish');
+  const waterLayer = mapLayers.value.find((l) => l.id === 'water');
 
   if (fishLayerGroup) {
     if (fishLayer?.active) {
@@ -609,17 +835,25 @@ onMounted(() => {
 });
 
 // Watch layer toggle changes and sync map visibility
-watch(mapLayers, () => {
-  syncLayerVisibility();
-}, { deep: true });
+watch(
+  mapLayers,
+  () => {
+    syncLayerVisibility();
+  },
+  { deep: true },
+);
 
 // Re-invalidate map size when panel opens/closes
 watch(showPanel, () => {
   setTimeout(() => map?.invalidateSize(), 300);
 });
 
-function goToUpload() {
-  router.push('/researcher/upload');
+function goToFishObservation() {
+  router.push('/researcher/upload/fish');
+}
+
+function goToWaterQuality() {
+  router.push('/researcher/upload/water-quality');
 }
 </script>
 
@@ -705,10 +939,20 @@ function goToUpload() {
   animation: float-particle linear infinite;
 }
 @keyframes float-particle {
-  0% { transform: translateY(0) scale(1); opacity: 0; }
-  20% { opacity: 1; }
-  80% { opacity: 1; }
-  100% { transform: translateY(-100vh) scale(0.3); opacity: 0; }
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100vh) scale(0.3);
+    opacity: 0;
+  }
 }
 
 /* ═══════════════════════════════════ */
@@ -900,18 +1144,25 @@ function goToUpload() {
 }
 
 /* ═══════════════════════════════════ */
-/* FLOATING ADD BUTTON                */
+/* ADD DATA BUTTON                    */
 /* ═══════════════════════════════════ */
-.fab-add-btn {
+.add-data-btn {
   position: absolute;
-  bottom: 32px;
-  right: 24px;
+  top: 120px;
+  left: 16px;
   z-index: 1001;
-  box-shadow: 0 4px 20px rgba(0, 150, 136, 0.5);
-  transition: all 0.3s ease;
+  box-shadow: 0 2px 12px rgba(0, 150, 136, 0.35);
+  border-radius: 50px !important;
+  font-weight: 600;
+  font-size: 0.78rem;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 14px 14px;
 }
-.fab-add-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 30px rgba(0, 150, 136, 0.7);
+.add-data-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 18px rgba(0, 150, 136, 0.5);
+}
+.add-data-btn--shifted {
+  left: 408px;
 }
 </style>
