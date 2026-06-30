@@ -20,6 +20,14 @@ const routes: RouteRecordRaw[] = [
         path: '/researcher/upload',
         component: () => import('pages/researcher/UploadDataPage.vue'),
       },
+      {
+        path: '/researcher/upload/fish',
+        component: () => import('pages/researcher/FishObservationPage.vue'),
+      },
+      {
+        path: '/researcher/upload/water-quality',
+        component: () => import('pages/researcher/WaterQualityPage.vue'),
+      },
     ],
   },
   {
