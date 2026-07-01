@@ -437,6 +437,7 @@ let map: L.Map | null = null;
 // ═══ LAYER GROUPS (for toggling markers on/off) ═══
 let fishLayerGroup: L.LayerGroup | null = null;
 let waterLayerGroup: L.LayerGroup | null = null;
+let lakeBoundaryLayerGroup: L.LayerGroup | null = null;
 
 // ═══ HERO STATS ═══
 const heroStats = [
@@ -670,6 +671,12 @@ const mapLayers = ref<MapLayer[]>([
     active: false,
   },
   { id: 'bathymetry', name: 'Bathymetry', description: 'Lake depth contour lines', active: false },
+  {
+    id: 'lakeBoundary',
+    name: 'Lake Lanao Boundary',
+    description: 'Official OSM outline of Lake Lanao',
+    active: false,
+  },
 ]);
 
 // ═══ HELPERS ═══
@@ -790,6 +797,28 @@ function initMap() {
     waterLayerGroup!.addLayer(marker);
   });
 
+  // ── Create Lake Lanao Boundary Layer Group (from GeoJSON) ──
+  lakeBoundaryLayerGroup = L.layerGroup();
+  fetch('/geo/lake-lanao.geojson')
+    .then((res) => res.json())
+    .then((geojson: GeoJSON.GeoJsonObject) => {
+      const boundaryLayer = L.geoJSON(geojson, {
+        style: {
+          color: '#0288D1',
+          weight: 2.5,
+          fillColor: '#4FC3F7',
+          fillOpacity: 0.15,
+        },
+      });
+      boundaryLayer.bindPopup('Lake Lanao Boundary');
+      lakeBoundaryLayerGroup!.addLayer(boundaryLayer);
+      // Re-apply visibility in case the toggle was switched on before the fetch resolved
+      syncLayerVisibility();
+    })
+    .catch((err) => {
+      console.error('Failed to load Lake Lanao boundary GeoJSON:', err);
+    });
+
   // ── Apply initial layer visibility ──
   syncLayerVisibility();
 }
@@ -813,6 +842,15 @@ function syncLayerVisibility() {
       if (!map.hasLayer(waterLayerGroup)) map.addLayer(waterLayerGroup);
     } else {
       if (map.hasLayer(waterLayerGroup)) map.removeLayer(waterLayerGroup);
+    }
+  }
+
+  const lakeBoundaryLayer = mapLayers.value.find((l) => l.id === 'lakeBoundary');
+  if (lakeBoundaryLayerGroup) {
+    if (lakeBoundaryLayer?.active) {
+      if (!map.hasLayer(lakeBoundaryLayerGroup)) map.addLayer(lakeBoundaryLayerGroup);
+    } else {
+      if (map.hasLayer(lakeBoundaryLayerGroup)) map.removeLayer(lakeBoundaryLayerGroup);
     }
   }
 }

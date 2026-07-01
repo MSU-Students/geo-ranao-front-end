@@ -3,7 +3,15 @@
     <!-- Transparent floating header -->
     <q-header class="header-glass" :class="{ 'header-hidden': hideHeader }">
       <q-toolbar>
-        <q-btn flat dense round icon="menu" aria-label="Menu" color="white" @click="toggleLeftDrawer" />
+        <q-btn
+          flat
+          dense
+          round
+          icon="home"
+          aria-label="Home"
+          color="white"
+          @click="toggleLeftDrawer"
+        />
 
         <q-toolbar-title class="text-weight-bold header-title">
           <q-icon name="water_drop" color="teal-3" class="q-mr-xs" size="sm" />
@@ -77,7 +85,7 @@
       </q-list>
     </q-drawer>
 
-    <q-page-container style="padding-top: 0 !important;">
+    <q-page-container style="padding-top: 0 !important">
       <router-view />
     </q-page-container>
   </q-layout>
@@ -102,10 +110,28 @@ interface NavLink {
 
 const linksList: NavLink[] = [
   { title: 'Home', caption: 'Landing Page', icon: 'home', link: '/' },
-  { title: 'Interactive Map', caption: 'Go to GIS Map', icon: 'map', link: '/', query: { explore: 'true' } },
-  { title: 'Fish Dashboard', caption: 'Species Profiles', icon: 'set_meal', link: '/dashboard/fish' },
+  {
+    title: 'Interactive Map',
+    caption: 'Go to GIS Map',
+    icon: 'map',
+    link: '/',
+    query: { explore: 'true' },
+  },
+  {
+    title: 'Fish Dashboard',
+    caption: 'Species Profiles',
+    icon: 'set_meal',
+    link: '/dashboard/fish',
+  },
   { title: 'All Submissions', caption: 'Community Data', icon: 'list_alt', link: '/researcher' },
-  { title: 'My Submissions', caption: 'Your Records', icon: 'assignment_ind', link: '/researcher', query: { tab: 'my' }, requiresAuth: true },
+  {
+    title: 'My Submissions',
+    caption: 'Your Records',
+    icon: 'assignment_ind',
+    link: '/researcher',
+    query: { tab: 'my' },
+    requiresAuth: true,
+  },
 ];
 
 const visibleLinks = computed(() =>
@@ -121,32 +147,28 @@ function toggleLeftDrawer() {
 
 function navigateTo(link: NavLink) {
   leftDrawerOpen.value = false;
-  router.push({ path: link.link, query: link.query })
-    .catch(err => {
-      console.error('Navigation error:', err);
-    });
+  router.push({ path: link.link, query: link.query }).catch((err) => {
+    console.error('Navigation error:', err);
+  });
 }
 
 function handleLogin() {
-  router.push('/auth/login')
-    .catch(err => {
-      console.error('Navigation error:', err);
-    });
+  router.push('/auth/login').catch((err) => {
+    console.error('Navigation error:', err);
+  });
 }
 
 function goToProfile() {
-  router.push('/auth/profile')
-    .catch(err => {
-      console.error('Navigation error:', err);
-    });
+  router.push('/auth/profile').catch((err) => {
+    console.error('Navigation error:', err);
+  });
 }
 
 function handleLogout() {
   authStore.logout();
-  router.push('/')
-    .catch(err => {
-      console.error('Navigation error:', err);
-    });
+  router.push('/').catch((err) => {
+    console.error('Navigation error:', err);
+  });
 }
 </script>
 
