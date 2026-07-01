@@ -63,6 +63,19 @@
             </template>
           </q-input>
 
+          <q-file
+            filled
+            v-model="formData.avatar"
+            label="Profile Picture *"
+            accept="image/*"
+            class="q-mt-sm"
+            :rules="[(val) => !!val || 'Profile picture is required']"
+          >
+            <template v-slot:prepend>
+              <q-icon name="photo_camera" />
+            </template>
+          </q-file>
+
           <q-select
             filled
             v-model="formData.role"
@@ -142,6 +155,7 @@ const formData = reactive({
   username: '',
   email: '',
   password: '',
+  avatar: null,
   role: 'Public User', // Default
 });
 

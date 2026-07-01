@@ -5,7 +5,20 @@
       class="absolute-full"
       style="filter: blur(5px) brightness(0.5); z-index: 0;"
     />
-    <div class="row q-col-gutter-lg justify-center">
+    
+    <q-page-sticky position="top-right" :offset="[18, 18]" style="z-index: 9999;">
+      <q-btn
+        round
+        unelevated
+        icon="close"
+        color="grey-9"
+        text-color="white"
+        size="md"
+        @click="$router.push('/')"
+      />
+    </q-page-sticky>
+
+    <div class="row q-col-gutter-lg justify-center relative-position" style="z-index: 1;">
       <!-- Left Column - User Identity -->
       <div class="col-12 col-md-4">
         <q-card class="shadow-2 rounded-borders">
@@ -24,6 +37,14 @@
             <q-avatar size="100px" class="profile-avatar shadow-5">
               <img :src="user.avatar || 'https://img.freepik.com/free-vector/blue-circle-with-white-user_78370-4707.jpg?semt=ais_hybrid&w=740&q=80'" />
             </q-avatar>
+
+            <div v-if="isEditingProfile" class="q-mt-md row justify-center">
+              <q-file outlined dense v-model="avatarFile" label="Update Photo" accept="image/*" style="max-width: 200px" color="primary">
+                <template v-slot:prepend>
+                  <q-icon name="photo_camera" />
+                </template>
+              </q-file>
+            </div>
 
             <div class="text-h6 text-weight-bold q-mt-md text-grey-9">Jollymar A. Mark</div>
             <div class="text-subtitle2 text-grey-7">Mindanao State University - Main Campus</div>
@@ -120,19 +141,24 @@
           <q-tab-panels v-model="tab" animated>
             <!-- Profile Settings Tab -->
             <q-tab-panel name="settings">
-              <div class="text-h6 q-mb-md text-weight-medium">
-                <q-icon name="person" class="q-mr-sm" /> Profile Information
+              <div class="row items-center justify-between q-mb-md">
+                <div class="text-h6 text-weight-medium">
+                  <q-icon name="person" class="q-mr-sm" /> Profile Information
+                </div>
+                <div>
+                  <q-btn v-if="!isEditingProfile" flat color="primary" label="Edit Profile" icon="edit" @click="isEditingProfile = true" />
+                </div>
               </div>
               <div class="row q-col-gutter-md">
                 <div class="col-12 col-md-6">
-                  <q-input outlined v-model="user.name" label="Full Name" color="primary">
+                  <q-input outlined v-model="user.name" label="Full Name" color="primary" :readonly="!isEditingProfile">
                     <template v-slot:prepend>
                       <q-icon name="person" />
                     </template>
                   </q-input>
                 </div>
                 <div class="col-12 col-md-6">
-                  <q-input outlined v-model="user.email" label="Email Address" color="primary">
+                  <q-input outlined v-model="user.email" label="Email Address" color="primary" :readonly="!isEditingProfile">
                     <template v-slot:prepend>
                       <q-icon name="email" />
                     </template>
@@ -144,6 +170,7 @@
                     v-model="user.institution"
                     label="Institution / Organization"
                     color="primary"
+                    :readonly="!isEditingProfile"
                   >
                     <template v-slot:prepend>
                       <q-icon name="school" />
@@ -158,6 +185,7 @@
                     type="textarea"
                     rows="3"
                     color="primary"
+                    :readonly="!isEditingProfile"
                   >
                     <template v-slot:prepend>
                       <q-icon name="description" />
@@ -165,7 +193,35 @@
                   </q-input>
                 </div>
               </div>
-              <q-btn color="primary" label="Save Changes" class="q-mt-lg" icon="save" unelevated />
+
+              <!-- Inline Change Password -->
+              <div v-if="isEditingProfile" class="q-mt-xl">
+                <div class="text-h6 text-weight-medium q-mb-md">
+                  <q-icon name="lock" class="q-mr-sm" /> Change Password
+                </div>
+                <div class="row q-col-gutter-md">
+                  <div class="col-12 col-md-4">
+                    <q-input outlined v-model="passwordForm.current" type="password" label="Current Password" color="primary">
+                      <template v-slot:prepend><q-icon name="vpn_key" /></template>
+                    </q-input>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <q-input outlined v-model="passwordForm.new" type="password" label="New Password" color="primary">
+                      <template v-slot:prepend><q-icon name="lock" /></template>
+                    </q-input>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <q-input outlined v-model="passwordForm.confirm" type="password" label="Confirm New Password" color="primary">
+                      <template v-slot:prepend><q-icon name="lock_outline" /></template>
+                    </q-input>
+                  </div>
+                </div>
+              </div>
+              
+              <div v-if="isEditingProfile" class="q-mt-lg row q-gutter-sm">
+                <q-btn color="primary" label="Save Changes" icon="save" unelevated @click="saveProfile" />
+                <q-btn outline color="grey-7" label="Cancel" @click="cancelEdit" />
+              </div>
             </q-tab-panel>
 
             <!-- Research Activity Tab -->
@@ -237,6 +293,7 @@
         </q-card>
       </div>
     </div>
+
   </q-page>
 </template>
 
@@ -244,6 +301,18 @@
 import { ref } from 'vue';
 
 const tab = ref('settings');
+const isEditingProfile = ref(false);
+const avatarFile = ref<File | null>(null);
+const passwordForm = ref({ current: '', new: '', confirm: '' });
+
+function saveProfile() {
+  // Save logic here
+  isEditingProfile.value = false;
+}
+
+function cancelEdit() {
+  isEditingProfile.value = false;
+}
 
 interface User {
   name: string;

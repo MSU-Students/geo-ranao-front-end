@@ -132,19 +132,24 @@
             <q-tab-panels v-model="activeTab" animated class="bg-transparent full-height">
               <!-- ═══ FISH TAB ═══ -->
               <q-tab-panel name="fish" class="q-pa-md">
-                <q-input
-                  v-model="fishSearch"
+                <q-select
+                  v-model="selectedSpeciesFilter"
+                  :options="speciesOptionsFiltered"
+                  multiple
+                  use-chips
+                  use-input
+                  @filter="filterFn"
                   dense
                   rounded
                   outlined
-                  placeholder="Search species..."
+                  placeholder="Search specific fish..."
                   class="q-mb-md"
                   color="teal"
                 >
                   <template #prepend>
                     <q-icon name="search" color="grey-5" size="xs" />
                   </template>
-                </q-input>
+                </q-select>
 
                 <!-- Filter Chips -->
                 <div class="row q-gutter-xs q-mb-md">
@@ -580,6 +585,23 @@ const species: Fish[] = [
   },
 ];
 
+const selectedSpeciesFilter = ref<string[]>([]);
+const allSpeciesNames = species.map(s => s.commonName);
+const speciesOptionsFiltered = ref<string[]>(allSpeciesNames);
+
+function filterFn(val: string, update: (callback: () => void) => void) {
+  if (val === '') {
+    update(() => {
+      speciesOptionsFiltered.value = allSpeciesNames;
+    });
+    return;
+  }
+  update(() => {
+    const needle = val.toLowerCase();
+    speciesOptionsFiltered.value = allSpeciesNames.filter(v => v.toLowerCase().indexOf(needle) > -1);
+  });
+}
+
 const fishFilters = [
   { value: 'all', label: 'All', icon: 'filter_list', activeColor: 'teal-7' },
   { value: 'endemic', label: 'Endemic', icon: 'crisis_alert', activeColor: 'blue-7' },
@@ -589,10 +611,10 @@ const fishFilters = [
 const filteredSpecies = computed(() =>
   species.filter((f) => {
     const matchFilter = activeFilter.value === 'all' || f.type === activeFilter.value;
-    const matchSearch =
-      f.commonName.toLowerCase().includes(fishSearch.value.toLowerCase()) ||
-      f.scientificName.toLowerCase().includes(fishSearch.value.toLowerCase());
-    return matchFilter && matchSearch;
+    const matchSpecific =
+      selectedSpeciesFilter.value.length === 0 ||
+      selectedSpeciesFilter.value.includes(f.commonName);
+    return matchFilter && matchSpecific;
   }),
 );
 
@@ -746,29 +768,7 @@ function initMap() {
 
   // ── Create Fish Layer Group ──
   fishLayerGroup = L.layerGroup();
-  species.forEach((fish) => {
-    const markerColor = fish.type === 'endemic' ? '#1565C0' : '#E65100';
-    const icon = L.divIcon({
-      className: 'fish-marker',
-      html: `<div style="background:${markerColor}; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.35);"></div>`,
-      iconSize: [16, 16],
-      iconAnchor: [8, 8],
-    });
-
-    const marker = L.marker([fish.lat, fish.lng], { icon });
-    marker.bindPopup(`
-      <div style="font-family: Roboto, sans-serif; min-width: 160px;">
-        <strong>${fish.commonName}</strong><br>
-        <em style="color:#888;">${fish.scientificName}</em><br>
-        <span style="color:${markerColor}; font-weight:bold;">${fish.type === 'endemic' ? 'Endemic' : 'Invasive'}</span> ·
-        <span>${fish.statusShort}</span>
-      </div>
-    `);
-    marker.on('click', () => {
-      selectedFish.value = fish;
-    });
-    fishLayerGroup!.addLayer(marker);
-  });
+  renderFishMarkers();
 
   // ── Create Water Quality Layer Group ──
   waterLayerGroup = L.layerGroup();
@@ -854,6 +854,40 @@ function syncLayerVisibility() {
     }
   }
 }
+
+function renderFishMarkers() {
+  if (!fishLayerGroup) return;
+  fishLayerGroup.clearLayers();
+
+  filteredSpecies.value.forEach((fish) => {
+    const markerColor = fish.type === 'endemic' ? '#1565C0' : '#E65100';
+    const icon = L.divIcon({
+      className: 'fish-marker',
+      html: `<div style="background:${markerColor}; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.35);"></div>`,
+      iconSize: [16, 16],
+      iconAnchor: [8, 8],
+    });
+
+    const marker = L.marker([fish.lat, fish.lng], { icon });
+    marker.bindPopup(`
+      <div style="font-family: Roboto, sans-serif; min-width: 160px;">
+        <strong>${fish.commonName}</strong><br>
+        <em style="color:#888;">${fish.scientificName}</em><br>
+        <span style="color:${markerColor}; font-weight:bold;">${fish.type === 'endemic' ? 'Endemic' : 'Invasive'}</span> ·
+        <span>${fish.statusShort}</span>
+      </div>
+    `);
+    marker.on('click', () => {
+      selectedFish.value = fish;
+    });
+    fishLayerGroup!.addLayer(marker);
+  });
+}
+
+// Watch filteredSpecies and re-render map markers when filter/search changes
+watch(filteredSpecies, () => {
+  renderFishMarkers();
+});
 
 function enterDashboard() {
   showWelcomeOverlay.value = false;

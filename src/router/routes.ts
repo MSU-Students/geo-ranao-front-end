@@ -6,8 +6,6 @@ const routes: RouteRecordRaw[] = [
     component: () => import('layouts/MainLayout.vue'),
     children: [
       { path: '', component: () => import('pages/IndexPage.vue') },
-      { path: '/landing', component: () => import('pages/landing/LandingPage.vue') },
-      { path: '/map', component: () => import('pages/map/GeoMapPage.vue') },
       {
         path: '/dashboard/fish',
         component: () => import('pages/dashboard/FishDashboardPage.vue'),
@@ -36,6 +34,7 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: 'login', component: () => import('pages/auth/LoginPage.vue') },
       { path: 'signup', component: () => import('pages/auth/SignupPage.vue') },
+      { path: 'profile', component: () => import('pages/auth/ProfilePage.vue') },
     ],
   },
 
