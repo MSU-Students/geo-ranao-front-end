@@ -6,6 +6,21 @@
       style="filter: blur(5px) brightness(0.5); z-index: 0"
     />
 
+    <q-page-sticky position="top-right" :offset="[24, 24]" style="z-index: 9999;">
+      <q-btn
+        round
+        unelevated
+        icon="close"
+        color="white"
+        text-color="grey-9"
+        size="md"
+        class="close-modal-btn"
+        @click="$router.push('/')"
+      >
+        <q-tooltip anchor="center left" self="center right" :offset="[10, 0]">Close</q-tooltip>
+      </q-btn>
+    </q-page-sticky>
+
     <q-card
       class="shadow-24 row"
       style="width: 900px; max-width: 95vw; min-height: 550px; border-radius: 20px"
@@ -156,6 +171,15 @@ function handlesignup() {
 </script>
 
 <style scoped>
+.close-modal-btn {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  transition: all 0.3s ease;
+}
+.close-modal-btn:hover {
+  transform: scale(1.1);
+  background-color: #f5f5f5 !important;
+}
+
 .rounded-left {
   border-top-left-radius: 20px;
   border-bottom-left-radius: 20px;

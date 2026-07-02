@@ -110,6 +110,13 @@ interface NavLink {
 
 const linksList: NavLink[] = [
   {
+    title: 'Landing Page',
+    caption: 'Welcome Screen',
+    icon: 'home',
+    link: '/',
+    query: { welcome: 'true' },
+  },
+  {
     title: 'Interactive Map',
     caption: 'Go to GIS Map',
     icon: 'map',

@@ -427,7 +427,8 @@ const router = useRouter();
 const authStore = useAuthStore();
 
 // ═══ STATE ═══
-const showWelcomeOverlay = ref(true);
+const hasSeenLanding = sessionStorage.getItem('hasSeenLanding');
+const showWelcomeOverlay = ref(!hasSeenLanding);
 const activeTab = ref('fish');
 const fishSearch = ref('');
 const activeFilter = ref('all');
@@ -992,6 +993,7 @@ watch(filteredSpecies, () => {
 
 function enterDashboard() {
   showWelcomeOverlay.value = false;
+  sessionStorage.setItem('hasSeenLanding', 'true');
   nextTick(() => {
     initMap();
     setTimeout(() => {
@@ -1001,8 +1003,14 @@ function enterDashboard() {
 }
 
 onMounted(() => {
-  // If navigated with ?explore=true, skip the welcome overlay and go straight to map
-  if (route.query.explore === 'true') {
+  // If navigated with ?welcome=true, explicitly show the landing overlay
+  if (route.query.welcome === 'true') {
+    showWelcomeOverlay.value = true;
+    // Clean up the query param
+    router.replace({ path: '/', query: {} });
+  }
+  // If overlay is already hidden, initialize map immediately
+  if (!showWelcomeOverlay.value) {
     enterDashboard();
   }
 });
