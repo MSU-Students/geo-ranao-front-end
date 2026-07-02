@@ -1,0 +1,12 @@
+{
+"type": "FeatureCollection",
+"name": "WQ-Sampling-Sites-Tributary",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "SITE_ID": "WQ-7.2", "STATION_ID": "STATION-7", "LONGITUDE": 124.319639, "LATITUDE": 7.84625 }, "geometry": { "type": "Point", "coordinates": [ 124.319639, 7.84625 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "WQ-8.1", "STATION_ID": "STATION-8", "LONGITUDE": 124.219389, "LATITUDE": 7.910861 }, "geometry": { "type": "Point", "coordinates": [ 124.219389, 7.910861 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "WQ-9.2", "STATION_ID": "STATION-9", "LONGITUDE": 124.318083, "LATITUDE": 7.898028 }, "geometry": { "type": "Point", "coordinates": [ 124.318083, 7.898028 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "WQ-11.1", "STATION_ID": "STATION-11", "LONGITUDE": 124.286, "LATITUDE": 7.984306 }, "geometry": { "type": "Point", "coordinates": [ 124.286, 7.984306 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "WQ-12.1", "STATION_ID": "STATION-12", "LONGITUDE": 124.327889, "LATITUDE": 7.985667 }, "geometry": { "type": "Point", "coordinates": [ 124.327889, 7.985667 ] } }
+]
+}
