@@ -1,0 +1,14 @@
+{
+"type": "FeatureCollection",
+"name": "WQ-Sampling-Sites-Below-40m-Depth",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "SITE_ID": "WQ-10.1", "STATION_ID": "STATION-10", "LONGITUDE": 124.261278, "LATITUDE": 7.959833 }, "geometry": { "type": "Point", "coordinates": [ 124.261278, 7.959833 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "WQ-10.2", "STATION_ID": "STATION-10", "LONGITUDE": 124.246167, "LATITUDE": 7.944861 }, "geometry": { "type": "Point", "coordinates": [ 124.246167, 7.944861 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "WQ-10.3", "STATION_ID": "STATION-10", "LONGITUDE": 124.261278, "LATITUDE": 7.927194 }, "geometry": { "type": "Point", "coordinates": [ 124.261278, 7.927194 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "WQ-11.2", "STATION_ID": "STATION-11", "LONGITUDE": 124.284639, "LATITUDE": 7.957778 }, "geometry": { "type": "Point", "coordinates": [ 124.284639, 7.957778 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "WQ-11.3", "STATION_ID": "STATION-11", "LONGITUDE": 124.290111, "LATITUDE": 7.940778 }, "geometry": { "type": "Point", "coordinates": [ 124.290111, 7.940778 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "WQ-12.2", "STATION_ID": "STATION-12", "LONGITUDE": 124.32925, "LATITUDE": 7.961861 }, "geometry": { "type": "Point", "coordinates": [ 124.32925, 7.961861 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "WQ-12.3", "STATION_ID": "STATION-12", "LONGITUDE": 124.32925, "LATITUDE": 7.938056 }, "geometry": { "type": "Point", "coordinates": [ 124.32925, 7.938056 ] } }
+]
+}

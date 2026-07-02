@@ -220,19 +220,20 @@
               <!-- ═══ WATER QUALITY TAB ═══ -->
               <q-tab-panel name="water" class="q-pa-md">
                 <div class="text-subtitle2 text-teal-8 text-weight-bold q-mb-md">
-                  <q-icon name="science" class="q-mr-xs" /> Water Quality Monitoring
+                  <q-icon name="science" class="q-mr-xs" /> Water Quality Sampling Sites
                 </div>
                 <div class="text-grey-6 text-caption q-mb-lg">
-                  Visualize pH, Nitrate, Dissolved Oxygen, and temperature data across sampling
-                  stations.
+                  Hover a site on the map for details. Physico-chemical, nutrient, and pigment
+                  readings are not yet available for these sites.
                 </div>
 
                 <q-list class="q-gutter-y-xs">
                   <q-item
-                    v-for="station in waterStations"
-                    :key="station.name"
+                    v-for="site in waterQualitySites"
+                    :key="site.siteId"
                     clickable
                     class="species-item rounded-borders"
+                    @click="flyToWaterSite(site)"
                   >
                     <q-item-section avatar>
                       <q-avatar color="blue-7" text-color="white" size="36px">
@@ -240,26 +241,21 @@
                       </q-avatar>
                     </q-item-section>
                     <q-item-section>
-                      <q-item-label
-                        class="text-weight-bold text-grey-9"
-                        style="font-size: 0.85rem"
-                        >{{ station.name }}</q-item-label
-                      >
-                      <q-item-label caption class="text-grey-6"
-                        >pH: {{ station.ph }} · DO: {{ station.do }} mg/L</q-item-label
-                      >
+                      <q-item-label class="text-weight-bold text-grey-9" style="font-size: 0.85rem">
+                        {{ site.siteId }}
+                      </q-item-label>
+                      <q-item-label caption class="text-grey-6">
+                        Station: {{ site.stationId }}
+                      </q-item-label>
                     </q-item-section>
                     <q-item-section side>
-                      <q-badge
-                        :color="
-                          station.quality === 'Good'
-                            ? 'green-7'
-                            : station.quality === 'Moderate'
-                              ? 'orange-7'
-                              : 'red-7'
-                        "
-                        :label="station.quality"
-                      />
+                      <q-badge color="grey-5" label="No data yet" />
+                    </q-item-section>
+                  </q-item>
+
+                  <q-item v-if="waterQualitySites.length === 0">
+                    <q-item-section class="text-center text-grey-5 q-py-lg">
+                      Loading sampling sites...
                     </q-item-section>
                   </q-item>
                 </q-list>
@@ -441,8 +437,13 @@ let map: L.Map | null = null;
 
 // ═══ LAYER GROUPS (for toggling markers on/off) ═══
 let fishLayerGroup: L.LayerGroup | null = null;
-let waterLayerGroup: L.LayerGroup | null = null;
 let lakeBoundaryLayerGroup: L.LayerGroup | null = null;
+let wqAllLayerGroup: L.GeoJSON | null = null;
+let wqAbove40LayerGroup: L.GeoJSON | null = null;
+let wqBelow40LayerGroup: L.GeoJSON | null = null;
+let wqTributaryLayerGroup: L.GeoJSON | null = null;
+let lakeStationsLayerGroup: L.GeoJSON | null = null;
+let tributariesLayerGroup: L.GeoJSON | null = null;
 
 // ═══ HERO STATS ═══
 const heroStats = [
@@ -629,41 +630,61 @@ const selectedFishDetails = computed(() =>
     : [],
 );
 
-// ═══ WATER QUALITY DATA ═══
-const waterStations = [
-  {
-    name: 'Station A – Marawi North',
-    ph: '7.2',
-    do: '6.8',
-    quality: 'Good',
-    lat: 8.04,
-    lng: 124.03,
-  },
-  {
-    name: 'Station B – Tugaya Shore',
-    ph: '6.8',
-    do: '5.1',
-    quality: 'Moderate',
-    lat: 7.93,
-    lng: 124.09,
-  },
-  {
-    name: 'Station C – Bacolod Inlet',
-    ph: '6.1',
-    do: '3.4',
-    quality: 'Poor',
-    lat: 7.99,
-    lng: 124.14,
-  },
-  {
-    name: 'Station D – Saguiaran Bay',
-    ph: '7.4',
-    do: '7.2',
-    quality: 'Good',
-    lat: 8.05,
-    lng: 124.11,
-  },
-];
+// ═══ WATER QUALITY SAMPLING SITES (loaded from GeoJSON) ═══
+interface WaterQualitySiteProps {
+  SITE_ID: string;
+  STATION_ID: string;
+  LONGITUDE: number;
+  LATITUDE: number;
+}
+
+interface WaterQualitySite {
+  siteId: string;
+  stationId: string;
+  lat: number;
+  lng: number;
+}
+
+const waterQualitySites = ref<WaterQualitySite[]>([]);
+
+function flyToWaterSite(site: WaterQualitySite) {
+  if (map) map.flyTo([site.lat, site.lng], 15, { duration: 1.2 });
+}
+
+// SITE_ID -> depth zone label, filled in as the Above/Below/Tributary GeoJSON files load.
+const siteDepthZone = new Map<string, string>();
+
+function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
+  const zone = siteDepthZone.get(props.SITE_ID);
+  return `
+    <div style="font-family: Roboto, sans-serif; min-width: 170px;">
+      <strong style="color:#0288D1;">${props.SITE_ID}</strong><br>
+      <span style="color:#666;">Station: ${props.STATION_ID}</span><br>
+      <span style="color:#666;">Coordinates: ${props.LATITUDE.toFixed(5)}, ${props.LONGITUDE.toFixed(5)}</span>
+      ${zone ? `<br><span style="color:#666;">Depth Zone: ${zone}</span>` : ''}
+    </div>
+  `;
+}
+
+function createWaterQualitySiteLayer(geojson: GeoJSON.GeoJsonObject, color: string): L.GeoJSON {
+  return L.geoJSON(geojson, {
+    pointToLayer: (_feature, latlng) =>
+      L.circleMarker(latlng, {
+        radius: 7,
+        weight: 2,
+        color: '#ffffff',
+        fillColor: color,
+        fillOpacity: 0.9,
+      }),
+    onEachFeature: (feature, layer) => {
+      layer.bindTooltip(waterQualityTooltipHtml(feature.properties as WaterQualitySiteProps), {
+        sticky: true,
+        direction: 'top',
+        offset: [0, -8],
+      });
+    },
+  });
+}
 
 // ═══ MAP LAYERS ═══
 interface MapLayer {
@@ -681,22 +702,45 @@ const mapLayers = ref<MapLayer[]>([
     active: true,
   },
   {
-    id: 'water',
-    name: 'Water Quality Stations',
-    description: 'pH, DO, Nitrate sampling points',
-    active: false,
-  },
-  {
-    id: 'boundaries',
-    name: 'Municipal Boundaries',
-    description: 'QGIS-exported LGU boundaries',
-    active: false,
-  },
-  { id: 'bathymetry', name: 'Bathymetry', description: 'Lake depth contour lines', active: false },
-  {
     id: 'lakeBoundary',
     name: 'Lake Lanao Boundary',
     description: 'Official OSM outline of Lake Lanao',
+    active: false,
+  },
+  {
+    id: 'wqAll',
+    name: 'All Water Quality Sites',
+    description: 'Every water quality sampling point',
+    active: true,
+  },
+  {
+    id: 'wqAbove40',
+    name: 'Sites Above 40m Depth',
+    description: 'Sampling points deeper than 40m',
+    active: false,
+  },
+  {
+    id: 'wqBelow40',
+    name: 'Sites Below 40m Depth',
+    description: 'Sampling points shallower than 40m',
+    active: false,
+  },
+  {
+    id: 'wqTributary',
+    name: 'Tributary Sampling Sites',
+    description: 'Sampling points along tributaries',
+    active: false,
+  },
+  {
+    id: 'lakeStations',
+    name: 'Lake Monitoring Stations',
+    description: 'Lake zone boundaries (hover for details)',
+    active: false,
+  },
+  {
+    id: 'tributaries',
+    name: 'Lake Tributaries',
+    description: 'Rivers feeding into Lake Lanao',
     active: false,
   },
 ]);
@@ -770,33 +814,6 @@ function initMap() {
   fishLayerGroup = L.layerGroup();
   renderFishMarkers();
 
-  // ── Create Water Quality Layer Group ──
-  waterLayerGroup = L.layerGroup();
-  waterStations.forEach((station) => {
-    const qualityColor =
-      station.quality === 'Good'
-        ? '#388E3C'
-        : station.quality === 'Moderate'
-          ? '#F57C00'
-          : '#D32F2F';
-    const icon = L.divIcon({
-      className: 'water-marker',
-      html: `<div style="background:${qualityColor}; width:14px; height:14px; border-radius:3px; border:3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.35); transform: rotate(45deg);"></div>`,
-      iconSize: [14, 14],
-      iconAnchor: [7, 7],
-    });
-
-    const marker = L.marker([station.lat, station.lng], { icon });
-    marker.bindPopup(`
-      <div style="font-family: Roboto, sans-serif; min-width: 160px;">
-        <strong>${station.name}</strong><br>
-        pH: ${station.ph} · DO: ${station.do} mg/L<br>
-        <span style="color:${qualityColor}; font-weight:bold;">${station.quality}</span>
-      </div>
-    `);
-    waterLayerGroup!.addLayer(marker);
-  });
-
   // ── Create Lake Lanao Boundary Layer Group (from GeoJSON) ──
   lakeBoundaryLayerGroup = L.layerGroup();
   fetch('/geo/lake-lanao.geojson')
@@ -812,12 +829,103 @@ function initMap() {
       });
       boundaryLayer.bindPopup('Lake Lanao Boundary');
       lakeBoundaryLayerGroup!.addLayer(boundaryLayer);
-      // Re-apply visibility in case the toggle was switched on before the fetch resolved
       syncLayerVisibility();
     })
     .catch((err) => {
       console.error('Failed to load Lake Lanao boundary GeoJSON:', err);
     });
+
+  // ── Water Quality Sampling Sites (points) ──
+  // Load the depth-classified subsets first so their SITE_IDs are known before the
+  // "All Sites" layer (shown by default) builds tooltips that reference the depth zone.
+  function fetchDepthZone(url: string, zoneLabel: string, color: string) {
+    return fetch(url)
+      .then((res) => res.json())
+      .then((geojson: GeoJSON.FeatureCollection) => {
+        geojson.features.forEach((feature) => {
+          const props = feature.properties as unknown as WaterQualitySiteProps;
+          siteDepthZone.set(props.SITE_ID, zoneLabel);
+        });
+        return createWaterQualitySiteLayer(geojson, color);
+      })
+      .catch((err) => {
+        console.error(`Failed to load ${url}:`, err);
+        return null;
+      });
+  }
+
+  Promise.all([
+    fetchDepthZone('/geo/WQ-Sampling-Sites-Above-40m-Depth.geojson', 'Above 40m Depth', '#7B1FA2'),
+    fetchDepthZone('/geo/WQ-Sampling-Sites-Below-40m-Depth.geojson', 'Below 40m Depth', '#8D6E63'),
+    fetchDepthZone('/geo/WQ-Sampling-Sites-Tributary.geojson', 'Tributary', '#2E7D32'),
+  ])
+    .then(([aboveLayer, belowLayer, tributaryLayer]) => {
+      wqAbove40LayerGroup = aboveLayer;
+      wqBelow40LayerGroup = belowLayer;
+      wqTributaryLayerGroup = tributaryLayer;
+      syncLayerVisibility();
+
+      return fetch('/geo/WQ-All-Sampling-Sites.geojson')
+        .then((res) => res.json())
+        .then((geojson: GeoJSON.FeatureCollection) => {
+          waterQualitySites.value = geojson.features.map((feature) => {
+            const props = feature.properties as unknown as WaterQualitySiteProps;
+            const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates as [
+              number,
+              number,
+            ];
+            return { siteId: props.SITE_ID, stationId: props.STATION_ID, lat, lng };
+          });
+          wqAllLayerGroup = createWaterQualitySiteLayer(geojson, '#0288D1');
+          syncLayerVisibility();
+        });
+    })
+    .catch((err) => console.error('Failed to load water quality sampling sites GeoJSON:', err));
+
+  // ── Lake Monitoring Station Zones (polygons — hover to highlight + show info) ──
+  fetch('/geo/Lake-Station.geojson')
+    .then((res) => res.json())
+    .then((geojson: GeoJSON.GeoJsonObject) => {
+      const stationLayer = L.geoJSON(geojson, {
+        style: {
+          color: '#00838F',
+          weight: 1.5,
+          fillColor: '#4DD0E1',
+          fillOpacity: 0.08,
+        },
+        onEachFeature: (feature, layer) => {
+          const name = (feature.properties?.name as string) ?? 'Station';
+          layer.bindTooltip(
+            `<div style="font-family: Roboto, sans-serif;"><strong>${name}</strong><br><span style="color:#666;">Lake Monitoring Zone</span></div>`,
+            { sticky: true },
+          );
+          layer.on('mouseover', () => {
+            (layer as L.Path).setStyle({ weight: 3.5, color: '#006064', fillOpacity: 0.2 });
+          });
+          layer.on('mouseout', () => {
+            stationLayer.resetStyle(layer as L.Path);
+          });
+        },
+      });
+      lakeStationsLayerGroup = stationLayer;
+      syncLayerVisibility();
+    })
+    .catch((err) => console.error('Failed to load Lake-Station GeoJSON:', err));
+
+  // ── Lake Tributaries (rivers) ──
+  fetch('/geo/Lake-Tributaries.geojson')
+    .then((res) => res.json())
+    .then((geojson: GeoJSON.GeoJsonObject) => {
+      tributariesLayerGroup = L.geoJSON(geojson, {
+        style: { color: '#1976D2', weight: 2 },
+        onEachFeature: (feature, layer) => {
+          const name = (feature.properties?.name as string) ?? 'Tributary';
+          layer.bindTooltip(`<strong>${name}</strong>`, { sticky: true });
+        },
+      });
+      syncLayerVisibility();
+    })
+    .catch((err) => console.error('Failed to load Lake-Tributaries GeoJSON:', err));
 
   // ── Apply initial layer visibility ──
   syncLayerVisibility();
@@ -826,31 +934,24 @@ function initMap() {
 function syncLayerVisibility() {
   if (!map) return;
 
-  const fishLayer = mapLayers.value.find((l) => l.id === 'fish');
-  const waterLayer = mapLayers.value.find((l) => l.id === 'water');
+  const layerGroups: Record<string, L.Layer | null> = {
+    fish: fishLayerGroup,
+    lakeBoundary: lakeBoundaryLayerGroup,
+    wqAll: wqAllLayerGroup,
+    wqAbove40: wqAbove40LayerGroup,
+    wqBelow40: wqBelow40LayerGroup,
+    wqTributary: wqTributaryLayerGroup,
+    lakeStations: lakeStationsLayerGroup,
+    tributaries: tributariesLayerGroup,
+  };
 
-  if (fishLayerGroup) {
-    if (fishLayer?.active) {
-      if (!map.hasLayer(fishLayerGroup)) map.addLayer(fishLayerGroup);
+  for (const layerConfig of mapLayers.value) {
+    const group = layerGroups[layerConfig.id];
+    if (!group || !map) continue;
+    if (layerConfig.active) {
+      if (!map.hasLayer(group)) map.addLayer(group);
     } else {
-      if (map.hasLayer(fishLayerGroup)) map.removeLayer(fishLayerGroup);
-    }
-  }
-
-  if (waterLayerGroup) {
-    if (waterLayer?.active) {
-      if (!map.hasLayer(waterLayerGroup)) map.addLayer(waterLayerGroup);
-    } else {
-      if (map.hasLayer(waterLayerGroup)) map.removeLayer(waterLayerGroup);
-    }
-  }
-
-  const lakeBoundaryLayer = mapLayers.value.find((l) => l.id === 'lakeBoundary');
-  if (lakeBoundaryLayerGroup) {
-    if (lakeBoundaryLayer?.active) {
-      if (!map.hasLayer(lakeBoundaryLayerGroup)) map.addLayer(lakeBoundaryLayerGroup);
-    } else {
-      if (map.hasLayer(lakeBoundaryLayerGroup)) map.removeLayer(lakeBoundaryLayerGroup);
+      if (map.hasLayer(group)) map.removeLayer(group);
     }
   }
 }
