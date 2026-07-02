@@ -3,7 +3,7 @@
     <q-img
       src="https://phworldexpo.tpb.gov.ph/wp-content/uploads/2025/05/Lake-Lanao.png"
       class="absolute-full"
-      style="filter: blur(5px) brightness(0.5); z-index: 0;"
+      style="filter: blur(5px) brightness(0.5); z-index: 0"
     />
 
     <q-card
@@ -13,7 +13,9 @@
       <div class="col-md-6 col-12 bg-primary text-white flex flex-center rounded-left">
         <div class="text-center q-pa-xl">
           <q-icon name="water_drop" size="80px" class="q-mb-md opacity-80" />
-          <h2 class="text-h3 text-weight-bolder q-mb-sm q-mt-none tracking-tight">RANAO AQUA PROJECT</h2>
+          <h2 class="text-h3 text-weight-bolder q-mb-sm q-mt-none tracking-tight">
+            RANAO AQUA PROJECT
+          </h2>
           <p class="text-h6 text-weight-light opacity-80">
             Water Quality Mapping & Fish Observation System for Lake Lanao
           </p>
@@ -116,10 +118,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuthStore } from 'src/stores/auth';
 
 const router = useRouter();
-const authStore = useAuthStore();
 
 const username = ref('');
 const password = ref('');
@@ -138,11 +138,10 @@ function handleLogin() {
 
   loading.value = true;
 
-  // Simulate a short loading delay then go to map
+  // Simulate a short loading delay then go to home
   setTimeout(() => {
     loading.value = false;
-    authStore.login(username.value, password.value);
-    router.push('/?explore=true');
+    router.push('/');
   }, 800);
 }
 

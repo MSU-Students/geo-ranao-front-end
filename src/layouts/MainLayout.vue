@@ -109,13 +109,11 @@ interface NavLink {
 }
 
 const linksList: NavLink[] = [
-  { title: 'Home', caption: 'Landing Page', icon: 'home', link: '/' },
   {
     title: 'Interactive Map',
     caption: 'Go to GIS Map',
     icon: 'map',
     link: '/',
-    query: { explore: 'true' },
   },
   {
     title: 'Fish Dashboard',
