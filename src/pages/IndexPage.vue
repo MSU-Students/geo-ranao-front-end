@@ -651,37 +651,17 @@ function flyToWaterSite(site: WaterQualitySite) {
   if (map) map.flyTo([site.lat, site.lng], 15, { duration: 1.2 });
 }
 
-// Data parameters are not collected yet — always rendered as "N/A" until real readings exist.
-function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
-  const row = (label: string, unit: string) =>
-    `<tr><td style="color:#666; padding-right:8px;">${label}</td><td style="color:#999;">N/A${unit ? ' ' + unit : ''}</td></tr>`;
+// SITE_ID -> depth zone label, filled in as the Above/Below/Tributary GeoJSON files load.
+const siteDepthZone = new Map<string, string>();
 
+function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
+  const zone = siteDepthZone.get(props.SITE_ID);
   return `
-    <div style="font-family: Roboto, sans-serif; min-width: 210px;">
+    <div style="font-family: Roboto, sans-serif; min-width: 170px;">
       <strong style="color:#0288D1;">${props.SITE_ID}</strong><br>
-      <span style="color:#666;">Station: ${props.STATION_ID}</span>
-      <hr style="margin:4px 0; border-color:#eee;">
-      <div style="font-size:0.75rem; font-weight:bold; color:#00695C; margin-top:4px;">Physico-Chemical</div>
-      <table style="font-size:0.7rem; width:100%;">
-        ${row('Temperature', '°C')}
-        ${row('pH', '')}
-        ${row('Turbidity', 'NTU')}
-        ${row('Conductivity', 'µS/cm')}
-        ${row('TDS', 'mg/L')}
-        ${row('TSS', 'mg/L')}
-      </table>
-      <div style="font-size:0.75rem; font-weight:bold; color:#1565C0; margin-top:6px;">Nutrients</div>
-      <table style="font-size:0.7rem; width:100%;">
-        ${row('Phosphate', 'mg/L')}
-        ${row('Ammonia', 'mg/L')}
-        ${row('Nitrate', 'mg/L')}
-        ${row('Nitrite', 'mg/L')}
-        ${row('Sulfate', 'mg/L')}
-      </table>
-      <div style="font-size:0.75rem; font-weight:bold; color:#2E7D32; margin-top:6px;">Photosynthetic Pigment</div>
-      <table style="font-size:0.7rem; width:100%;">
-        ${row('Chlorophyll-a', 'µg/L')}
-      </table>
+      <span style="color:#666;">Station: ${props.STATION_ID}</span><br>
+      <span style="color:#666;">Coordinates: ${props.LATITUDE.toFixed(5)}, ${props.LONGITUDE.toFixed(5)}</span>
+      ${zone ? `<br><span style="color:#666;">Depth Zone: ${zone}</span>` : ''}
     </div>
   `;
 }
@@ -856,42 +836,51 @@ function initMap() {
     });
 
   // ── Water Quality Sampling Sites (points) ──
-  fetch('/geo/WQ-All-Sampling-Sites.geojson')
-    .then((res) => res.json())
-    .then((geojson: GeoJSON.FeatureCollection) => {
-      waterQualitySites.value = geojson.features.map((feature) => {
-        const props = feature.properties as unknown as WaterQualitySiteProps;
-        const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
-        return { siteId: props.SITE_ID, stationId: props.STATION_ID, lat, lng };
+  // Load the depth-classified subsets first so their SITE_IDs are known before the
+  // "All Sites" layer (shown by default) builds tooltips that reference the depth zone.
+  function fetchDepthZone(url: string, zoneLabel: string, color: string) {
+    return fetch(url)
+      .then((res) => res.json())
+      .then((geojson: GeoJSON.FeatureCollection) => {
+        geojson.features.forEach((feature) => {
+          const props = feature.properties as unknown as WaterQualitySiteProps;
+          siteDepthZone.set(props.SITE_ID, zoneLabel);
+        });
+        return createWaterQualitySiteLayer(geojson, color);
+      })
+      .catch((err) => {
+        console.error(`Failed to load ${url}:`, err);
+        return null;
       });
-      wqAllLayerGroup = createWaterQualitySiteLayer(geojson, '#0288D1');
-      syncLayerVisibility();
-    })
-    .catch((err) => console.error('Failed to load WQ-All-Sampling-Sites GeoJSON:', err));
+  }
 
-  fetch('/geo/WQ-Sampling-Sites-Above-40m-Depth.geojson')
-    .then((res) => res.json())
-    .then((geojson: GeoJSON.GeoJsonObject) => {
-      wqAbove40LayerGroup = createWaterQualitySiteLayer(geojson, '#7B1FA2');
+  Promise.all([
+    fetchDepthZone('/geo/WQ-Sampling-Sites-Above-40m-Depth.geojson', 'Above 40m Depth', '#7B1FA2'),
+    fetchDepthZone('/geo/WQ-Sampling-Sites-Below-40m-Depth.geojson', 'Below 40m Depth', '#8D6E63'),
+    fetchDepthZone('/geo/WQ-Sampling-Sites-Tributary.geojson', 'Tributary', '#2E7D32'),
+  ])
+    .then(([aboveLayer, belowLayer, tributaryLayer]) => {
+      wqAbove40LayerGroup = aboveLayer;
+      wqBelow40LayerGroup = belowLayer;
+      wqTributaryLayerGroup = tributaryLayer;
       syncLayerVisibility();
-    })
-    .catch((err) => console.error('Failed to load WQ-Sampling-Sites-Above-40m-Depth GeoJSON:', err));
 
-  fetch('/geo/WQ-Sampling-Sites-Below-40m-Depth.geojson')
-    .then((res) => res.json())
-    .then((geojson: GeoJSON.GeoJsonObject) => {
-      wqBelow40LayerGroup = createWaterQualitySiteLayer(geojson, '#8D6E63');
-      syncLayerVisibility();
+      return fetch('/geo/WQ-All-Sampling-Sites.geojson')
+        .then((res) => res.json())
+        .then((geojson: GeoJSON.FeatureCollection) => {
+          waterQualitySites.value = geojson.features.map((feature) => {
+            const props = feature.properties as unknown as WaterQualitySiteProps;
+            const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates as [
+              number,
+              number,
+            ];
+            return { siteId: props.SITE_ID, stationId: props.STATION_ID, lat, lng };
+          });
+          wqAllLayerGroup = createWaterQualitySiteLayer(geojson, '#0288D1');
+          syncLayerVisibility();
+        });
     })
-    .catch((err) => console.error('Failed to load WQ-Sampling-Sites-Below-40m-Depth GeoJSON:', err));
-
-  fetch('/geo/WQ-Sampling-Sites-Tributary.geojson')
-    .then((res) => res.json())
-    .then((geojson: GeoJSON.GeoJsonObject) => {
-      wqTributaryLayerGroup = createWaterQualitySiteLayer(geojson, '#2E7D32');
-      syncLayerVisibility();
-    })
-    .catch((err) => console.error('Failed to load WQ-Sampling-Sites-Tributary GeoJSON:', err));
+    .catch((err) => console.error('Failed to load water quality sampling sites GeoJSON:', err));
 
   // ── Lake Monitoring Station Zones (polygons — hover to highlight + show info) ──
   fetch('/geo/Lake-Station.geojson')
