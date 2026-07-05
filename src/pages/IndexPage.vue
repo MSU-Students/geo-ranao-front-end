@@ -222,18 +222,82 @@
                 <div class="text-subtitle2 text-teal-8 text-weight-bold q-mb-md">
                   <q-icon name="science" class="q-mr-xs" /> Water Quality Sampling Sites
                 </div>
-                <div class="text-grey-6 text-caption q-mb-lg">
-                  Hover a site on the map for details. Physico-chemical, nutrient, and pigment
-                  readings are not yet available for these sites.
+                <div class="text-grey-6 text-caption q-mb-md">
+                  Hover a site for a quick look, click for full details. Physico-chemical,
+                  nutrient, and pigment readings are not yet available.
                 </div>
 
+                <q-select
+                  v-model="selectedSiteFilter"
+                  :options="siteOptionsFiltered"
+                  multiple
+                  use-chips
+                  use-input
+                  @filter="filterSiteFn"
+                  dense
+                  rounded
+                  outlined
+                  placeholder="Search specific site..."
+                  class="q-mb-md"
+                  color="teal"
+                >
+                  <template #prepend>
+                    <q-icon name="search" color="grey-5" size="xs" />
+                  </template>
+                </q-select>
+
+                <!-- Sampling Zone Layer Toggles -->
+                <div class="text-caption text-grey-6 q-mb-xs">Sampling Zone Layers</div>
+                <div class="row q-gutter-xs q-mb-md">
+                  <q-chip
+                    v-for="layer in waterDepthLayers"
+                    :key="layer.id"
+                    :color="layer.active ? waterZoneColors[layer.id] : 'grey-3'"
+                    :text-color="layer.active ? 'white' : 'grey-8'"
+                    size="sm"
+                    clickable
+                    class="filter-chip"
+                    @click="layer.active = !layer.active"
+                  >
+                    <q-icon :name="waterZoneIcons[layer.id]" size="14px" class="q-mr-xs" />
+                    {{ layer.name }}
+                  </q-chip>
+                </div>
+
+                <!-- Additional Reference Layers -->
+                <div class="text-caption text-grey-6 q-mb-xs">Additional Layers</div>
+                <q-list class="q-mb-md q-gutter-y-xs">
+                  <q-item
+                    v-for="layer in waterExtraLayers"
+                    :key="layer.id"
+                    tag="label"
+                    class="species-item rounded-borders"
+                  >
+                    <q-item-section avatar>
+                      <q-toggle v-model="layer.active" color="teal" />
+                    </q-item-section>
+                    <q-item-section>
+                      <q-item-label class="text-grey-9" style="font-size: 0.8rem">{{
+                        layer.name
+                      }}</q-item-label>
+                      <q-item-label caption class="text-grey-6" style="font-size: 0.7rem">{{
+                        layer.description
+                      }}</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+
+                <q-separator class="q-mb-md" />
+
+                <!-- Sampling Sites List -->
                 <q-list class="q-gutter-y-xs">
                   <q-item
-                    v-for="site in waterQualitySites"
+                    v-for="site in filteredWaterSites"
                     :key="site.siteId"
                     clickable
                     class="species-item rounded-borders"
-                    @click="flyToWaterSite(site)"
+                    :class="{ 'species-item--active': selectedWaterSite?.siteId === site.siteId }"
+                    @click="selectWaterSite(site)"
                   >
                     <q-item-section avatar>
                       <q-avatar color="blue-7" text-color="white" size="36px">
@@ -253,9 +317,13 @@
                     </q-item-section>
                   </q-item>
 
-                  <q-item v-if="waterQualitySites.length === 0">
+                  <q-item v-if="filteredWaterSites.length === 0">
                     <q-item-section class="text-center text-grey-5 q-py-lg">
-                      Loading sampling sites...
+                      {{
+                        waterQualitySites.length === 0
+                          ? 'Loading sampling sites...'
+                          : 'No sites found.'
+                      }}
                     </q-item-section>
                   </q-item>
                 </q-list>
@@ -267,7 +335,7 @@
                   <q-icon name="layers" class="q-mr-xs" /> Map Layers
                 </div>
                 <q-list>
-                  <q-item v-for="layer in mapLayers" :key="layer.id" tag="label">
+                  <q-item v-for="layer in exceptionLayers" :key="layer.id" tag="label">
                     <q-item-section avatar>
                       <q-toggle v-model="layer.active" color="teal" />
                     </q-item-section>
@@ -297,13 +365,15 @@
       </div>
     </transition>
 
-    <!-- ═══ FISH DETAIL POPUP (Right Side — BRIGHT THEME) ═══ -->
+    <!-- ═══ DETAIL POPUP (Right Side — BRIGHT THEME) ═══ -->
     <transition name="slide-detail">
-      <div v-if="selectedFish && !showWelcomeOverlay" class="detail-panel">
+      <div v-if="(selectedFish || selectedWaterSite) && !showWelcomeOverlay" class="detail-panel">
         <q-card class="bright-panel full-height column">
           <q-card-section class="q-pb-sm">
             <div class="row items-center justify-between">
-              <span class="text-subtitle1 text-grey-9 text-weight-bold">Species Profile</span>
+              <span class="text-subtitle1 text-grey-9 text-weight-bold">
+                {{ selectedFish ? 'Species Profile' : 'Sampling Site' }}
+              </span>
               <q-btn
                 flat
                 dense
@@ -311,7 +381,7 @@
                 icon="close"
                 color="grey-6"
                 size="sm"
-                @click="selectedFish = null"
+                @click="closeDetailPanel"
               />
             </div>
           </q-card-section>
@@ -319,57 +389,120 @@
           <q-separator class="q-mx-md" />
 
           <q-card-section class="col overflow-auto">
-            <div class="row items-center q-mb-md">
-              <q-avatar
-                :color="selectedFish.type === 'endemic' ? 'blue-7' : 'orange-7'"
-                size="56px"
-                class="q-mr-md"
-              >
-                <q-icon name="set_meal" size="md" color="white" />
-              </q-avatar>
-              <div>
-                <div class="text-grey-9 text-weight-bold text-h6" style="line-height: 1.2">
-                  {{ selectedFish.commonName }}
-                </div>
-                <div class="text-grey-6 text-italic text-caption">
-                  {{ selectedFish.scientificName }}
-                </div>
-                <q-badge
+            <!-- Fish Detail -->
+            <template v-if="selectedFish">
+              <div class="row items-center q-mb-md">
+                <q-avatar
                   :color="selectedFish.type === 'endemic' ? 'blue-7' : 'orange-7'"
-                  :label="selectedFish.type === 'endemic' ? 'Endemic Cyprinid' : 'Invasive Species'"
-                  class="q-mt-xs"
+                  size="56px"
+                  class="q-mr-md"
+                >
+                  <q-icon name="set_meal" size="md" color="white" />
+                </q-avatar>
+                <div>
+                  <div class="text-grey-9 text-weight-bold text-h6" style="line-height: 1.2">
+                    {{ selectedFish.commonName }}
+                  </div>
+                  <div class="text-grey-6 text-italic text-caption">
+                    {{ selectedFish.scientificName }}
+                  </div>
+                  <q-badge
+                    :color="selectedFish.type === 'endemic' ? 'blue-7' : 'orange-7'"
+                    :label="
+                      selectedFish.type === 'endemic' ? 'Endemic Cyprinid' : 'Invasive Species'
+                    "
+                    class="q-mt-xs"
+                  />
+                </div>
+              </div>
+
+              <q-list dense class="q-gutter-y-xs">
+                <q-item v-for="d in selectedFishDetails" :key="d.label" class="q-px-none">
+                  <q-item-section avatar>
+                    <q-icon :name="d.icon" color="teal-7" size="sm" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label caption class="text-grey-6">{{ d.label }}</q-item-label>
+                    <q-item-label class="text-grey-9 text-weight-medium">{{
+                      d.value
+                    }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+
+              <div class="q-mt-lg">
+                <div class="text-caption text-grey-6 q-mb-xs">Conservation Status</div>
+                <q-linear-progress
+                  :value="getConservationValue(selectedFish.status)"
+                  :color="getStatusColor(selectedFish.status)"
+                  track-color="grey-3"
+                  rounded
+                  size="10px"
                 />
+                <div
+                  class="text-caption text-weight-bold q-mt-xs"
+                  :class="`text-${getStatusColor(selectedFish.status)}`"
+                >
+                  {{ selectedFish.status }}
+                </div>
               </div>
-            </div>
+            </template>
 
-            <q-list dense class="q-gutter-y-xs">
-              <q-item v-for="d in selectedFishDetails" :key="d.label" class="q-px-none">
-                <q-item-section avatar>
-                  <q-icon :name="d.icon" color="teal-7" size="sm" />
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label caption class="text-grey-6">{{ d.label }}</q-item-label>
-                  <q-item-label class="text-grey-9 text-weight-medium">{{ d.value }}</q-item-label>
-                </q-item-section>
-              </q-item>
-            </q-list>
-
-            <div class="q-mt-lg">
-              <div class="text-caption text-grey-6 q-mb-xs">Conservation Status</div>
-              <q-linear-progress
-                :value="getConservationValue(selectedFish.status)"
-                :color="getStatusColor(selectedFish.status)"
-                track-color="grey-3"
-                rounded
-                size="10px"
-              />
-              <div
-                class="text-caption text-weight-bold q-mt-xs"
-                :class="`text-${getStatusColor(selectedFish.status)}`"
-              >
-                {{ selectedFish.status }}
+            <!-- Water Quality Site Detail -->
+            <template v-else-if="selectedWaterSite">
+              <div class="row items-center q-mb-md">
+                <q-avatar color="blue-7" size="56px" class="q-mr-md">
+                  <q-icon name="opacity" size="md" color="white" />
+                </q-avatar>
+                <div>
+                  <div class="text-grey-9 text-weight-bold text-h6" style="line-height: 1.2">
+                    {{ selectedWaterSite.siteId }}
+                  </div>
+                  <div class="text-grey-6 text-caption">
+                    Station: {{ selectedWaterSite.stationId }}
+                  </div>
+                  <q-badge
+                    v-if="selectedWaterZone"
+                    color="blue-7"
+                    :label="selectedWaterZone"
+                    class="q-mt-xs"
+                  />
+                </div>
               </div>
-            </div>
+
+              <q-list dense class="q-gutter-y-xs q-mb-md">
+                <q-item class="q-px-none">
+                  <q-item-section avatar>
+                    <q-icon name="place" color="teal-7" size="sm" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label caption class="text-grey-6">Coordinates</q-item-label>
+                    <q-item-label class="text-grey-9 text-weight-medium">
+                      {{ selectedWaterSite.lat.toFixed(5) }}, {{ selectedWaterSite.lng.toFixed(5) }}
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+
+              <div v-for="group in waterQualityParameterGroups" :key="group.title" class="q-mb-md">
+                <div
+                  class="text-caption text-weight-bold q-mb-xs"
+                  :class="`text-${group.color}`"
+                >
+                  <q-icon :name="group.icon" size="14px" class="q-mr-xs" />{{ group.title }}
+                </div>
+                <q-list dense class="q-gutter-y-xs">
+                  <q-item v-for="p in group.params" :key="p.label" class="q-px-none">
+                    <q-item-section>
+                      <q-item-label caption class="text-grey-6">
+                        {{ p.label }}{{ p.unit ? ` (${p.unit})` : '' }}
+                      </q-item-label>
+                      <q-item-label class="text-grey-5 text-italic">Not available</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </div>
+            </template>
           </q-card-section>
         </q-card>
       </div>
@@ -646,13 +779,86 @@ interface WaterQualitySite {
 }
 
 const waterQualitySites = ref<WaterQualitySite[]>([]);
+const selectedWaterSite = ref<WaterQualitySite | null>(null);
 
-function flyToWaterSite(site: WaterQualitySite) {
+function selectWaterSite(site: WaterQualitySite) {
+  selectedWaterSite.value = site;
+  selectedFish.value = null;
   if (map) map.flyTo([site.lat, site.lng], 15, { duration: 1.2 });
 }
 
+// ── Site search (mirrors the Fish tab's search-by-name q-select) ──
+const selectedSiteFilter = ref<string[]>([]);
+const allSiteIds = computed(() => waterQualitySites.value.map((s) => s.siteId));
+const siteOptionsFiltered = ref<string[]>([]);
+
+watch(
+  waterQualitySites,
+  () => {
+    siteOptionsFiltered.value = allSiteIds.value;
+  },
+  { immediate: true },
+);
+
+function filterSiteFn(val: string, update: (callback: () => void) => void) {
+  if (val === '') {
+    update(() => {
+      siteOptionsFiltered.value = allSiteIds.value;
+    });
+    return;
+  }
+  update(() => {
+    const needle = val.toLowerCase();
+    siteOptionsFiltered.value = allSiteIds.value.filter((v) => v.toLowerCase().includes(needle));
+  });
+}
+
+const filteredWaterSites = computed(() =>
+  waterQualitySites.value.filter(
+    (site) => selectedSiteFilter.value.length === 0 || selectedSiteFilter.value.includes(site.siteId),
+  ),
+);
+
 // SITE_ID -> depth zone label, filled in as the Above/Below/Tributary GeoJSON files load.
 const siteDepthZone = new Map<string, string>();
+
+const selectedWaterZone = computed(() =>
+  selectedWaterSite.value ? siteDepthZone.get(selectedWaterSite.value.siteId) : undefined,
+);
+
+const waterQualityParameterGroups = [
+  {
+    title: 'Physico-Chemical',
+    icon: 'science',
+    color: 'teal-8',
+    params: [
+      { label: 'Temperature', unit: '°C' },
+      { label: 'pH', unit: '' },
+      { label: 'Turbidity', unit: 'NTU' },
+      { label: 'Conductivity', unit: 'µS/cm' },
+      { label: 'TDS', unit: 'mg/L' },
+      { label: 'TSS', unit: 'mg/L' },
+    ],
+  },
+  {
+    title: 'Nutrients',
+    icon: 'grain',
+    color: 'blue-8',
+    params: [
+      { label: 'Phosphate', unit: 'mg/L' },
+      { label: 'Ammonia', unit: 'mg/L' },
+      { label: 'Nitrate', unit: 'mg/L' },
+      { label: 'Nitrite', unit: 'mg/L' },
+      { label: 'Sulfate', unit: 'mg/L' },
+    ],
+  },
+  {
+    title: 'Photosynthetic Pigment',
+    icon: 'eco',
+    color: 'green-8',
+    params: [{ label: 'Chlorophyll-a', unit: 'µg/L' }],
+  },
+];
 
 function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
   const zone = siteDepthZone.get(props.SITE_ID);
@@ -677,10 +883,19 @@ function createWaterQualitySiteLayer(geojson: GeoJSON.GeoJsonObject, color: stri
         fillOpacity: 0.9,
       }),
     onEachFeature: (feature, layer) => {
-      layer.bindTooltip(waterQualityTooltipHtml(feature.properties as WaterQualitySiteProps), {
+      const props = feature.properties as WaterQualitySiteProps;
+      layer.bindTooltip(waterQualityTooltipHtml(props), {
         sticky: true,
         direction: 'top',
         offset: [0, -8],
+      });
+      layer.on('click', () => {
+        selectWaterSite({
+          siteId: props.SITE_ID,
+          stationId: props.STATION_ID,
+          lat: props.LATITUDE,
+          lng: props.LONGITUDE,
+        });
       });
     },
   });
@@ -745,6 +960,34 @@ const mapLayers = ref<MapLayer[]>([
   },
 ]);
 
+// Layers shown in the "Layers" tab (kept separate from the Water tab's own layer controls).
+const exceptionLayerIds = ['fish', 'lakeBoundary', 'wqAll'];
+const exceptionLayers = computed(() =>
+  mapLayers.value.filter((l) => exceptionLayerIds.includes(l.id)),
+);
+
+// Depth-zone sampling layers, surfaced as filter chips in the Water tab.
+const waterDepthLayerIds = ['wqAbove40', 'wqBelow40', 'wqTributary'];
+const waterDepthLayers = computed(() =>
+  mapLayers.value.filter((l) => waterDepthLayerIds.includes(l.id)),
+);
+const waterZoneColors: Record<string, string> = {
+  wqAbove40: 'purple-7',
+  wqBelow40: 'brown-6',
+  wqTributary: 'green-8',
+};
+const waterZoneIcons: Record<string, string> = {
+  wqAbove40: 'vertical_align_bottom',
+  wqBelow40: 'vertical_align_top',
+  wqTributary: 'alt_route',
+};
+
+// Non-site reference layers, surfaced as toggles in the Water tab.
+const waterExtraLayerIds = ['lakeStations', 'tributaries'];
+const waterExtraLayers = computed(() =>
+  mapLayers.value.filter((l) => waterExtraLayerIds.includes(l.id)),
+);
+
 // ═══ HELPERS ═══
 function getStatusColor(status: string): string {
   switch (status) {
@@ -774,9 +1017,15 @@ function getConservationValue(status: string): number {
 
 function selectFish(fish: Fish) {
   selectedFish.value = fish;
+  selectedWaterSite.value = null;
   if (map) {
     map.flyTo([fish.lat, fish.lng], 13, { duration: 1.2 });
   }
+}
+
+function closeDetailPanel() {
+  selectedFish.value = null;
+  selectedWaterSite.value = null;
 }
 
 function particleStyle(n: number) {
@@ -980,6 +1229,7 @@ function renderFishMarkers() {
     `);
     marker.on('click', () => {
       selectedFish.value = fish;
+      selectedWaterSite.value = null;
     });
     fishLayerGroup!.addLayer(marker);
   });
