@@ -223,8 +223,30 @@
                   <q-icon name="science" class="q-mr-xs" /> Water Quality Sampling Sites
                 </div>
                 <div class="text-grey-6 text-caption q-mb-md">
-                  Hover a site for a quick look, click for full details. Physico-chemical,
-                  nutrient, and pigment readings are not yet available.
+                  Hover a site for a quick look, click for full details. Use the slider to browse
+                  monthly readings.
+                </div>
+
+                <!-- Monthly Time Slider -->
+                <div class="text-caption text-grey-6 q-mb-xs">
+                  Reading Period: <span class="text-weight-bold text-teal-8">{{ selectedMonthLabel }}</span>
+                </div>
+                <div class="q-px-sm q-mb-lg">
+                  <q-slider
+                    v-model="selectedMonthIndex"
+                    :min="0"
+                    :max="months.length - 1"
+                    :step="1"
+                    snap
+                    markers
+                    color="teal"
+                    track-size="4px"
+                    thumb-size="16px"
+                  />
+                  <div class="row justify-between text-caption text-grey-5">
+                    <span>{{ months[0] }}</span>
+                    <span>{{ months[months.length - 1] }}</span>
+                  </div>
                 </div>
 
                 <q-select
@@ -484,6 +506,16 @@
                 </q-item>
               </q-list>
 
+              <q-banner dense class="bg-teal-1 text-teal-9 q-mb-md rounded-borders">
+                <template #avatar>
+                  <q-icon name="calendar_month" color="teal-8" />
+                </template>
+                Reading period: <strong>{{ selectedMonthLabel }}</strong>
+                <div class="text-caption text-grey-7">
+                  Simulated values — real monthly readings are not connected yet.
+                </div>
+              </q-banner>
+
               <div v-for="group in waterQualityParameterGroups" :key="group.title" class="q-mb-md">
                 <div
                   class="text-caption text-weight-bold q-mb-xs"
@@ -497,7 +529,9 @@
                       <q-item-label caption class="text-grey-6">
                         {{ p.label }}{{ p.unit ? ` (${p.unit})` : '' }}
                       </q-item-label>
-                      <q-item-label class="text-grey-5 text-italic">Not available</q-item-label>
+                      <q-item-label class="text-grey-9 text-weight-medium">
+                        {{ mockReading(selectedWaterSite.siteId, selectedMonthIndex, p) }}
+                      </q-item-label>
                     </q-item-section>
                   </q-item>
                 </q-list>
@@ -826,18 +860,27 @@ const selectedWaterZone = computed(() =>
   selectedWaterSite.value ? siteDepthZone.get(selectedWaterSite.value.siteId) : undefined,
 );
 
-const waterQualityParameterGroups = [
+interface WaterQualityParam {
+  key: string;
+  label: string;
+  unit: string;
+  min: number;
+  max: number;
+  decimals: number;
+}
+
+const waterQualityParameterGroups: { title: string; icon: string; color: string; params: WaterQualityParam[] }[] = [
   {
     title: 'Physico-Chemical',
     icon: 'science',
     color: 'teal-8',
     params: [
-      { label: 'Temperature', unit: '°C' },
-      { label: 'pH', unit: '' },
-      { label: 'Turbidity', unit: 'NTU' },
-      { label: 'Conductivity', unit: 'µS/cm' },
-      { label: 'TDS', unit: 'mg/L' },
-      { label: 'TSS', unit: 'mg/L' },
+      { key: 'temperature', label: 'Temperature', unit: '°C', min: 24, max: 30, decimals: 1 },
+      { key: 'ph', label: 'pH', unit: '', min: 6.5, max: 8.5, decimals: 1 },
+      { key: 'turbidity', label: 'Turbidity', unit: 'NTU', min: 2, max: 25, decimals: 1 },
+      { key: 'conductivity', label: 'Conductivity', unit: 'µS/cm', min: 100, max: 400, decimals: 0 },
+      { key: 'tds', label: 'TDS', unit: 'mg/L', min: 50, max: 250, decimals: 0 },
+      { key: 'tss', label: 'TSS', unit: 'mg/L', min: 5, max: 40, decimals: 1 },
     ],
   },
   {
@@ -845,20 +888,45 @@ const waterQualityParameterGroups = [
     icon: 'grain',
     color: 'blue-8',
     params: [
-      { label: 'Phosphate', unit: 'mg/L' },
-      { label: 'Ammonia', unit: 'mg/L' },
-      { label: 'Nitrate', unit: 'mg/L' },
-      { label: 'Nitrite', unit: 'mg/L' },
-      { label: 'Sulfate', unit: 'mg/L' },
+      { key: 'phosphate', label: 'Phosphate', unit: 'mg/L', min: 0.01, max: 0.5, decimals: 2 },
+      { key: 'ammonia', label: 'Ammonia', unit: 'mg/L', min: 0.01, max: 0.3, decimals: 2 },
+      { key: 'nitrate', label: 'Nitrate', unit: 'mg/L', min: 0.1, max: 2, decimals: 2 },
+      { key: 'nitrite', label: 'Nitrite', unit: 'mg/L', min: 0.01, max: 0.1, decimals: 3 },
+      { key: 'sulfate', label: 'Sulfate', unit: 'mg/L', min: 5, max: 50, decimals: 1 },
     ],
   },
   {
     title: 'Photosynthetic Pigment',
     icon: 'eco',
     color: 'green-8',
-    params: [{ label: 'Chlorophyll-a', unit: 'µg/L' }],
+    params: [{ key: 'chlorophyll', label: 'Chlorophyll-a', unit: 'µg/L', min: 1, max: 15, decimals: 2 }],
   },
 ];
+
+// ── Monthly Time Slider (simulated readings — no real monthly dataset exists yet) ──
+const months = [
+  'Jan 2025', 'Feb 2025', 'Mar 2025', 'Apr 2025', 'May 2025', 'Jun 2025',
+  'Jul 2025', 'Aug 2025', 'Sep 2025', 'Oct 2025', 'Nov 2025', 'Dec 2025', 'Jan 2026',
+];
+const selectedMonthIndex = ref(months.length - 1);
+const selectedMonthLabel = computed(() => months[selectedMonthIndex.value]);
+
+// Deterministic pseudo-random in [0, 1), seeded by string so the same
+// site + month + parameter always yields the same simulated reading.
+function seededRandom(seed: string): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return (Math.abs(hash) % 10000) / 10000;
+}
+
+function mockReading(siteId: string, monthIndex: number, param: WaterQualityParam): string {
+  const r = seededRandom(`${siteId}|${monthIndex}|${param.key}`);
+  const value = param.min + r * (param.max - param.min);
+  return `${value.toFixed(param.decimals)}${param.unit ? ' ' + param.unit : ''}`;
+}
 
 function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
   const zone = siteDepthZone.get(props.SITE_ID);
