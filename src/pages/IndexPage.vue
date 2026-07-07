@@ -276,19 +276,9 @@
                   </div>
                 </div>
 
-                <q-toggle
-                  v-model="showHeatmap"
-                  :disable="!selectedColorParam"
-                  color="teal"
-                  label="Show Heatmap Across Lake"
-                  class="q-mb-xs"
-                />
-                <div v-if="!selectedColorParam" class="text-caption text-grey-5 q-mb-md">
-                  Select a parameter above to enable the heatmap. Click anywhere inside the lake
-                  for an estimated reading.
-                </div>
-                <div v-else class="text-caption text-grey-5 q-mb-md">
-                  Click anywhere inside the lake for an estimated reading.
+                <div class="text-caption text-grey-5 q-mb-md">
+                  Click anywhere inside the lake for an estimated reading (select a parameter
+                  above first).
                 </div>
 
                 <q-select
@@ -663,7 +653,6 @@ import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import 'leaflet.heat';
 
 const route = useRoute();
 const router = useRouter();
@@ -688,10 +677,9 @@ let wqBelow40LayerGroup: L.GeoJSON | null = null;
 let wqTributaryLayerGroup: L.GeoJSON | null = null;
 let lakeStationsLayerGroup: L.GeoJSON | null = null;
 let tributariesLayerGroup: L.GeoJSON | null = null;
-let heatmapLayer: L.HeatLayer | null = null;
 
-// Lake Lanao boundary rings ([lat, lng][]), used for both the heatmap grid and
-// the "click anywhere inside the lake" detection — populated once the boundary GeoJSON loads.
+// Lake Lanao boundary rings ([lat, lng][]) — populated once the boundary GeoJSON
+// loads, used to detect "click anywhere inside the lake" for the reading popup.
 let lakePolygonRings: [number, number][][] = [];
 
 // ═══ HERO STATS ═══
@@ -1203,21 +1191,7 @@ function createWaterQualitySiteLayer(geojson: GeoJSON.GeoJsonObject, defaultColo
   });
 }
 
-// ═══ LAKE-WIDE HEATMAP (single parameter at a time, driven by the same dropdown/slider) ═══
-const showHeatmap = ref(false);
-
-// A heatmap has nothing to show without a parameter selected — keep it off automatically.
-watch(selectedColorParam, (param) => {
-  if (!param) showHeatmap.value = false;
-});
-
-const STATUS_INTENSITY: Record<StatusLevel, number> = {
-  good: 0.15,
-  warning: 0.45,
-  serious: 0.7,
-  critical: 0.95,
-};
-
+// ═══ CLICK ANYWHERE INSIDE THE LAKE (single parameter at a time, from the dropdown/slider) ═══
 function pointInRing(lat: number, lng: number, ring: [number, number][]): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -1259,25 +1233,8 @@ function extractPolygonRings(geojson: GeoJSON.FeatureCollection): [number, numbe
   return rings;
 }
 
-function ringsBounds(rings: [number, number][][]) {
-  let minLat = Infinity;
-  let maxLat = -Infinity;
-  let minLng = Infinity;
-  let maxLng = -Infinity;
-  rings.forEach((ring) =>
-    ring.forEach(([lat, lng]) => {
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-      if (lng < minLng) minLng = lng;
-      if (lng > maxLng) maxLng = lng;
-    }),
-  );
-  return { minLat, maxLat, minLng, maxLng };
-}
-
-// Inverse-distance-weighted estimate of a parameter's value at any point, from
-// the real sampling sites' simulated readings — used by both the heatmap grid
-// and the "click anywhere in the lake" popup, so they always agree.
+// Inverse-distance-weighted estimate of a parameter's value at any clicked
+// point, from the real sampling sites' simulated readings.
 function interpolateValueAt(lat: number, lng: number, param: WaterQualityParam, monthIndex: number): number {
   const sites = waterQualitySites.value;
   if (sites.length === 0) return (param.min + param.max) / 2;
@@ -1292,62 +1249,6 @@ function interpolateValueAt(lat: number, lng: number, param: WaterQualityParam, 
   }
   return weightedSum / weightTotal;
 }
-
-function generateHeatmapPoints(param: WaterQualityParam, monthIndex: number): [number, number, number][] {
-  if (lakePolygonRings.length === 0 || waterQualitySites.value.length === 0) return [];
-  const bounds = ringsBounds(lakePolygonRings);
-  const gridSize = 28;
-  const points: [number, number, number][] = [];
-
-  for (let i = 0; i <= gridSize; i++) {
-    for (let j = 0; j <= gridSize; j++) {
-      const lat = bounds.minLat + ((bounds.maxLat - bounds.minLat) * i) / gridSize;
-      const lng = bounds.minLng + ((bounds.maxLng - bounds.minLng) * j) / gridSize;
-      if (!pointInPolygon(lat, lng, lakePolygonRings)) continue;
-      const value = interpolateValueAt(lat, lng, param, monthIndex);
-      points.push([lat, lng, STATUS_INTENSITY[param.getStatus(value)]]);
-    }
-  }
-
-  // Plot the real sampling sites directly too, so actual data points stand out.
-  waterQualitySites.value.forEach((site) => {
-    const value = generateReading(site.siteId, monthIndex, param);
-    points.push([site.lat, site.lng, STATUS_INTENSITY[param.getStatus(value)]]);
-  });
-
-  return points;
-}
-
-function rebuildHeatmapLayer() {
-  if (!map) return;
-  const param = selectedColorParam.value;
-  if (!showHeatmap.value || !param) {
-    if (heatmapLayer && map.hasLayer(heatmapLayer)) map.removeLayer(heatmapLayer);
-    return;
-  }
-  const points = generateHeatmapPoints(param, selectedMonthIndex.value);
-  if (points.length === 0) return;
-  if (!heatmapLayer) {
-    heatmapLayer = L.heatLayer(points, {
-      radius: 30,
-      blur: 22,
-      max: 1.0,
-      gradient: {
-        0.0: STATUS_COLORS.good,
-        0.4: STATUS_COLORS.warning,
-        0.7: STATUS_COLORS.serious,
-        1.0: STATUS_COLORS.critical,
-      },
-    });
-  } else {
-    heatmapLayer.setLatLngs(points);
-  }
-  if (!map.hasLayer(heatmapLayer)) heatmapLayer.addTo(map);
-}
-
-watch([selectedColorParam, selectedMonthIndex, showHeatmap], () => {
-  rebuildHeatmapLayer();
-});
 
 // ── Click anywhere inside the lake boundary to view an estimated reading ──
 interface ParameterModalData {
@@ -1574,8 +1475,6 @@ function initMap() {
       lakeBoundaryLayerGroup!.addLayer(boundaryLayer);
       lakePolygonRings = extractPolygonRings(geojson);
       syncLayerVisibility();
-      // Retry in case the heatmap was toggled on before these rings were ready.
-      rebuildHeatmapLayer();
     })
     .catch((err) => {
       console.error('Failed to load Lake Lanao boundary GeoJSON:', err);
@@ -1624,8 +1523,6 @@ function initMap() {
           });
           wqAllLayerGroup = createWaterQualitySiteLayer(geojson, '#0288D1');
           syncLayerVisibility();
-          // Retry in case the heatmap was toggled on before these sites were ready.
-          rebuildHeatmapLayer();
         });
     })
     .catch((err) => console.error('Failed to load water quality sampling sites GeoJSON:', err));
