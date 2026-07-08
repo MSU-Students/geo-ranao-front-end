@@ -121,6 +121,12 @@ const linksList: NavLink[] = [
     icon: 'set_meal',
     link: '/dashboard/fish',
   },
+  {
+    title: 'Water Quality Dashboard',
+    caption: 'Environmental Overview',
+    icon: 'water_drop',
+    link: '/dashboard/water-quality',
+  },
   { title: 'All Submissions', caption: 'Community Data', icon: 'list_alt', link: '/researcher' },
   {
     title: 'My Submissions',
