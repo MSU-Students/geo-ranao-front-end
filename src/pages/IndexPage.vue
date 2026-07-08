@@ -223,8 +223,62 @@
                   <q-icon name="science" class="q-mr-xs" /> Water Quality Sampling Sites
                 </div>
                 <div class="text-grey-6 text-caption q-mb-md">
-                  Hover a site for a quick look, click for full details. Physico-chemical,
-                  nutrient, and pigment readings are not yet available.
+                  Hover a site for a quick look, click for full details. Use the slider to browse
+                  monthly readings.
+                </div>
+
+                <!-- Monthly Time Slider -->
+                <div class="text-caption text-grey-6 q-mb-xs">
+                  Reading Period: <span class="text-weight-bold text-teal-8">{{ selectedMonthLabel }}</span>
+                </div>
+                <div class="q-px-sm q-mb-lg">
+                  <q-slider
+                    v-model="selectedMonthIndex"
+                    :min="0"
+                    :max="months.length - 1"
+                    :step="1"
+                    snap
+                    markers
+                    color="teal"
+                    track-size="4px"
+                    thumb-size="16px"
+                  />
+                  <div class="row justify-between text-caption text-grey-5">
+                    <span>{{ months[0] }}</span>
+                    <span>{{ months[months.length - 1] }}</span>
+                  </div>
+                </div>
+
+                <!-- Color Sites By Parameter -->
+                <div class="text-caption text-grey-6 q-mb-xs">Color Sites By Parameter</div>
+                <q-select
+                  v-model="selectedColorParamKey"
+                  :options="colorParamOptions"
+                  option-label="label"
+                  option-value="value"
+                  emit-value
+                  map-options
+                  dense
+                  rounded
+                  outlined
+                  placeholder="None (default colors)"
+                  class="q-mb-xs"
+                  color="teal"
+                >
+                  <template #prepend>
+                    <q-icon name="tune" color="grey-5" size="xs" />
+                  </template>
+                </q-select>
+                <div v-if="selectedColorParam" class="row q-gutter-md q-mb-md q-mt-xs">
+                  <div v-for="level in STATUS_LEVELS" :key="level" class="row items-center no-wrap">
+                    <span class="status-dot" :style="{ background: STATUS_COLORS[level] }" />
+                    <span class="text-caption text-grey-7 q-ml-xs">{{ STATUS_LABELS[level] }}</span>
+                  </div>
+                </div>
+
+                <div class="text-caption text-grey-5 q-mb-md">
+                  Click anywhere inside the lake for an estimated reading (select a parameter
+                  above first).
                 </div>
 
                 <q-select
@@ -313,7 +367,10 @@
                       </q-item-label>
                     </q-item-section>
                     <q-item-section side>
-                      <q-badge color="grey-5" label="No data yet" />
+                      <q-badge
+                        :style="{ background: siteStatusBadge(site.siteId).background, color: 'white' }"
+                        :label="siteStatusBadge(site.siteId).label"
+                      />
                     </q-item-section>
                   </q-item>
 
@@ -484,6 +541,16 @@
                 </q-item>
               </q-list>
 
+              <q-banner dense class="bg-teal-1 text-teal-9 q-mb-md rounded-borders">
+                <template #avatar>
+                  <q-icon name="calendar_month" color="teal-8" />
+                </template>
+                Reading period: <strong>{{ selectedMonthLabel }}</strong>
+                <div class="text-caption text-grey-7">
+                  Simulated values — real monthly readings are not connected yet.
+                </div>
+              </q-banner>
+
               <div v-for="group in waterQualityParameterGroups" :key="group.title" class="q-mb-md">
                 <div
                   class="text-caption text-weight-bold q-mb-xs"
@@ -497,7 +564,9 @@
                       <q-item-label caption class="text-grey-6">
                         {{ p.label }}{{ p.unit ? ` (${p.unit})` : '' }}
                       </q-item-label>
-                      <q-item-label class="text-grey-5 text-italic">Not available</q-item-label>
+                      <q-item-label class="text-grey-9 text-weight-medium">
+                        {{ mockReading(selectedWaterSite.siteId, selectedMonthIndex, p) }}
+                      </q-item-label>
                     </q-item-section>
                   </q-item>
                 </q-list>
@@ -545,12 +614,42 @@
         </q-menu>
       </q-btn>
     </transition>
+
+    <!-- ═══ PARAMETER READING MODAL (click anywhere inside the lake) ═══ -->
+    <q-dialog v-model="showParameterModal">
+      <q-card v-if="parameterModalData" class="parameter-modal-card">
+        <div class="parameter-modal-header" :style="{ background: parameterModalData.color }">
+          <q-icon name="water_drop" size="28px" color="white" />
+          <div class="text-white text-weight-bold text-subtitle1 q-mt-xs">
+            {{ parameterModalData.statusLabel }}
+          </div>
+        </div>
+        <q-card-section>
+          <div class="text-caption text-grey-6">
+            {{ parameterModalData.paramLabel }} · {{ selectedMonthLabel }}
+          </div>
+          <div class="text-h4 text-weight-bold text-grey-9 q-mt-xs">
+            {{ parameterModalData.valueText }}
+          </div>
+          <div class="text-caption text-grey-5 q-mt-sm">
+            Estimated at {{ parameterModalData.lat.toFixed(5) }}, {{ parameterModalData.lng.toFixed(5) }}
+          </div>
+          <div class="text-caption text-grey-5 q-mt-xs">
+            Interpolated from nearby sampling sites — simulated data, not a direct measurement.
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Close" color="grey-7" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -558,6 +657,7 @@ import 'leaflet/dist/leaflet.css';
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+const $q = useQuasar();
 
 // ═══ STATE ═══
 const showWelcomeOverlay = ref(true);
@@ -577,6 +677,10 @@ let wqBelow40LayerGroup: L.GeoJSON | null = null;
 let wqTributaryLayerGroup: L.GeoJSON | null = null;
 let lakeStationsLayerGroup: L.GeoJSON | null = null;
 let tributariesLayerGroup: L.GeoJSON | null = null;
+
+// Lake Lanao boundary rings ([lat, lng][]) — populated once the boundary GeoJSON
+// loads, used to detect "click anywhere inside the lake" for the reading popup.
+let lakePolygonRings: [number, number][][] = [];
 
 // ═══ HERO STATS ═══
 const heroStats = [
@@ -826,18 +930,88 @@ const selectedWaterZone = computed(() =>
   selectedWaterSite.value ? siteDepthZone.get(selectedWaterSite.value.siteId) : undefined,
 );
 
-const waterQualityParameterGroups = [
+// Reserved status palette — never reused for categorical series, always paired
+// with an icon/label (never color alone).
+type StatusLevel = 'good' | 'warning' | 'serious' | 'critical';
+
+const STATUS_COLORS: Record<StatusLevel, string> = {
+  good: '#0ca30c',
+  warning: '#fab219',
+  serious: '#ec835a',
+  critical: '#d03b3b',
+};
+const STATUS_LABELS: Record<StatusLevel, string> = {
+  good: 'Good',
+  warning: 'Warning',
+  serious: 'Serious',
+  critical: 'Critical',
+};
+const STATUS_LEVELS: StatusLevel[] = ['good', 'warning', 'serious', 'critical'];
+
+// For parameters where higher = worse (pollutant/nutrient loading).
+function ascendingStatus(value: number, goodMax: number, warningMax: number, seriousMax: number): StatusLevel {
+  if (value <= goodMax) return 'good';
+  if (value <= warningMax) return 'warning';
+  if (value <= seriousMax) return 'serious';
+  return 'critical';
+}
+
+// For parameters with an ideal middle band (both extremes are bad).
+function centeredStatus(
+  value: number,
+  goodLo: number,
+  goodHi: number,
+  warningLo: number,
+  warningHi: number,
+  seriousLo: number,
+  seriousHi: number,
+): StatusLevel {
+  if (value >= goodLo && value <= goodHi) return 'good';
+  if (value >= warningLo && value <= warningHi) return 'warning';
+  if (value >= seriousLo && value <= seriousHi) return 'serious';
+  return 'critical';
+}
+
+interface WaterQualityParam {
+  key: string;
+  label: string;
+  unit: string;
+  min: number;
+  max: number;
+  decimals: number;
+  getStatus: (value: number) => StatusLevel;
+}
+
+const waterQualityParameterGroups: { title: string; icon: string; color: string; params: WaterQualityParam[] }[] = [
   {
     title: 'Physico-Chemical',
     icon: 'science',
     color: 'teal-8',
     params: [
-      { label: 'Temperature', unit: '°C' },
-      { label: 'pH', unit: '' },
-      { label: 'Turbidity', unit: 'NTU' },
-      { label: 'Conductivity', unit: 'µS/cm' },
-      { label: 'TDS', unit: 'mg/L' },
-      { label: 'TSS', unit: 'mg/L' },
+      {
+        key: 'temperature', label: 'Temperature', unit: '°C', min: 24, max: 30, decimals: 1,
+        getStatus: (v) => centeredStatus(v, 25.5, 27.5, 24.5, 28.5, 24, 29.5),
+      },
+      {
+        key: 'ph', label: 'pH', unit: '', min: 6.5, max: 8.5, decimals: 1,
+        getStatus: (v) => centeredStatus(v, 7.0, 7.6, 6.8, 7.9, 6.6, 8.2),
+      },
+      {
+        key: 'turbidity', label: 'Turbidity', unit: 'NTU', min: 2, max: 25, decimals: 1,
+        getStatus: (v) => ascendingStatus(v, 6, 11, 17),
+      },
+      {
+        key: 'conductivity', label: 'Conductivity', unit: 'µS/cm', min: 100, max: 400, decimals: 0,
+        getStatus: (v) => ascendingStatus(v, 175, 250, 325),
+      },
+      {
+        key: 'tds', label: 'TDS', unit: 'mg/L', min: 50, max: 250, decimals: 0,
+        getStatus: (v) => ascendingStatus(v, 100, 150, 200),
+      },
+      {
+        key: 'tss', label: 'TSS', unit: 'mg/L', min: 5, max: 40, decimals: 1,
+        getStatus: (v) => ascendingStatus(v, 12, 20, 30),
+      },
     ],
   },
   {
@@ -845,46 +1019,162 @@ const waterQualityParameterGroups = [
     icon: 'grain',
     color: 'blue-8',
     params: [
-      { label: 'Phosphate', unit: 'mg/L' },
-      { label: 'Ammonia', unit: 'mg/L' },
-      { label: 'Nitrate', unit: 'mg/L' },
-      { label: 'Nitrite', unit: 'mg/L' },
-      { label: 'Sulfate', unit: 'mg/L' },
+      {
+        key: 'phosphate', label: 'Phosphate', unit: 'mg/L', min: 0.01, max: 0.5, decimals: 2,
+        getStatus: (v) => ascendingStatus(v, 0.08, 0.18, 0.32),
+      },
+      {
+        key: 'ammonia', label: 'Ammonia', unit: 'mg/L', min: 0.01, max: 0.3, decimals: 2,
+        getStatus: (v) => ascendingStatus(v, 0.04, 0.1, 0.18),
+      },
+      {
+        key: 'nitrate', label: 'Nitrate', unit: 'mg/L', min: 0.1, max: 2, decimals: 2,
+        getStatus: (v) => ascendingStatus(v, 0.4, 0.9, 1.4),
+      },
+      {
+        key: 'nitrite', label: 'Nitrite', unit: 'mg/L', min: 0.01, max: 0.1, decimals: 3,
+        getStatus: (v) => ascendingStatus(v, 0.025, 0.045, 0.07),
+      },
+      {
+        key: 'sulfate', label: 'Sulfate', unit: 'mg/L', min: 5, max: 50, decimals: 1,
+        getStatus: (v) => ascendingStatus(v, 15, 27, 38),
+      },
     ],
   },
   {
     title: 'Photosynthetic Pigment',
     icon: 'eco',
     color: 'green-8',
-    params: [{ label: 'Chlorophyll-a', unit: 'µg/L' }],
+    params: [
+      {
+        key: 'chlorophyll', label: 'Chlorophyll-a', unit: 'µg/L', min: 1, max: 15, decimals: 2,
+        getStatus: (v) => ascendingStatus(v, 4, 8, 11),
+      },
+    ],
   },
 ];
 
+// ── Monthly Time Slider (simulated readings — no real monthly dataset exists yet) ──
+const months = [
+  'Jan 2025', 'Feb 2025', 'Mar 2025', 'Apr 2025', 'May 2025', 'Jun 2025',
+  'Jul 2025', 'Aug 2025', 'Sep 2025', 'Oct 2025', 'Nov 2025', 'Dec 2025', 'Jan 2026',
+];
+const selectedMonthIndex = ref(months.length - 1);
+const selectedMonthLabel = computed(() => months[selectedMonthIndex.value]);
+
+// Deterministic pseudo-random in [0, 1), seeded by string so the same
+// site + month + parameter always yields the same simulated reading.
+function seededRandom(seed: string): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return (Math.abs(hash) % 10000) / 10000;
+}
+
+function generateReading(siteId: string, monthIndex: number, param: WaterQualityParam): number {
+  const r = seededRandom(`${siteId}|${monthIndex}|${param.key}`);
+  return param.min + r * (param.max - param.min);
+}
+
+function formatReading(value: number, param: WaterQualityParam): string {
+  return `${value.toFixed(param.decimals)}${param.unit ? ' ' + param.unit : ''}`;
+}
+
+function mockReading(siteId: string, monthIndex: number, param: WaterQualityParam): string {
+  return formatReading(generateReading(siteId, monthIndex, param), param);
+}
+
+// ── Color-by-parameter map overlay (dropdown in the Water tab) ──
+const allWaterParams = computed(() => waterQualityParameterGroups.flatMap((g) => g.params));
+const colorParamOptions = computed(() => [
+  { label: 'None (default colors)', value: null as string | null },
+  ...allWaterParams.value.map((p) => ({
+    label: p.unit ? `${p.label} (${p.unit})` : p.label,
+    value: p.key as string | null,
+  })),
+]);
+const selectedColorParamKey = ref<string | null>(null);
+const selectedColorParam = computed(
+  () => allWaterParams.value.find((p) => p.key === selectedColorParamKey.value) ?? null,
+);
+
+function siteStatusBadge(siteId: string): { label: string; background: string } {
+  const param = selectedColorParam.value;
+  if (!param) return { label: 'No data yet', background: '#9e9e9e' };
+  const value = generateReading(siteId, selectedMonthIndex.value, param);
+  const status = param.getStatus(value);
+  return {
+    label: `${formatReading(value, param)} · ${STATUS_LABELS[status]}`,
+    background: STATUS_COLORS[status],
+  };
+}
+
+function getMarkerColor(siteId: string, defaultColor: string): string {
+  const param = selectedColorParam.value;
+  if (!param) return defaultColor;
+  const value = generateReading(siteId, selectedMonthIndex.value, param);
+  return STATUS_COLORS[param.getStatus(value)];
+}
+
+function recolorWaterLayers() {
+  const layerDefaults: [L.GeoJSON | null, string][] = [
+    [wqAllLayerGroup, '#0288D1'],
+    [wqAbove40LayerGroup, '#7B1FA2'],
+    [wqBelow40LayerGroup, '#8D6E63'],
+    [wqTributaryLayerGroup, '#2E7D32'],
+  ];
+  for (const [layerGroup, defaultColor] of layerDefaults) {
+    if (!layerGroup) continue;
+    layerGroup.eachLayer((layer) => {
+      const feature = (layer as L.Layer & { feature?: GeoJSON.Feature }).feature;
+      const props = feature?.properties as WaterQualitySiteProps | undefined;
+      if (!props) return;
+      (layer as L.CircleMarker).setStyle({ fillColor: getMarkerColor(props.SITE_ID, defaultColor) });
+    });
+  }
+}
+
+watch([selectedColorParam, selectedMonthIndex], () => {
+  recolorWaterLayers();
+});
+
 function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
   const zone = siteDepthZone.get(props.SITE_ID);
+  const param = selectedColorParam.value;
+  let paramLine = '';
+  if (param) {
+    const value = generateReading(props.SITE_ID, selectedMonthIndex.value, param);
+    const status = param.getStatus(value);
+    paramLine = `<br><span style="color:${STATUS_COLORS[status]}; font-weight:bold;">${param.label}: ${formatReading(value, param)} (${STATUS_LABELS[status]})</span>`;
+  }
   return `
     <div style="font-family: Roboto, sans-serif; min-width: 170px;">
       <strong style="color:#0288D1;">${props.SITE_ID}</strong><br>
       <span style="color:#666;">Station: ${props.STATION_ID}</span><br>
       <span style="color:#666;">Coordinates: ${props.LATITUDE.toFixed(5)}, ${props.LONGITUDE.toFixed(5)}</span>
       ${zone ? `<br><span style="color:#666;">Depth Zone: ${zone}</span>` : ''}
+      ${paramLine}
     </div>
   `;
 }
 
-function createWaterQualitySiteLayer(geojson: GeoJSON.GeoJsonObject, color: string): L.GeoJSON {
+function createWaterQualitySiteLayer(geojson: GeoJSON.GeoJsonObject, defaultColor: string): L.GeoJSON {
   return L.geoJSON(geojson, {
-    pointToLayer: (_feature, latlng) =>
-      L.circleMarker(latlng, {
+    pointToLayer: (feature, latlng) => {
+      const props = feature.properties as WaterQualitySiteProps;
+      return L.circleMarker(latlng, {
         radius: 7,
         weight: 2,
         color: '#ffffff',
-        fillColor: color,
+        fillColor: getMarkerColor(props.SITE_ID, defaultColor),
         fillOpacity: 0.9,
-      }),
+      });
+    },
     onEachFeature: (feature, layer) => {
       const props = feature.properties as WaterQualitySiteProps;
-      layer.bindTooltip(waterQualityTooltipHtml(props), {
+      layer.bindTooltip(() => waterQualityTooltipHtml(props), {
         sticky: true,
         direction: 'top',
         offset: [0, -8],
@@ -899,6 +1189,106 @@ function createWaterQualitySiteLayer(geojson: GeoJSON.GeoJsonObject, color: stri
       });
     },
   });
+}
+
+// ═══ CLICK ANYWHERE INSIDE THE LAKE (single parameter at a time, from the dropdown/slider) ═══
+function pointInRing(lat: number, lng: number, ring: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const latI = ring[i]![0];
+    const lngI = ring[i]![1];
+    const latJ = ring[j]![0];
+    const lngJ = ring[j]![1];
+    const intersects = lngI > lng !== lngJ > lng && lat < ((latJ - latI) * (lng - lngI)) / (lngJ - lngI) + latI;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+// Even-odd rule across all rings, so holes (if any) are respected.
+function pointInPolygon(lat: number, lng: number, rings: [number, number][][]): boolean {
+  let inside = false;
+  for (const ring of rings) {
+    if (pointInRing(lat, lng, ring)) inside = !inside;
+  }
+  return inside;
+}
+
+function extractPolygonRings(geojson: GeoJSON.FeatureCollection): [number, number][][] {
+  const rings: [number, number][][] = [];
+  geojson.features.forEach((feature) => {
+    const geom = feature.geometry;
+    if (geom.type === 'Polygon') {
+      geom.coordinates.forEach((ring) => {
+        rings.push(ring.map(([lng, lat]) => [lat, lng] as [number, number]));
+      });
+    } else if (geom.type === 'MultiPolygon') {
+      geom.coordinates.forEach((polygon) => {
+        polygon.forEach((ring) => {
+          rings.push(ring.map(([lng, lat]) => [lat, lng] as [number, number]));
+        });
+      });
+    }
+  });
+  return rings;
+}
+
+// Inverse-distance-weighted estimate of a parameter's value at any clicked
+// point, from the real sampling sites' simulated readings.
+function interpolateValueAt(lat: number, lng: number, param: WaterQualityParam, monthIndex: number): number {
+  const sites = waterQualitySites.value;
+  if (sites.length === 0) return (param.min + param.max) / 2;
+  let weightedSum = 0;
+  let weightTotal = 0;
+  for (const site of sites) {
+    const dLat = site.lat - lat;
+    const dLng = site.lng - lng;
+    const weight = 1 / (dLat * dLat + dLng * dLng + 0.0001);
+    weightedSum += generateReading(site.siteId, monthIndex, param) * weight;
+    weightTotal += weight;
+  }
+  return weightedSum / weightTotal;
+}
+
+// ── Click anywhere inside the lake boundary to view an estimated reading ──
+interface ParameterModalData {
+  paramLabel: string;
+  valueText: string;
+  statusLabel: string;
+  color: string;
+  lat: number;
+  lng: number;
+}
+
+const showParameterModal = ref(false);
+const parameterModalData = ref<ParameterModalData | null>(null);
+
+function handleMapClick(e: L.LeafletMouseEvent) {
+  if (lakePolygonRings.length === 0) return;
+  const { lat, lng } = e.latlng;
+  if (!pointInPolygon(lat, lng, lakePolygonRings)) return;
+
+  const param = selectedColorParam.value;
+  if (!param) {
+    $q.notify({
+      type: 'warning',
+      message: 'Select a water quality parameter first (Water tab → Color Sites By Parameter).',
+      position: 'top',
+    });
+    return;
+  }
+
+  const value = interpolateValueAt(lat, lng, param, selectedMonthIndex.value);
+  const status = param.getStatus(value);
+  parameterModalData.value = {
+    paramLabel: param.label,
+    valueText: formatReading(value, param),
+    statusLabel: STATUS_LABELS[status],
+    color: STATUS_COLORS[status],
+    lat,
+    lng,
+  };
+  showParameterModal.value = true;
 }
 
 // ═══ MAP LAYERS ═══
@@ -1059,6 +1449,11 @@ function initMap() {
 
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
+  // Lets users click anywhere inside the lake to view an estimated reading for
+  // the selected parameter (non-interactive layers, like the boundary outline
+  // below, don't intercept this).
+  map.on('click', handleMapClick);
+
   // ── Create Fish Layer Group ──
   fishLayerGroup = L.layerGroup();
   renderFishMarkers();
@@ -1067,7 +1462,7 @@ function initMap() {
   lakeBoundaryLayerGroup = L.layerGroup();
   fetch('/geo/lake-lanao.geojson')
     .then((res) => res.json())
-    .then((geojson: GeoJSON.GeoJsonObject) => {
+    .then((geojson: GeoJSON.FeatureCollection) => {
       const boundaryLayer = L.geoJSON(geojson, {
         style: {
           color: '#0288D1',
@@ -1075,9 +1470,10 @@ function initMap() {
           fillColor: '#4FC3F7',
           fillOpacity: 0.15,
         },
+        interactive: false,
       });
-      boundaryLayer.bindPopup('Lake Lanao Boundary');
       lakeBoundaryLayerGroup!.addLayer(boundaryLayer);
+      lakePolygonRings = extractPolygonRings(geojson);
       syncLayerVisibility();
     })
     .catch((err) => {
@@ -1458,6 +1854,27 @@ function goToWaterQuality() {
 .filter-chip {
   font-size: 0.7rem;
   transition: all 0.2s ease;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════ */
+/* PARAMETER READING MODAL            */
+/* ═══════════════════════════════════ */
+.parameter-modal-card {
+  width: 320px;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.parameter-modal-header {
+  padding: 20px;
+  text-align: center;
 }
 
 /* ═══════════════════════════════════ */
