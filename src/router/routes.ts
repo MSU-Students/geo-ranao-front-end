@@ -11,6 +11,10 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/dashboard/FishDashboardPage.vue'),
       },
       {
+        path: '/dashboard/water-quality',
+        component: () => import('pages/dashboard/WaterQualityDashboardPage.vue'),
+      },
+      {
         path: '/researcher',
         component: () => import('pages/researcher/ResearcherPortalPage.vue'),
       },
@@ -35,14 +39,6 @@ const routes: RouteRecordRaw[] = [
       { path: 'login', component: () => import('pages/auth/LoginPage.vue') },
       { path: 'signup', component: () => import('pages/auth/SignupPage.vue') },
       { path: 'profile', component: () => import('pages/auth/ProfilePage.vue') },
-    ],
-  },
-
-  {
-    path: '/dashboard',
-    component: () => import('layouts/PlainLayout.vue'),
-    children: [
-      { path: 'WaterQuality', component: () => import('pages/dashboard/WaterQuality.vue') },
     ],
   },
 
