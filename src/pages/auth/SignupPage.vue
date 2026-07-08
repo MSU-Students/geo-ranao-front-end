@@ -76,19 +76,6 @@
             </template>
           </q-file>
 
-          <q-select
-            filled
-            v-model="formData.role"
-            :options="['Researcher', 'Public User']"
-            label="Register as..."
-            emit-value
-            map-options
-            behavior="menu"
-            :rules="[(val) => !!val || 'Please select a role']"
-          >
-            <template v-slot:prepend><q-icon name="badge" /></template>
-          </q-select>
-
           <div class="q-mt-md">
             <q-btn
               label="Sign Up"
@@ -156,7 +143,6 @@ const formData = reactive({
   email: '',
   password: '',
   avatar: null,
-  role: 'Public User', // Default
 });
 
 const isValidEmail = (email: string) => {
@@ -166,7 +152,7 @@ const isValidEmail = (email: string) => {
 };
 
 function handleSignup() {
-  authStore.signup(formData.username, formData.email, formData.password, formData.role);
+  authStore.signup(formData.username, formData.email, formData.password);
   $q.notify({
     message: 'Account created successfully!',
     color: 'positive',

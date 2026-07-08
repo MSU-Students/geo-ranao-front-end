@@ -23,9 +23,9 @@ export const useAuthStore = defineStore('auth', () => {
     };
   }
 
-  function signup(username: string, email: string, _password: string, role: string) {
+  function signup(username: string, email: string, _password: string) {
     isLoggedIn.value = true;
-    user.value = { username, email, role };
+    user.value = { username, email, role: 'Researcher' };
   }
 
   function logout() {
