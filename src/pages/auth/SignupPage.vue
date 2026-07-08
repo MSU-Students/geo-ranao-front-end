@@ -60,6 +60,7 @@
               :rules="[
                 (val) => !!val || 'Email is required',
                 (val) => isValidEmail(val) || 'Invalid email',
+                (val) => getEmailDomainError(val) ?? true,
               ]"
             >
               <template v-slot:prepend><q-icon name="email" /></template>
@@ -273,10 +274,36 @@ const isValidEmail = (email: string) => {
   return emailPattern.test(email);
 };
 
+// Well-known free email providers, mapped to their one true domain. Catches
+// mistyped TLDs like "gmail.co" (missing the trailing "m") that otherwise
+// pass generic email-format validation, since "gmail.co" is syntactically
+// a valid domain — the mistake is only obvious because we know the provider.
+const knownEmailProviders: Record<string, string> = {
+  gmail: 'gmail.com',
+  yahoo: 'yahoo.com',
+  hotmail: 'hotmail.com',
+  outlook: 'outlook.com',
+  icloud: 'icloud.com',
+  live: 'live.com',
+  aol: 'aol.com',
+  protonmail: 'protonmail.com',
+};
+
+function getEmailDomainError(email: string): string | null {
+  const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
+  const provider = domain.split('.')[0];
+  const expectedDomain = provider ? knownEmailProviders[provider] : undefined;
+  if (expectedDomain && domain !== expectedDomain) {
+    return `Did you mean "${expectedDomain}"?`;
+  }
+  return null;
+}
+
 const canContinueIdentity = computed(
   () =>
     formData.fullName.trim().length > 1 &&
     isValidEmail(formData.email) &&
+    !getEmailDomainError(formData.email) &&
     formData.password.length >= 8 &&
     formData.confirmPassword === formData.password,
 );
