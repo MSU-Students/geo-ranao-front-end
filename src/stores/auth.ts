@@ -22,14 +22,18 @@ export const useAuthStore = defineStore('auth', () => {
   const displayName = computed(() => user.value?.username ?? 'Guest');
 
   function login(username: string, _password: string) {
-    // No real backend — accept any credentials
+    // No real backend — accept any credentials. Typing "admin" as the
+    // username signs in with administrative access (account/log review).
     isLoggedIn.value = true;
-    user.value = {
-      username,
-      email: `${username.toLowerCase().replace(/\s+/g, '.')}@msumain.edu.ph`,
-      role: 'Researcher',
-      status: 'verified',
-    };
+    const isAdmin = username.trim().toLowerCase() === 'admin';
+    user.value = isAdmin
+      ? { username: 'Admin', email: 'admin@msumain.edu.ph', role: 'Admin' }
+      : {
+          username,
+          email: `${username.toLowerCase().replace(/\s+/g, '.')}@msumain.edu.ph`,
+          role: 'Researcher',
+          status: 'verified',
+        };
   }
 
   // Submits a researcher account application for admin review. No real
