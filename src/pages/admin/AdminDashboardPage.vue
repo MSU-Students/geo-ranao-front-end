@@ -1,5 +1,8 @@
 <template>
-  <q-page class="q-pa-md flex flex-center relative-position overflow-hidden">
+  <q-page
+    class="q-pa-md flex flex-center relative-position overflow-hidden"
+    :class="{ 'suspend-glass': anyDialogOpen }"
+  >
     <q-img
       src="https://phworldexpo.tpb.gov.ph/wp-content/uploads/2025/05/Lake-Lanao.png"
       class="absolute-full"
@@ -683,6 +686,11 @@ function openDetail(account: ResearcherAccount) {
   detailDialogShow.value = true;
 }
 
+// Chrome can mis-composite backdrop-filter blur behind a fixed-position
+// dialog, letting the blurred cards show through it. Dropping the blur
+// while any dialog is open avoids the glitch entirely.
+const anyDialogOpen = computed(() => reasonDialog.show || detailDialogShow.value);
+
 // ─── Account Actions ───
 function handleApprove(account: ResearcherAccount) {
   adminStore.approveAccount(account.id);
@@ -903,6 +911,12 @@ const recentExports = computed(() =>
      fixed-position q-dialog and let the blurred content bleed through it. */
   transform: translateZ(0);
   isolation: isolate;
+}
+
+/* While a q-dialog is open, drop the blur so Chrome has nothing to
+   mis-composite behind the fixed-position dialog. */
+.suspend-glass .glass-morph {
+  backdrop-filter: none !important;
 }
 
 .bg-overlay {
