@@ -30,6 +30,10 @@ const routes: RouteRecordRaw[] = [
         path: '/researcher/upload/water-quality',
         component: () => import('pages/researcher/WaterQualityPage.vue'),
       },
+      {
+        path: '/admin',
+        component: () => import('pages/admin/AdminDashboardPage.vue'),
+      },
     ],
   },
   {

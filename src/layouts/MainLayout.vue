@@ -106,6 +106,7 @@ interface NavLink {
   link: string;
   query?: Record<string, string>;
   requiresAuth?: boolean;
+  requiresAdmin?: boolean;
 }
 
 const linksList: NavLink[] = [
@@ -136,10 +137,21 @@ const linksList: NavLink[] = [
     query: { tab: 'my' },
     requiresAuth: true,
   },
+  {
+    title: 'Admin Dashboard',
+    caption: 'Accounts, Logs & Reviews',
+    icon: 'admin_panel_settings',
+    link: '/admin',
+    requiresAuth: true,
+    requiresAdmin: true,
+  },
 ];
 
 const visibleLinks = computed(() =>
-  linksList.filter((link) => !link.requiresAuth || authStore.isLoggedIn),
+  linksList.filter((link) => {
+    if (link.requiresAdmin) return authStore.user?.role === 'Admin';
+    return !link.requiresAuth || authStore.isLoggedIn;
+  }),
 );
 
 const leftDrawerOpen = ref(false);
@@ -151,7 +163,8 @@ function toggleLeftDrawer() {
 
 function navigateTo(link: NavLink) {
   leftDrawerOpen.value = false;
-  router.push({ path: link.link, query: link.query }).catch((err) => {
+  const target = link.query ? { path: link.link, query: link.query } : { path: link.link };
+  router.push(target).catch((err) => {
     console.error('Navigation error:', err);
   });
 }

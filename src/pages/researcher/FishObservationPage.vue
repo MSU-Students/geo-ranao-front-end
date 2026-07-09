@@ -358,10 +358,12 @@ import { reactive, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
+import { useAdminStore } from 'src/stores/admin';
 
 const $q = useQuasar();
 const router = useRouter();
 const authStore = useAuthStore();
+const adminStore = useAdminStore();
 const submitting = ref(false);
 
 // Redirect if not logged in
@@ -454,6 +456,12 @@ function handleSubmit() {
   // Simulate API call
   setTimeout(() => {
     submitting.value = false;
+    adminStore.recordUpload(
+      authStore.displayName,
+      'Fish Observation',
+      form.speciesName || 'Unnamed species',
+      `${form.latitude}, ${form.longitude}`,
+    );
     $q.notify({
       type: 'positive',
       message: 'Fish observation submitted successfully!',
