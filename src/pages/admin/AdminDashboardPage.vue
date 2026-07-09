@@ -433,7 +433,14 @@
 
     <!-- Reason Dialog (Reject / Revoke) -->
     <q-dialog v-model="reasonDialog.show">
-      <q-card style="min-width: 420px; max-width: 90vw">
+      <q-card
+        style="
+          min-width: 420px;
+          max-width: 90vw;
+          background: #ffffff;
+          isolation: isolate;
+          transform: translateZ(0);
+        ">
         <q-card-section>
           <div class="text-h6">{{ reasonDialog.title }}</div>
         </q-card-section>
@@ -461,7 +468,14 @@
 
     <!-- Application Detail Dialog -->
     <q-dialog v-model="detailDialogShow">
-      <q-card style="min-width: 420px; max-width: 90vw" v-if="detailAccount">
+      <q-card
+        style="
+          min-width: 420px;
+          max-width: 90vw;
+          background: #ffffff;
+          isolation: isolate;
+          transform: translateZ(0);
+        " v-if="detailAccount">
         <q-card-section>
           <div class="text-h6">{{ detailAccount.fullName }}</div>
           <div class="text-caption text-grey-7">{{ detailAccount.email }}</div>
@@ -884,6 +898,11 @@ const recentExports = computed(() =>
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 16px;
+  /* Isolates each blurred card on its own compositor layer — without this,
+     Chrome can mis-order backdrop-filter blur against a later-painted
+     fixed-position q-dialog and let the blurred content bleed through it. */
+  transform: translateZ(0);
+  isolation: isolate;
 }
 
 .bg-overlay {
