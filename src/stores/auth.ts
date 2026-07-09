@@ -1,10 +1,18 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 
+export type ResearcherStatus = 'pending' | 'verified' | 'suspended';
+
 export interface AuthUser {
+  // Holds the person's display name — their full name when set via signup,
+  // or the entered username when set via the (mock) login form.
   username: string;
   email: string;
   role: string;
+  status?: ResearcherStatus;
+  affiliation?: string;
+  departmentRole?: string;
+  purposeOfRequest?: string;
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -20,12 +28,31 @@ export const useAuthStore = defineStore('auth', () => {
       username,
       email: `${username.toLowerCase().replace(/\s+/g, '.')}@msumain.edu.ph`,
       role: 'Researcher',
+      status: 'verified',
     };
   }
 
-  function signup(username: string, email: string, _password: string, role: string) {
-    isLoggedIn.value = true;
-    user.value = { username, email, role };
+  // Submits a researcher account application for admin review. No real
+  // backend exists yet, so this does not grant access — the applicant must
+  // wait to be verified before they can log in with full researcher access.
+  function signup(
+    fullName: string,
+    email: string,
+    _password: string,
+    affiliation: string,
+    departmentRole: string,
+    purposeOfRequest: string,
+  ) {
+    isLoggedIn.value = false;
+    user.value = {
+      username: fullName,
+      email,
+      role: 'Researcher',
+      status: 'pending',
+      affiliation,
+      departmentRole,
+      purposeOfRequest,
+    };
   }
 
   function logout() {
