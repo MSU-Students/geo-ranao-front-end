@@ -249,10 +249,12 @@ import { ref, reactive, computed } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
+import { useAdminStore } from 'src/stores/admin';
 
 const router = useRouter();
 const $q = useQuasar();
 const authStore = useAuthStore();
+const adminStore = useAdminStore();
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 
@@ -348,6 +350,14 @@ function handleSignup() {
     formData.departmentRole,
     formData.purposeOfRequest,
   );
+
+  adminStore.submitApplication({
+    fullName: formData.fullName,
+    email: formData.email,
+    affiliation: formData.affiliation,
+    departmentRole: formData.departmentRole,
+    purposeOfRequest: formData.purposeOfRequest,
+  });
 
   $q.notify({
     message: 'Application submitted!',

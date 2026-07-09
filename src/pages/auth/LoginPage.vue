@@ -107,7 +107,10 @@
 
           <!-- Temp note -->
           <div class="text-center q-mt-md">
-            <span class="text-grey-4 text-caption">Use any username and password to continue</span>
+            <span class="text-grey-4 text-caption"
+              >Use any username and password to continue — sign in as "admin" for admin
+              access</span
+            >
           </div>
         </div>
       </div>
@@ -119,9 +122,11 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
+import { useAdminStore } from 'src/stores/admin';
 
 const router = useRouter();
 const authStore = useAuthStore();
+const adminStore = useAdminStore();
 
 const username = ref('');
 const password = ref('');
@@ -143,8 +148,9 @@ function handleLogin() {
   // Simulate a short loading delay then log in and go to home
   setTimeout(() => {
     authStore.login(username.value, password.value);
+    adminStore.logActivity(authStore.displayName, 'Logged In', 'Signed in to Ranao FishNet');
     loading.value = false;
-    router.push('/');
+    router.push(authStore.user?.role === 'Admin' ? '/admin' : '/');
   }, 800);
 }
 

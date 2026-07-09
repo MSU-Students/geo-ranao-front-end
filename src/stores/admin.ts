@@ -13,7 +13,7 @@ export interface ResearcherAccount {
   status: AccountStatus;
   submittedDate: string;
   reviewedDate?: string;
-  reviewNote?: string;
+  reviewNote?: string | undefined;
 }
 
 export type ActivitySeverity = 'neutral' | 'positive' | 'warning' | 'negative';
@@ -38,7 +38,7 @@ export interface UploadReviewItem {
   location: string;
   submittedDate: string;
   status: UploadReviewStatus;
-  reviewNote?: string;
+  reviewNote?: string | undefined;
 }
 
 let nextAccountId = 1000;
