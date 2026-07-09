@@ -1,15 +1,12 @@
 <template>
-  <q-page
-    class="q-pa-md flex flex-center relative-position overflow-hidden"
-    :class="{ 'suspend-glass': anyDialogOpen }"
-  >
+  <q-page class="q-pa-md flex flex-center relative-position overflow-hidden">
     <q-img
       src="https://phworldexpo.tpb.gov.ph/wp-content/uploads/2025/05/Lake-Lanao.png"
       class="absolute-full"
     />
     <div class="absolute-full bg-overlay" />
 
-    <div class="z-top full-width q-pa-md" style="max-width: 1400px">
+    <div class="page-content full-width q-pa-md" style="max-width: 1400px">
       <!-- Header -->
       <div class="row items-center justify-between q-mb-lg">
         <div>
@@ -437,13 +434,7 @@
     <!-- Reason Dialog (Reject / Revoke) -->
     <q-dialog v-model="reasonDialog.show">
       <q-card
-        style="
-          min-width: 420px;
-          max-width: 90vw;
-          background: #ffffff;
-          isolation: isolate;
-          transform: translateZ(0);
-        ">
+        style="min-width: 420px; max-width: 90vw">
         <q-card-section>
           <div class="text-h6">{{ reasonDialog.title }}</div>
         </q-card-section>
@@ -472,13 +463,7 @@
     <!-- Application Detail Dialog -->
     <q-dialog v-model="detailDialogShow">
       <q-card
-        style="
-          min-width: 420px;
-          max-width: 90vw;
-          background: #ffffff;
-          isolation: isolate;
-          transform: translateZ(0);
-        " v-if="detailAccount">
+        style="min-width: 420px; max-width: 90vw" v-if="detailAccount">
         <q-card-section>
           <div class="text-h6">{{ detailAccount.fullName }}</div>
           <div class="text-caption text-grey-7">{{ detailAccount.email }}</div>
@@ -685,11 +670,6 @@ function openDetail(account: ResearcherAccount) {
   detailAccount.value = account;
   detailDialogShow.value = true;
 }
-
-// Chrome can mis-composite backdrop-filter blur behind a fixed-position
-// dialog, letting the blurred cards show through it. Dropping the blur
-// while any dialog is open avoids the glitch entirely.
-const anyDialogOpen = computed(() => reasonDialog.show || detailDialogShow.value);
 
 // ─── Account Actions ───
 function handleApprove(account: ResearcherAccount) {
@@ -906,17 +886,6 @@ const recentExports = computed(() =>
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 16px;
-  /* Isolates each blurred card on its own compositor layer — without this,
-     Chrome can mis-order backdrop-filter blur against a later-painted
-     fixed-position q-dialog and let the blurred content bleed through it. */
-  transform: translateZ(0);
-  isolation: isolate;
-}
-
-/* While a q-dialog is open, drop the blur so Chrome has nothing to
-   mis-composite behind the fixed-position dialog. */
-.suspend-glass .glass-morph {
-  backdrop-filter: none !important;
 }
 
 .bg-overlay {
@@ -974,7 +943,7 @@ const recentExports = computed(() =>
   max-width: 320px;
 }
 
-.z-top {
+.page-content {
   position: relative;
   z-index: 1;
 }
