@@ -720,8 +720,8 @@ const species: Fish[] = [
     weight: '20–50 g',
     location: 'Lake Lanao, Lanao del Sur',
     date: '2024',
-    lat: 7.98,
-    lng: 124.05,
+    lat: 7.872,
+    lng: 124.145,
   },
   {
     id: 2,
@@ -734,8 +734,8 @@ const species: Fish[] = [
     weight: '1–3 kg',
     location: 'Lake Lanao, Lanao del Sur',
     date: '2024',
-    lat: 8.02,
-    lng: 124.08,
+    lat: 7.963,
+    lng: 124.275,
   },
   {
     id: 3,
@@ -748,8 +748,8 @@ const species: Fish[] = [
     weight: '30–80 g',
     location: 'Lake Lanao, Lanao del Sur',
     date: '2024',
-    lat: 7.95,
-    lng: 124.02,
+    lat: 7.837,
+    lng: 124.210,
   },
   {
     id: 4,
@@ -762,8 +762,8 @@ const species: Fish[] = [
     weight: '15–40 g',
     location: 'Lake Lanao, Lanao del Sur',
     date: '2024',
-    lat: 8.01,
-    lng: 124.12,
+    lat: 7.908,
+    lng: 124.230,
   },
   {
     id: 5,
@@ -776,8 +776,8 @@ const species: Fish[] = [
     weight: '20–60 g',
     location: 'Lake Lanao, Lanao del Sur',
     date: '2024',
-    lat: 7.96,
-    lng: 124.06,
+    lat: 7.855,
+    lng: 124.188,
   },
   {
     id: 6,
@@ -790,8 +790,8 @@ const species: Fish[] = [
     weight: '0.5–2 kg',
     location: 'Lake Lanao, Lanao del Sur',
     date: '2024',
-    lat: 8.0,
-    lng: 124.04,
+    lat: 7.940,
+    lng: 124.252,
   },
   {
     id: 7,
@@ -804,8 +804,8 @@ const species: Fish[] = [
     weight: '1–4 kg',
     location: 'Lake Lanao, Lanao del Sur',
     date: '2024',
-    lat: 7.97,
-    lng: 124.1,
+    lat: 7.983,
+    lng: 124.285,
   },
   {
     id: 8,
@@ -818,8 +818,8 @@ const species: Fish[] = [
     weight: '< 5 g',
     location: 'Lake Lanao, Lanao del Sur',
     date: '2024',
-    lat: 8.03,
-    lng: 124.07,
+    lat: 7.825,
+    lng: 124.265,
   },
 ];
 
