@@ -93,6 +93,21 @@
             />
           </q-form>
 
+          <q-btn
+            outline
+            color="grey-8"
+            class="full-width bg-white text-weight-medium"
+            @click="loginWithGoogle"
+            no-caps
+            rounded
+          >
+            <q-img
+              src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/google/google-original.svg"
+              style="width: 18px; margin-right: 12px"
+            />
+            Continue with Google
+          </q-btn>
+
           <div class="text-center q-mt-lg">
             <span class="text-grey-6">Don't have an account?</span>
             <q-btn
@@ -108,8 +123,7 @@
           <!-- Temp note -->
           <div class="text-center q-mt-md">
             <span class="text-grey-4 text-caption"
-              >Use any username and password to continue — sign in as "admin" for admin
-              access</span
+              >Use any username and password to continue — sign in as "admin" for admin access</span
             >
           </div>
         </div>
