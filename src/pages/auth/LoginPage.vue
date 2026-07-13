@@ -96,7 +96,7 @@
           <q-btn
             outline
             color="grey-8"
-            class="full-width bg-white text-weight-medium"
+            class="full-width bg-white text-weight-medium q-mt-md"
             @click="loginWithGoogle"
             no-caps
             rounded
