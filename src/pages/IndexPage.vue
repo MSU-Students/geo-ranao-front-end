@@ -389,6 +389,30 @@
               <!-- ═══ LAYERS TAB ═══ -->
               <q-tab-panel name="layers" class="q-pa-md">
                 <div class="text-subtitle2 text-teal-8 text-weight-bold q-mb-md">
+                  <q-icon name="public" class="q-mr-xs" /> Base Map
+                </div>
+                <q-btn-toggle
+                  v-model="selectedBaseLayer"
+                  spread
+                  dense
+                  no-caps
+                  unelevated
+                  toggle-color="teal"
+                  color="white"
+                  text-color="grey-8"
+                  :options="
+                    baseLayerOptions.map((o) => ({
+                      label: o.name,
+                      value: o.id,
+                      icon: o.icon,
+                      stack: true,
+                    }))
+                  "
+                  class="base-layer-toggle q-mb-md"
+                />
+                <q-separator class="q-mb-md" />
+
+                <div class="text-subtitle2 text-teal-8 text-weight-bold q-mb-md">
                   <q-icon name="layers" class="q-mr-xs" /> Map Layers
                 </div>
                 <q-list>
@@ -677,6 +701,7 @@ let wqBelow40LayerGroup: L.GeoJSON | null = null;
 let wqTributaryLayerGroup: L.GeoJSON | null = null;
 let lakeStationsLayerGroup: L.GeoJSON | null = null;
 let tributariesLayerGroup: L.GeoJSON | null = null;
+let currentBaseTileLayer: L.TileLayer | null = null;
 
 // Lake Lanao boundary rings ([lat, lng][]) — populated once the boundary GeoJSON
 // loads, used to detect "click anywhere inside the lake" for the reading popup.
@@ -1292,6 +1317,68 @@ function handleMapClick(e: L.LeafletMouseEvent) {
 }
 
 // ═══ MAP LAYERS ═══
+// ═══ BASE MAP (switchable tile provider) ═══
+interface BaseLayerOption {
+  id: string;
+  name: string;
+  icon: string;
+  url: string;
+  attribution: string;
+  maxZoom: number;
+  subdomains?: string[];
+}
+
+const baseLayerOptions: BaseLayerOption[] = [
+  {
+    id: 'osm',
+    name: 'OpenStreetMap',
+    icon: 'map',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  },
+  {
+    id: 'google-streets',
+    name: 'Google Maps',
+    icon: 'map',
+    url: 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    attribution: '&copy; Google Maps',
+    maxZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+  },
+  {
+    id: 'google-earth',
+    name: 'Google Earth',
+    icon: 'satellite_alt',
+    url: 'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    attribution: '&copy; Google Earth',
+    maxZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+  },
+];
+
+const selectedBaseLayer = ref<string>('osm');
+
+function setBaseLayer(id: string) {
+  if (!map) return;
+  const option = baseLayerOptions.find((o) => o.id === id);
+  if (!option) return;
+
+  if (currentBaseTileLayer) {
+    map.removeLayer(currentBaseTileLayer);
+  }
+  currentBaseTileLayer = L.tileLayer(option.url, {
+    attribution: option.attribution,
+    maxZoom: option.maxZoom,
+    ...(option.subdomains ? { subdomains: option.subdomains } : {}),
+  });
+  currentBaseTileLayer.addTo(map);
+  currentBaseTileLayer.bringToBack();
+}
+
+watch(selectedBaseLayer, (id) => setBaseLayer(id));
+
 interface MapLayer {
   id: string;
   name: string;
@@ -1440,12 +1527,8 @@ function initMap() {
     zoomControl: false,
   });
 
-  // Light-mode map tiles (OpenStreetMap)
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19,
-  }).addTo(map);
+  // Base map tiles — switchable via the Layers tab (OpenStreetMap / Google Maps / Google Earth)
+  setBaseLayer(selectedBaseLayer.value);
 
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -1814,6 +1897,15 @@ function goToWaterQuality() {
   width: 380px;
   z-index: 1000;
   pointer-events: auto;
+}
+
+.base-layer-toggle :deep(.q-btn) {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.base-layer-toggle :deep(.q-btn__content) {
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .bright-panel {
