@@ -134,10 +134,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 import { useAdminStore } from 'src/stores/admin';
 
+const $q = useQuasar();
 const router = useRouter();
 const authStore = useAuthStore();
 const adminStore = useAdminStore();
@@ -167,6 +169,15 @@ function handleLogin() {
     router.push(authStore.user?.role === 'Admin' ? '/admin' : '/');
   }, 800);
 }
+
+const loginWithGoogle = () => {
+  // Logic to trigger Google Auth
+  $q.notify({
+    message: 'Connecting to Google Services...',
+    color: 'info',
+    icon: 'auth',
+  });
+};
 
 function handlesignup() {
   router.push('/auth/signup').catch((err) => {
