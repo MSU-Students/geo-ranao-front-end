@@ -33,12 +33,7 @@
           class="signup-stepper"
         >
           <!-- ═══ STEP 1 — BASIC IDENTITY ═══ -->
-          <q-step
-            name="identity"
-            title="Basic Identity"
-            icon="badge"
-            :done="step !== 'identity'"
-          >
+          <q-step name="identity" title="Basic Identity" icon="badge" :done="step !== 'identity'">
             <q-input
               filled
               v-model="formData.fullName"
@@ -73,7 +68,9 @@
               label="Password *"
               lazy-rules
               class="q-mb-sm"
-              :rules="[(val) => (val && val.length >= 8) || 'Password must be at least 8 characters']"
+              :rules="[
+                (val) => (val && val.length >= 8) || 'Password must be at least 8 characters',
+              ]"
             >
               <template v-slot:prepend><q-icon name="lock" /></template>
               <template v-slot:append>
@@ -219,7 +216,7 @@
           rounded
         >
           <q-img
-            src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_Logo.svg"
+            src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/google/google-original.svg"
             style="width: 18px; margin-right: 12px"
           />
           Continue with Google
