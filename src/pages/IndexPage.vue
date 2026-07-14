@@ -24,6 +24,15 @@
       </q-btn>
     </transition>
 
+    <!-- Recenter Button — jumps back to Lake Lanao if you've panned/zoomed away -->
+    <transition name="fade-btn" appear>
+      <q-btn class="recenter-btn" round unelevated size="md" icon="my_location" @click="resetMapView">
+        <q-tooltip anchor="center left" self="center right" :offset="[10, 0]">
+          Recenter on Lake Lanao
+        </q-tooltip>
+      </q-btn>
+    </transition>
+
     <!-- Floating Control Panel (Left Side — Toggleable, BRIGHT THEME) -->
     <transition name="slide-panel">
       <div v-if="showPanel" class="control-panel">
@@ -1448,12 +1457,20 @@ function closeDetailPanel() {
 }
 
 // ═══ MAP INITIALIZATION ═══
+const LAKE_LANAO_CENTER: [number, number] = [7.99, 124.07];
+const DEFAULT_ZOOM = 12;
+
+// Jumps the map back to Lake Lanao — an easy way back after panning/zooming away.
+function resetMapView() {
+  map?.flyTo(LAKE_LANAO_CENTER, DEFAULT_ZOOM, { duration: 1 });
+}
+
 function initMap() {
   if (!mapContainer.value || map) return;
 
   map = L.map(mapContainer.value, {
-    center: [7.99, 124.07],
-    zoom: 12,
+    center: LAKE_LANAO_CENTER,
+    zoom: DEFAULT_ZOOM,
     zoomControl: false,
   });
 
@@ -1709,6 +1726,21 @@ function goToWaterQuality() {
 }
 .toggle-btn--shifted {
   left: 408px;
+}
+
+.recenter-btn {
+  position: absolute;
+  bottom: 92px;
+  right: 10px;
+  z-index: 1001;
+  background: white !important;
+  color: #00897b !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+.recenter-btn:hover {
+  background: #e0f2f1 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 /* ═══════════════════════════════════ */
