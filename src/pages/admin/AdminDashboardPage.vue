@@ -6,6 +6,8 @@
     />
     <div class="absolute-full bg-overlay" />
 
+    <BackButton to="/map" />
+
     <div class="page-content full-width q-pa-md" style="max-width: 1400px">
       <!-- Header -->
       <div class="row items-center justify-between q-mb-lg">
@@ -491,6 +493,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
+import BackButton from 'src/components/BackButton.vue';
 import {
   useAdminStore,
   type ResearcherAccount,
@@ -946,5 +949,6 @@ const recentExports = computed(() =>
 .page-content {
   position: relative;
   z-index: 1;
+  padding-top: 88px;
 }
 </style>

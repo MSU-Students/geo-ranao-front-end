@@ -9,8 +9,10 @@
     <!-- Dark overlay for readability -->
     <div class="absolute-full bg-overlay" />
 
+    <BackButton to="/map" />
+
     <!-- Main Content -->
-    <div class="z-top full-width q-pa-md" style="max-width: 1300px">
+    <div class="page-content full-width q-pa-md" style="max-width: 1300px">
       <!-- Header -->
       <div class="text-center q-mb-lg">
         <h4 class="text-weight-bolder q-my-xs text-white drop-shadow">
@@ -264,18 +266,6 @@
               </q-card>
             </div>
           </div>
-
-          <!-- Back Button -->
-          <q-btn
-            color="white"
-            text-color="dark"
-            label="Back to Home"
-            icon="arrow_back"
-            unelevated
-            rounded
-            class="q-mt-md"
-            @click="$router.push('/map')"
-          />
         </div>
       </div>
     </div>
@@ -284,6 +274,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import BackButton from 'components/BackButton.vue';
 
 const search = ref('');
 const activeFilter = ref('all');
@@ -428,6 +419,12 @@ function selectFish(fish: Fish) {
 </script>
 
 <style scoped>
+.page-content {
+  position: relative;
+  z-index: 1;
+  padding-top: 88px;
+}
+
 .drop-shadow {
   text-shadow: 0px 4px 10px rgba(0, 0, 0, 0.6);
 }

@@ -47,17 +47,6 @@ import { useRouter } from 'vue-router';
 
 const router = useRouter();
 
-// Once a visitor has entered the dashboard this session, skip straight past
-// the splash on any later visit to "/" (e.g. the browser back button, or a
-// stray redirect) instead of showing it again.
-const VISITED_KEY = 'ranao-fishnet-visited';
-
-if (sessionStorage.getItem(VISITED_KEY) === 'true') {
-  router.replace('/map').catch((err) => {
-    console.error('Navigation error:', err);
-  });
-}
-
 const heroStats = [
   { value: '24', label: 'Species Recorded' },
   { value: '18', label: 'Endemic Cyprinids' },
@@ -78,7 +67,6 @@ function particleStyle() {
 }
 
 function enterDashboard() {
-  sessionStorage.setItem(VISITED_KEY, 'true');
   router.push('/map').catch((err) => {
     console.error('Navigation error:', err);
   });

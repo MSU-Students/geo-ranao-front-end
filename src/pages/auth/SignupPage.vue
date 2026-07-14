@@ -6,6 +6,8 @@
       style="filter: blur(5px) brightness(0.5); z-index: 0"
     />
 
+    <BackButton to="/auth/login" :offset="false" />
+
     <q-card class="signup-card q-pa-lg">
       <q-card-section class="text-center q-pb-none">
         <q-avatar
@@ -247,6 +249,7 @@ import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 import { useAdminStore } from 'src/stores/admin';
+import BackButton from 'src/components/BackButton.vue';
 
 const router = useRouter();
 const $q = useQuasar();

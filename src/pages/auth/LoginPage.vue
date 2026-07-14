@@ -6,6 +6,8 @@
       style="filter: blur(5px) brightness(0.5); z-index: 0"
     />
 
+    <BackButton to="/map" :offset="false" />
+
     <q-card
       class="shadow-24 row"
       style="width: 900px; max-width: 95vw; min-height: 550px; border-radius: 20px"
@@ -138,6 +140,7 @@ import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 import { useAdminStore } from 'src/stores/admin';
+import BackButton from 'src/components/BackButton.vue';
 
 const $q = useQuasar();
 const router = useRouter();

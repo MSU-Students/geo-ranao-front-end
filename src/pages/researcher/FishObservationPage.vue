@@ -9,11 +9,12 @@
     <!-- Dark overlay -->
     <div class="absolute-full bg-overlay" />
 
+    <BackButton to="/researcher" />
+
     <!-- Main Content -->
-    <div class="z-top full-width q-pa-md" style="max-width: 960px">
+    <div class="page-content full-width q-pa-md" style="max-width: 960px">
       <!-- Header -->
       <div class="row items-center q-mb-lg">
-        <q-btn flat round icon="arrow_back" color="white" class="q-mr-sm" @click="$router.back()" />
         <div>
           <div class="text-h5 text-weight-bolder text-white drop-shadow">
             <q-icon name="set_meal" class="q-mr-sm" color="blue-3" />
@@ -359,6 +360,7 @@ import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 import { useAdminStore } from 'src/stores/admin';
+import BackButton from 'src/components/BackButton.vue';
 
 const $q = useQuasar();
 const router = useRouter();
@@ -495,9 +497,10 @@ function handleSubmit() {
   text-shadow: 0px 2px 5px rgba(0, 0, 0, 0.4);
 }
 
-.z-top {
+.page-content {
   position: relative;
   z-index: 1;
+  padding-top: 88px;
 }
 
 .section-label {
