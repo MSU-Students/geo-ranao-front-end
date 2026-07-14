@@ -114,7 +114,7 @@ const linksList: NavLink[] = [
     title: 'Interactive Map',
     caption: 'Go to GIS Map',
     icon: 'map',
-    link: '/',
+    link: '/map',
   },
   {
     title: 'Fish Dashboard',
@@ -183,7 +183,7 @@ function goToProfile() {
 
 function handleLogout() {
   authStore.logout();
-  router.push('/').catch((err) => {
+  router.push('/map').catch((err) => {
     console.error('Navigation error:', err);
   });
 }

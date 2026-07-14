@@ -17,7 +17,7 @@
       unelevated
       icon="close"
       class="close-btn"
-      @click="$router.push('/')"
+      @click="$router.push('/map')"
     />
 
     <!-- Main Container -->
