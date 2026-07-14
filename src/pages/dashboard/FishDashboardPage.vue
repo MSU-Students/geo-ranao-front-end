@@ -274,7 +274,7 @@
             unelevated
             rounded
             class="q-mt-md"
-            @click="$router.push('/')"
+            @click="$router.push('/map')"
           />
         </div>
       </div>

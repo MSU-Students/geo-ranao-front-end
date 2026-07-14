@@ -198,7 +198,7 @@
           icon="arrow_back"
           unelevated
           rounded
-          @click="$router.push('/')"
+          @click="$router.push('/map')"
         />
         <q-btn
           color="teal"

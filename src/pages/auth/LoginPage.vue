@@ -96,7 +96,7 @@
           <q-btn
             outline
             color="grey-8"
-            class="full-width bg-white text-weight-medium q-mt-md"
+            class="full-width bg-white text-weight-medium q-mt-sm"
             @click="loginWithGoogle"
             no-caps
             rounded
@@ -166,7 +166,7 @@ function handleLogin() {
     authStore.login(username.value, password.value);
     adminStore.logActivity(authStore.displayName, 'Logged In', 'Signed in to Ranao FishNet');
     loading.value = false;
-    router.push(authStore.user?.role === 'Admin' ? '/admin' : '/');
+    router.push(authStore.user?.role === 'Admin' ? '/admin' : '/map');
   }, 800);
 }
 

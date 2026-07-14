@@ -509,7 +509,7 @@ const adminStore = useAdminStore();
 onMounted(() => {
   if (authStore.user?.role !== 'Admin') {
     $q.notify({ type: 'negative', message: 'Admin access required.', position: 'top' });
-    router.replace('/').catch((err) => {
+    router.replace('/map').catch((err) => {
       console.error('Navigation error:', err);
     });
   }
