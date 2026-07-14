@@ -7,7 +7,9 @@
     />
     <div class="absolute-full bg-overlay" />
 
-    <div class="z-top full-width q-pa-md" style="max-width: 1300px">
+    <BackButton to="/map" />
+
+    <div class="page-content full-width q-pa-md" style="max-width: 1300px">
       <!-- Header -->
       <div class="text-center q-mb-md">
         <h4 class="text-weight-bolder q-my-xs text-white drop-shadow">Water Quality Dashboard</h4>
@@ -192,15 +194,6 @@
       <!-- Footer Actions -->
       <div class="row q-gutter-sm">
         <q-btn
-          color="white"
-          text-color="dark"
-          label="Back to Home"
-          icon="arrow_back"
-          unelevated
-          rounded
-          @click="$router.push('/map')"
-        />
-        <q-btn
           color="teal"
           label="Record Water Quality Data"
           icon="add"
@@ -215,6 +208,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import BackButton from 'src/components/BackButton.vue';
 import TrendSparkline from 'src/components/charts/TrendSparkline.vue';
 import ParameterTrendChart from 'src/components/charts/ParameterTrendChart.vue';
 import StatusDistributionBar from 'src/components/charts/StatusDistributionBar.vue';
@@ -340,6 +334,12 @@ const sitesOfConcern = computed(() => {
 </script>
 
 <style scoped>
+.page-content {
+  position: relative;
+  z-index: 1;
+  padding-top: 88px;
+}
+
 .drop-shadow {
   text-shadow: 0px 4px 10px rgba(0, 0, 0, 0.6);
 }

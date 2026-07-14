@@ -11,14 +11,7 @@
       <div class="bg-overlay absolute-full" />
     </div>
 
-    <!-- Close Button -->
-    <q-btn
-      round
-      unelevated
-      icon="close"
-      class="close-btn"
-      @click="$router.push('/map')"
-    />
+    <BackButton to="/map" :offset="false" />
 
     <!-- Main Container -->
     <div class="profile-container">
@@ -243,6 +236,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import BackButton from 'src/components/BackButton.vue';
 
 const editDialog = ref(false);
 const avatarFile = ref<File | null>(null);
@@ -432,25 +426,6 @@ function getFileIcon(fileType: string): { icon: string; color: string } {
   background: linear-gradient(135deg, rgba(240, 248, 248, 0.55) 0%, rgba(210, 235, 235, 0.45) 100%);
   backdrop-filter: blur(1px);
   z-index: 1;
-}
-
-/* ═══════════════════════════════════════
-   CLOSE BUTTON
-═══════════════════════════════════════ */
-.close-btn {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 999;
-  background: white !important;
-  color: #00695c !important;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s;
-}
-
-.close-btn:hover {
-  background: #e0f2f1 !important;
-  transform: scale(1.05);
 }
 
 /* ═══════════════════════════════════════

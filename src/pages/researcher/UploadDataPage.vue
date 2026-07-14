@@ -9,23 +9,17 @@
     <!-- Dark overlay -->
     <div class="absolute-full bg-overlay" />
 
+    <BackButton to="/researcher" />
+
     <!-- Main Content -->
-    <div class="z-top full-width q-pa-md" style="max-width: 900px">
+    <div class="page-content full-width q-pa-md" style="max-width: 900px">
       <!-- Header -->
       <div class="q-mb-lg">
-        <q-btn
-          flat
-          round
-          icon="arrow_back"
-          color="white"
-          class="q-mr-sm"
-          @click="$router.back()"
-        />
         <span class="text-h5 text-weight-bolder text-white drop-shadow">
           <q-icon name="cloud_upload" class="q-mr-sm" color="teal-3" />
           Upload Fish Observation
         </span>
-        <p class="text-grey-3 drop-shadow-soft q-mb-none q-mt-xs q-ml-xl">
+        <p class="text-grey-3 drop-shadow-soft q-mb-none q-mt-xs">
           Submit a new field observation record with GPS coordinates
         </p>
       </div>
@@ -224,6 +218,7 @@ import { reactive } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
+import BackButton from 'src/components/BackButton.vue';
 
 const $q = useQuasar();
 const router = useRouter();
@@ -358,8 +353,9 @@ function handleSubmit() {
   color: rgba(255, 255, 255, 0.5);
 }
 
-.z-top {
+.page-content {
   position: relative;
   z-index: 1;
+  padding-top: 88px;
 }
 </style>
