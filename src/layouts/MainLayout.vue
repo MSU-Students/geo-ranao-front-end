@@ -111,6 +111,12 @@ interface NavLink {
 
 const linksList: NavLink[] = [
   {
+    title: 'About',
+    caption: 'About the Project',
+    icon: 'info',
+    link: '/',
+  },
+  {
     title: 'Interactive Map',
     caption: 'Go to GIS Map',
     icon: 'map',
