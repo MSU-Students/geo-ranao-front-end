@@ -24,6 +24,22 @@
       </q-btn>
     </transition>
 
+    <!-- Recenter Button — jumps back to Lake Lanao if you've panned/zoomed away -->
+    <transition name="fade-btn" appear>
+      <q-btn
+        class="recenter-btn"
+        round
+        unelevated
+        size="md"
+        icon="my_location"
+        @click="resetMapView"
+      >
+        <q-tooltip anchor="center left" self="center right" :offset="[10, 0]">
+          Recenter on Lake Lanao
+        </q-tooltip>
+      </q-btn>
+    </transition>
+
     <!-- Floating Control Panel (Left Side — Toggleable, BRIGHT THEME) -->
     <transition name="slide-panel">
       <div v-if="showPanel" class="control-panel">
@@ -181,7 +197,8 @@
 
                 <!-- Monthly Time Slider -->
                 <div class="text-caption text-grey-6 q-mb-xs">
-                  Reading Period: <span class="text-weight-bold text-teal-8">{{ selectedMonthLabel }}</span>
+                  Reading Period:
+                  <span class="text-weight-bold text-teal-8">{{ selectedMonthLabel }}</span>
                 </div>
                 <div class="q-px-sm q-mb-lg">
                   <q-slider
@@ -229,8 +246,8 @@
                 </div>
 
                 <div class="text-caption text-grey-5 q-mb-md">
-                  Click anywhere inside the lake for an estimated reading (select a parameter
-                  above first).
+                  Click anywhere inside the lake for an estimated reading (select a parameter above
+                  first).
                 </div>
 
                 <q-select
@@ -320,7 +337,10 @@
                     </q-item-section>
                     <q-item-section side>
                       <q-badge
-                        :style="{ background: siteStatusBadge(site.siteId).background, color: 'white' }"
+                        :style="{
+                          background: siteStatusBadge(site.siteId).background,
+                          color: 'white',
+                        }"
                         :label="siteStatusBadge(site.siteId).label"
                       />
                     </q-item-section>
@@ -528,10 +548,7 @@
               </q-banner>
 
               <div v-for="group in waterQualityParameterGroups" :key="group.title" class="q-mb-md">
-                <div
-                  class="text-caption text-weight-bold q-mb-xs"
-                  :class="`text-${group.color}`"
-                >
+                <div class="text-caption text-weight-bold q-mb-xs" :class="`text-${group.color}`">
                   <q-icon :name="group.icon" size="14px" class="q-mr-xs" />{{ group.title }}
                 </div>
                 <q-list dense class="q-gutter-y-xs">
@@ -608,7 +625,8 @@
             {{ parameterModalData.valueText }}
           </div>
           <div class="text-caption text-grey-5 q-mt-sm">
-            Estimated at {{ parameterModalData.lat.toFixed(5) }}, {{ parameterModalData.lng.toFixed(5) }}
+            Estimated at {{ parameterModalData.lat.toFixed(5) }},
+            {{ parameterModalData.lng.toFixed(5) }}
           </div>
           <div class="text-caption text-grey-5 q-mt-xs">
             Interpolated from nearby sampling sites — simulated data, not a direct measurement.
@@ -716,7 +734,7 @@ const species: Fish[] = [
     location: 'Lake Lanao, Lanao del Sur',
     date: '2024',
     lat: 7.837,
-    lng: 124.210,
+    lng: 124.21,
   },
   {
     id: 4,
@@ -730,7 +748,7 @@ const species: Fish[] = [
     location: 'Lake Lanao, Lanao del Sur',
     date: '2024',
     lat: 7.908,
-    lng: 124.230,
+    lng: 124.23,
   },
   {
     id: 5,
@@ -757,7 +775,7 @@ const species: Fish[] = [
     weight: '0.5–2 kg',
     location: 'Lake Lanao, Lanao del Sur',
     date: '2024',
-    lat: 7.940,
+    lat: 7.94,
     lng: 124.252,
   },
   {
@@ -791,7 +809,7 @@ const species: Fish[] = [
 ];
 
 const selectedSpeciesFilter = ref<string[]>([]);
-const allSpeciesNames = species.map(s => s.commonName);
+const allSpeciesNames = species.map((s) => s.commonName);
 const speciesOptionsFiltered = ref<string[]>(allSpeciesNames);
 
 function filterFn(val: string, update: (callback: () => void) => void) {
@@ -803,7 +821,9 @@ function filterFn(val: string, update: (callback: () => void) => void) {
   }
   update(() => {
     const needle = val.toLowerCase();
-    speciesOptionsFiltered.value = allSpeciesNames.filter(v => v.toLowerCase().indexOf(needle) > -1);
+    speciesOptionsFiltered.value = allSpeciesNames.filter(
+      (v) => v.toLowerCase().indexOf(needle) > -1,
+    );
   });
 }
 
@@ -886,7 +906,8 @@ function filterSiteFn(val: string, update: (callback: () => void) => void) {
 
 const filteredWaterSites = computed(() =>
   waterQualitySites.value.filter(
-    (site) => selectedSiteFilter.value.length === 0 || selectedSiteFilter.value.includes(site.siteId),
+    (site) =>
+      selectedSiteFilter.value.length === 0 || selectedSiteFilter.value.includes(site.siteId),
   ),
 );
 
@@ -916,7 +937,12 @@ const STATUS_LABELS: Record<StatusLevel, string> = {
 const STATUS_LEVELS: StatusLevel[] = ['good', 'warning', 'serious', 'critical'];
 
 // For parameters where higher = worse (pollutant/nutrient loading).
-function ascendingStatus(value: number, goodMax: number, warningMax: number, seriousMax: number): StatusLevel {
+function ascendingStatus(
+  value: number,
+  goodMax: number,
+  warningMax: number,
+  seriousMax: number,
+): StatusLevel {
   if (value <= goodMax) return 'good';
   if (value <= warningMax) return 'warning';
   if (value <= seriousMax) return 'serious';
@@ -949,34 +975,69 @@ interface WaterQualityParam {
   getStatus: (value: number) => StatusLevel;
 }
 
-const waterQualityParameterGroups: { title: string; icon: string; color: string; params: WaterQualityParam[] }[] = [
+const waterQualityParameterGroups: {
+  title: string;
+  icon: string;
+  color: string;
+  params: WaterQualityParam[];
+}[] = [
   {
     title: 'Physico-Chemical',
     icon: 'science',
     color: 'teal-8',
     params: [
       {
-        key: 'temperature', label: 'Temperature', unit: '°C', min: 24, max: 30, decimals: 1,
+        key: 'temperature',
+        label: 'Temperature',
+        unit: '°C',
+        min: 24,
+        max: 30,
+        decimals: 1,
         getStatus: (v) => centeredStatus(v, 25.5, 27.5, 24.5, 28.5, 24, 29.5),
       },
       {
-        key: 'ph', label: 'pH', unit: '', min: 6.5, max: 8.5, decimals: 1,
+        key: 'ph',
+        label: 'pH',
+        unit: '',
+        min: 6.5,
+        max: 8.5,
+        decimals: 1,
         getStatus: (v) => centeredStatus(v, 7.0, 7.6, 6.8, 7.9, 6.6, 8.2),
       },
       {
-        key: 'turbidity', label: 'Turbidity', unit: 'NTU', min: 2, max: 25, decimals: 1,
+        key: 'turbidity',
+        label: 'Turbidity',
+        unit: 'NTU',
+        min: 2,
+        max: 25,
+        decimals: 1,
         getStatus: (v) => ascendingStatus(v, 6, 11, 17),
       },
       {
-        key: 'conductivity', label: 'Conductivity', unit: 'µS/cm', min: 100, max: 400, decimals: 0,
+        key: 'conductivity',
+        label: 'Conductivity',
+        unit: 'µS/cm',
+        min: 100,
+        max: 400,
+        decimals: 0,
         getStatus: (v) => ascendingStatus(v, 175, 250, 325),
       },
       {
-        key: 'tds', label: 'TDS', unit: 'mg/L', min: 50, max: 250, decimals: 0,
+        key: 'tds',
+        label: 'TDS',
+        unit: 'mg/L',
+        min: 50,
+        max: 250,
+        decimals: 0,
         getStatus: (v) => ascendingStatus(v, 100, 150, 200),
       },
       {
-        key: 'tss', label: 'TSS', unit: 'mg/L', min: 5, max: 40, decimals: 1,
+        key: 'tss',
+        label: 'TSS',
+        unit: 'mg/L',
+        min: 5,
+        max: 40,
+        decimals: 1,
         getStatus: (v) => ascendingStatus(v, 12, 20, 30),
       },
     ],
@@ -987,23 +1048,48 @@ const waterQualityParameterGroups: { title: string; icon: string; color: string;
     color: 'blue-8',
     params: [
       {
-        key: 'phosphate', label: 'Phosphate', unit: 'mg/L', min: 0.01, max: 0.5, decimals: 2,
+        key: 'phosphate',
+        label: 'Phosphate',
+        unit: 'mg/L',
+        min: 0.01,
+        max: 0.5,
+        decimals: 2,
         getStatus: (v) => ascendingStatus(v, 0.08, 0.18, 0.32),
       },
       {
-        key: 'ammonia', label: 'Ammonia', unit: 'mg/L', min: 0.01, max: 0.3, decimals: 2,
+        key: 'ammonia',
+        label: 'Ammonia',
+        unit: 'mg/L',
+        min: 0.01,
+        max: 0.3,
+        decimals: 2,
         getStatus: (v) => ascendingStatus(v, 0.04, 0.1, 0.18),
       },
       {
-        key: 'nitrate', label: 'Nitrate', unit: 'mg/L', min: 0.1, max: 2, decimals: 2,
+        key: 'nitrate',
+        label: 'Nitrate',
+        unit: 'mg/L',
+        min: 0.1,
+        max: 2,
+        decimals: 2,
         getStatus: (v) => ascendingStatus(v, 0.4, 0.9, 1.4),
       },
       {
-        key: 'nitrite', label: 'Nitrite', unit: 'mg/L', min: 0.01, max: 0.1, decimals: 3,
+        key: 'nitrite',
+        label: 'Nitrite',
+        unit: 'mg/L',
+        min: 0.01,
+        max: 0.1,
+        decimals: 3,
         getStatus: (v) => ascendingStatus(v, 0.025, 0.045, 0.07),
       },
       {
-        key: 'sulfate', label: 'Sulfate', unit: 'mg/L', min: 5, max: 50, decimals: 1,
+        key: 'sulfate',
+        label: 'Sulfate',
+        unit: 'mg/L',
+        min: 5,
+        max: 50,
+        decimals: 1,
         getStatus: (v) => ascendingStatus(v, 15, 27, 38),
       },
     ],
@@ -1014,7 +1100,12 @@ const waterQualityParameterGroups: { title: string; icon: string; color: string;
     color: 'green-8',
     params: [
       {
-        key: 'chlorophyll', label: 'Chlorophyll-a', unit: 'µg/L', min: 1, max: 15, decimals: 2,
+        key: 'chlorophyll',
+        label: 'Chlorophyll-a',
+        unit: 'µg/L',
+        min: 1,
+        max: 15,
+        decimals: 2,
         getStatus: (v) => ascendingStatus(v, 4, 8, 11),
       },
     ],
@@ -1023,8 +1114,19 @@ const waterQualityParameterGroups: { title: string; icon: string; color: string;
 
 // ── Monthly Time Slider (simulated readings — no real monthly dataset exists yet) ──
 const months = [
-  'Jan 2025', 'Feb 2025', 'Mar 2025', 'Apr 2025', 'May 2025', 'Jun 2025',
-  'Jul 2025', 'Aug 2025', 'Sep 2025', 'Oct 2025', 'Nov 2025', 'Dec 2025', 'Jan 2026',
+  'Jan 2025',
+  'Feb 2025',
+  'Mar 2025',
+  'Apr 2025',
+  'May 2025',
+  'Jun 2025',
+  'Jul 2025',
+  'Aug 2025',
+  'Sep 2025',
+  'Oct 2025',
+  'Nov 2025',
+  'Dec 2025',
+  'Jan 2026',
 ];
 const selectedMonthIndex = ref(months.length - 1);
 const selectedMonthLabel = computed(() => months[selectedMonthIndex.value]);
@@ -1098,7 +1200,9 @@ function recolorWaterLayers() {
       const feature = (layer as L.Layer & { feature?: GeoJSON.Feature }).feature;
       const props = feature?.properties as WaterQualitySiteProps | undefined;
       if (!props) return;
-      (layer as L.CircleMarker).setStyle({ fillColor: getMarkerColor(props.SITE_ID, defaultColor) });
+      (layer as L.CircleMarker).setStyle({
+        fillColor: getMarkerColor(props.SITE_ID, defaultColor),
+      });
     });
   }
 }
@@ -1127,7 +1231,10 @@ function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
   `;
 }
 
-function createWaterQualitySiteLayer(geojson: GeoJSON.GeoJsonObject, defaultColor: string): L.GeoJSON {
+function createWaterQualitySiteLayer(
+  geojson: GeoJSON.GeoJsonObject,
+  defaultColor: string,
+): L.GeoJSON {
   return L.geoJSON(geojson, {
     pointToLayer: (feature, latlng) => {
       const props = feature.properties as WaterQualitySiteProps;
@@ -1166,7 +1273,8 @@ function pointInRing(lat: number, lng: number, ring: [number, number][]): boolea
     const lngI = ring[i]![1];
     const latJ = ring[j]![0];
     const lngJ = ring[j]![1];
-    const intersects = lngI > lng !== lngJ > lng && lat < ((latJ - latI) * (lng - lngI)) / (lngJ - lngI) + latI;
+    const intersects =
+      lngI > lng !== lngJ > lng && lat < ((latJ - latI) * (lng - lngI)) / (lngJ - lngI) + latI;
     if (intersects) inside = !inside;
   }
   return inside;
@@ -1202,7 +1310,12 @@ function extractPolygonRings(geojson: GeoJSON.FeatureCollection): [number, numbe
 
 // Inverse-distance-weighted estimate of a parameter's value at any clicked
 // point, from the real sampling sites' simulated readings.
-function interpolateValueAt(lat: number, lng: number, param: WaterQualityParam, monthIndex: number): number {
+function interpolateValueAt(
+  lat: number,
+  lng: number,
+  param: WaterQualityParam,
+  monthIndex: number,
+): number {
   const sites = waterQualitySites.value;
   if (sites.length === 0) return (param.min + param.max) / 2;
   let weightedSum = 0;
@@ -1448,12 +1561,20 @@ function closeDetailPanel() {
 }
 
 // ═══ MAP INITIALIZATION ═══
+const LAKE_LANAO_CENTER: [number, number] = [7.893111, 124.272778];
+const DEFAULT_ZOOM = 12;
+
+// Jumps the map back to Lake Lanao — an easy way back after panning/zooming away.
+function resetMapView() {
+  map?.flyTo(LAKE_LANAO_CENTER, DEFAULT_ZOOM, { duration: 1 });
+}
+
 function initMap() {
   if (!mapContainer.value || map) return;
 
   map = L.map(mapContainer.value, {
-    center: [7.99, 124.07],
-    zoom: 12,
+    center: LAKE_LANAO_CENTER,
+    zoom: DEFAULT_ZOOM,
     zoomControl: false,
   });
 
@@ -1528,10 +1649,7 @@ function initMap() {
         .then((geojson: GeoJSON.FeatureCollection) => {
           waterQualitySites.value = geojson.features.map((feature) => {
             const props = feature.properties as unknown as WaterQualitySiteProps;
-            const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates as [
-              number,
-              number,
-            ];
+            const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
             return { siteId: props.SITE_ID, stationId: props.STATION_ID, lat, lng };
           });
           wqAllLayerGroup = createWaterQualitySiteLayer(geojson, '#0288D1');
@@ -1709,6 +1827,21 @@ function goToWaterQuality() {
 }
 .toggle-btn--shifted {
   left: 408px;
+}
+
+.recenter-btn {
+  position: absolute;
+  bottom: 92px;
+  right: 10px;
+  z-index: 1001;
+  background: white !important;
+  color: #00897b !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+.recenter-btn:hover {
+  background: #e0f2f1 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 /* ═══════════════════════════════════ */
