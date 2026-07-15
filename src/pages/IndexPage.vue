@@ -738,7 +738,7 @@ interface Fish {
   id: number;
   commonName: string;
   scientificName: string;
-  type: 'endemic' | 'invasive';
+  type: 'endemic' | 'invasive' | 'general';
   status: string;
   statusShort: string;
   length: string;
@@ -747,123 +747,53 @@ interface Fish {
   date: string;
   lat: number;
   lng: number;
+  depth?: string;
+  number?: string;
+  size?: string;
+  bodyDepth?: string;
+  municipal?: string;
+  barangay?: string;
+  photos?: string;
 }
 
 const selectedFish = ref<Fish | null>(null);
 
 const species: Fish[] = [
-  {
-    id: 1,
-    commonName: 'Pait',
-    scientificName: 'Puntius sirang',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '8–12 cm',
-    weight: '20–50 g',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-    lat: 7.872,
-    lng: 124.145,
-  },
-  {
-    id: 2,
-    commonName: 'Igat',
-    scientificName: 'Anguilla marmorata',
-    type: 'endemic',
-    status: 'Endangered',
-    statusShort: 'EN',
-    length: '60–100 cm',
-    weight: '1–3 kg',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-    lat: 7.963,
-    lng: 124.275,
-  },
-  {
-    id: 3,
-    commonName: 'Banak',
-    scientificName: 'Puntius lanaoensis',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '10–15 cm',
-    weight: '30–80 g',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-    lat: 7.837,
-    lng: 124.21,
-  },
-  {
-    id: 4,
-    commonName: 'Ludong',
-    scientificName: 'Puntius tumba',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '7–10 cm',
-    weight: '15–40 g',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-    lat: 7.908,
-    lng: 124.23,
-  },
-  {
-    id: 5,
-    commonName: 'Tarong',
-    scientificName: 'Puntius tras',
-    type: 'endemic',
-    status: 'Endangered',
-    statusShort: 'EN',
-    length: '8–13 cm',
-    weight: '20–60 g',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-    lat: 7.855,
-    lng: 124.188,
-  },
-  {
-    id: 6,
-    commonName: 'Nile Tilapia',
-    scientificName: 'Oreochromis niloticus',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '20–40 cm',
-    weight: '0.5–2 kg',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-    lat: 7.94,
-    lng: 124.252,
-  },
-  {
-    id: 7,
-    commonName: 'Common Carp',
-    scientificName: 'Cyprinus carpio',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '30–60 cm',
-    weight: '1–4 kg',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-    lat: 7.983,
-    lng: 124.285,
-  },
-  {
-    id: 8,
-    commonName: 'Guppy',
-    scientificName: 'Poecilia reticulata',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '2–5 cm',
-    weight: '< 5 g',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-    lat: 7.825,
-    lng: 124.265,
-  },
+  // ENDEMIC
+  { id: 1, commonName: 'Pait', scientificName: 'Puntius sirang', type: 'endemic', status: 'Critically Endangered', statusShort: 'CR', length: '8.5 cm', bodyDepth: '2.1 cm', weight: '25 g', photos: 'Lateral, Dorsal', location: 'Lake Lanao, Lanao del Sur', municipal: 'Marawi City', barangay: 'Sagonsongan', date: '2026-05-12', lat: 7.872, lng: 124.145 },
+  { id: 2, commonName: 'Igat', scientificName: 'Anguilla marmorata', type: 'endemic', status: 'Endangered', statusShort: 'EN', length: '65 cm', bodyDepth: '5.5 cm', weight: '1.2 kg', photos: 'All 5 angles', location: 'Ramain River Mouth', municipal: 'Ditsaan-Ramain', barangay: 'Buadi Ompig', date: '2026-04-20', lat: 7.963, lng: 124.275 },
+  { id: 3, commonName: 'Banak', scientificName: 'Puntius lanaoensis', type: 'endemic', status: 'Critically Endangered', statusShort: 'CR', length: '12 cm', bodyDepth: '3.4 cm', weight: '45 g', photos: 'Lateral only', location: 'Balindong, Lanao del Sur', municipal: 'Balindong', barangay: 'Lumbac', date: '2026-06-05', lat: 7.837, lng: 124.210 },
+  { id: 4, commonName: 'Ludong', scientificName: 'Puntius tumba', type: 'endemic', status: 'Critically Endangered', statusShort: 'CR', length: '9.2 cm', bodyDepth: '2.5 cm', weight: '30 g', photos: 'None', location: 'Taraka, Lanao del Sur', municipal: 'Taraka', barangay: 'Pitakus', date: '2026-07-01', lat: 7.908, lng: 124.230 },
+  { id: 5, commonName: 'Tarong', scientificName: 'Puntius tras', type: 'endemic', status: 'Endangered', statusShort: 'EN', length: '11 cm', bodyDepth: '3.1 cm', weight: '38 g', photos: 'All 5 angles', location: 'Masiu, Lanao del Sur', municipal: 'Masiu', barangay: 'Binuang', date: '2026-06-15', lat: 7.855, lng: 124.188 },
+  { id: 6, commonName: 'Baolan', scientificName: 'Puntius baoulan', type: 'endemic', status: 'Critically Endangered', statusShort: 'CR', length: '13 cm', bodyDepth: '3.8 cm', weight: '50 g', photos: 'Lateral, Ventral', location: 'Binidayan', municipal: 'Binidayan', barangay: 'Picalilangan', date: '2026-03-10', lat: 7.820, lng: 124.160 },
+  { id: 7, commonName: 'Bagangan', scientificName: 'Puntius clemensi', type: 'endemic', status: 'Vulnerable', statusShort: 'VU', length: '15 cm', bodyDepth: '4.2 cm', weight: '65 g', photos: 'All 5 angles', location: 'Marawi City Shoreline', municipal: 'Marawi City', barangay: 'Banggolo', date: '2026-02-28', lat: 7.995, lng: 124.285 },
+  { id: 8, commonName: 'Diza', scientificName: 'Puntius diza', type: 'endemic', status: 'Endangered', statusShort: 'EN', length: '7.8 cm', bodyDepth: '2.0 cm', weight: '22 g', photos: 'Lateral', location: 'Tugaya', municipal: 'Tugaya', barangay: 'Sugod', date: '2026-05-22', lat: 7.880, lng: 124.150 },
+  { id: 9, commonName: 'Katapa-tapa', scientificName: 'Puntius flavifuscus', type: 'endemic', status: 'Endangered', statusShort: 'EN', length: '10 cm', bodyDepth: '2.9 cm', weight: '35 g', photos: 'None', location: 'Ganassi', municipal: 'Ganassi', barangay: 'Poblacion', date: '2026-04-15', lat: 7.830, lng: 124.140 },
+  { id: 10, commonName: 'Manalak', scientificName: 'Puntius manalak', type: 'endemic', status: 'Critically Endangered', statusShort: 'CR', length: '14.5 cm', bodyDepth: '4.0 cm', weight: '58 g', photos: 'All 5 angles', location: 'Pualas', municipal: 'Pualas', barangay: 'Danugan', date: '2026-06-18', lat: 7.845, lng: 124.145 },
+  { id: 11, commonName: 'Katolo', scientificName: 'Puntius katolo', type: 'endemic', status: 'Vulnerable', statusShort: 'VU', length: '12.5 cm', bodyDepth: '3.5 cm', weight: '48 g', photos: 'Lateral, Dorsal', location: 'Ditsaan-Ramain', municipal: 'Ditsaan-Ramain', barangay: 'Barimbingan', date: '2026-07-05', lat: 7.965, lng: 124.260 },
+  { id: 12, commonName: 'Pait', scientificName: 'Puntius sirang', type: 'endemic', status: 'Critically Endangered', statusShort: 'CR', length: '10.5 cm', bodyDepth: '2.8 cm', weight: '32 g', photos: 'Lateral', location: 'Lumbatan', municipal: 'Lumbatan', barangay: 'Tambac', date: '2026-03-30', lat: 7.805, lng: 124.195 },
+  
+  // INVASIVE
+  { id: 13, commonName: 'Nile Tilapia', scientificName: 'Oreochromis niloticus', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '22 cm', bodyDepth: '7.5 cm', weight: '350 g', photos: 'Lateral, Dorsal', location: 'Marantao', municipal: 'Marantao', barangay: 'Poblacion', date: '2026-06-10', lat: 7.940, lng: 124.252 },
+  { id: 14, commonName: 'Common Carp', scientificName: 'Cyprinus carpio', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '45 cm', bodyDepth: '12 cm', weight: '1.5 kg', photos: 'All 5 angles', location: 'Saguiaran', municipal: 'Saguiaran', barangay: 'Maito Basak', date: '2026-05-05', lat: 7.983, lng: 124.285 },
+  { id: 15, commonName: 'Guppy', scientificName: 'Poecilia reticulata', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '3.5 cm', bodyDepth: '0.8 cm', weight: '3 g', photos: 'None', location: 'Balindong River inlet', municipal: 'Balindong', barangay: 'Salipongan', date: '2026-07-10', lat: 7.825, lng: 124.265 },
+  { id: 16, commonName: 'Snakehead (Dalag)', scientificName: 'Channa striata', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '38 cm', bodyDepth: '6.5 cm', weight: '1.1 kg', photos: 'Lateral', location: 'Masiu Marshes', municipal: 'Masiu', barangay: 'Poblacion', date: '2026-06-25', lat: 7.860, lng: 124.200 },
+  { id: 17, commonName: 'Walking Catfish', scientificName: 'Clarias batrachus', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '30 cm', bodyDepth: '5.2 cm', weight: '850 g', photos: 'Lateral, Ventral', location: 'Taraka River Delta', municipal: 'Taraka', barangay: 'Lumbac', date: '2026-04-12', lat: 7.915, lng: 124.240 },
+  { id: 18, commonName: 'White Goby', scientificName: 'Glossogobius giuris', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '20 cm', bodyDepth: '4.5 cm', weight: '180 g', photos: 'All 5 angles', location: 'Marawi Harbor', municipal: 'Marawi City', barangay: 'Datu Saber', date: '2026-03-05', lat: 7.990, lng: 124.280 },
+  { id: 19, commonName: 'Nile Tilapia', scientificName: 'Oreochromis niloticus', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '25 cm', bodyDepth: '8.2 cm', weight: '420 g', photos: 'Lateral', location: 'Binidayan', municipal: 'Binidayan', barangay: 'Poblacion', date: '2026-02-14', lat: 7.810, lng: 124.165 },
+  { id: 20, commonName: 'Common Carp', scientificName: 'Cyprinus carpio', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '50 cm', bodyDepth: '14 cm', weight: '2.1 kg', photos: 'None', location: 'Pualas', municipal: 'Pualas', barangay: 'Badak', date: '2026-05-18', lat: 7.840, lng: 124.150 },
+  { id: 21, commonName: 'Snakehead (Dalag)', scientificName: 'Channa striata', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '42 cm', bodyDepth: '7.1 cm', weight: '1.3 kg', photos: 'Lateral, Dorsal', location: 'Lumbatan', municipal: 'Lumbatan', barangay: 'Penal', date: '2026-07-08', lat: 7.795, lng: 124.185 },
+  { id: 22, commonName: 'Nile Tilapia', scientificName: 'Oreochromis niloticus', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '18 cm', bodyDepth: '6.0 cm', weight: '250 g', photos: 'All 5 angles', location: 'Tugaya', municipal: 'Tugaya', barangay: 'Maibarom', date: '2026-06-30', lat: 7.885, lng: 124.155 },
+  { id: 23, commonName: 'Guppy', scientificName: 'Poecilia reticulata', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '4 cm', bodyDepth: '1.0 cm', weight: '4 g', photos: 'Lateral', location: 'Marantao', municipal: 'Marantao', barangay: 'Inudaran', date: '2026-04-28', lat: 7.945, lng: 124.245 },
+  { id: 24, commonName: 'Walking Catfish', scientificName: 'Clarias batrachus', type: 'invasive', status: 'Least Concern', statusShort: 'LC', length: '35 cm', bodyDepth: '6.1 cm', weight: '950 g', photos: 'Lateral, Anterior', location: 'Ditsaan-Ramain', municipal: 'Ditsaan-Ramain', barangay: 'Poblacion', date: '2026-05-02', lat: 7.970, lng: 124.265 },
+  
+  // GENERAL / OTHERS
+  { id: 25, commonName: 'Other Species', scientificName: 'Mixed Catch', type: 'general', status: 'Not Evaluated', statusShort: 'NE', length: '-', weight: '20 kg', location: 'Open Pelagic Zone', date: '2026-07-12', lat: 7.920, lng: 124.220, depth: '15 m', number: '150', size: 'Small' },
+  { id: 26, commonName: 'Other Species', scientificName: 'Mixed Catch', type: 'general', status: 'Not Evaluated', statusShort: 'NE', length: '-', weight: '5 kg', location: 'Littoral Zone (South)', date: '2026-07-05', lat: 7.815, lng: 124.190, depth: '2 m', number: '30', size: 'Medium' },
+  { id: 27, commonName: 'Other Species', scientificName: 'Mixed Catch', type: 'general', status: 'Not Evaluated', statusShort: 'NE', length: '-', weight: '12 kg', location: 'Eastern Shoreline', date: '2026-06-20', lat: 7.890, lng: 124.270, depth: '5 m', number: '80', size: 'Mixed' },
+  { id: 28, commonName: 'Other Species', scientificName: 'Mixed Catch', type: 'general', status: 'Not Evaluated', statusShort: 'NE', length: '-', weight: '8 kg', location: 'Northwestern Inlet', date: '2026-05-30', lat: 7.980, lng: 124.225, depth: '3 m', number: '45', size: 'Large' },
+  { id: 29, commonName: 'Other Species', scientificName: 'Mixed Catch', type: 'general', status: 'Not Evaluated', statusShort: 'NE', length: '-', weight: '25 kg', location: 'Central Basin (Deep)', date: '2026-07-15', lat: 7.870, lng: 124.210, depth: '25 m', number: '200', size: 'Small' },
+  { id: 30, commonName: 'Other Species', scientificName: 'Mixed Catch', type: 'general', status: 'Not Evaluated', statusShort: 'NE', length: '-', weight: '3.5 kg', location: 'Ramain Tributary', date: '2026-04-18', lat: 7.950, lng: 124.280, depth: '1.5 m', number: '20', size: 'Medium' }
 ];
 
 const selectedSpeciesFilter = ref<string[]>([]);
@@ -888,7 +818,8 @@ function filterFn(val: string, update: (callback: () => void) => void) {
 const fishFilters = [
   { value: 'all', label: 'All', icon: 'filter_list', activeColor: 'teal-7' },
   { value: 'endemic', label: 'Endemic', icon: 'crisis_alert', activeColor: 'blue-7' },
-  { value: 'invasive', label: 'Invasive', icon: 'warning', activeColor: 'orange-7' },
+  { value: 'invasive', label: 'Invasive', icon: 'warning', activeColor: 'red-7' },
+  { value: 'general', label: 'General', icon: 'blender', activeColor: 'orange-7' },
 ];
 
 const filteredSpecies = computed(() =>
@@ -901,16 +832,29 @@ const filteredSpecies = computed(() =>
   }),
 );
 
-const selectedFishDetails = computed(() =>
-  selectedFish.value
-    ? [
-        { label: 'Length', value: selectedFish.value.length, icon: 'straighten' },
-        { label: 'Weight', value: selectedFish.value.weight, icon: 'scale' },
-        { label: 'Location', value: selectedFish.value.location, icon: 'place' },
-        { label: 'Date Recorded', value: selectedFish.value.date, icon: 'calendar_today' },
-      ]
-    : [],
-);
+const selectedFishDetails = computed(() => {
+  if (!selectedFish.value) return [];
+  const f = selectedFish.value;
+  if (f.type === 'general') {
+    return [
+      { label: 'Depth', value: f.depth || '-', icon: 'waves' },
+      { label: 'Weight', value: f.weight, icon: 'scale' },
+      { label: 'Number', value: f.number || '-', icon: 'tag' },
+      { label: 'Size', value: f.size || '-', icon: 'straighten' },
+      { label: 'Location', value: f.location, icon: 'place' },
+      { label: 'Date', value: f.date, icon: 'calendar_today' },
+    ];
+  }
+  return [
+    { label: 'True Length (TL)', value: f.length, icon: 'straighten' },
+    { label: 'Body Depth (BD)', value: f.bodyDepth || '-', icon: 'height' },
+    { label: 'Weight (W)', value: f.weight, icon: 'scale' },
+    { label: 'Photos', value: f.photos || 'None', icon: 'photo_camera' },
+    { label: 'Municipal', value: f.municipal || '-', icon: 'location_city' },
+    { label: 'Barangay', value: f.barangay || '-', icon: 'holiday_village' },
+    { label: 'Date Recorded', value: f.date, icon: 'calendar_today' },
+  ];
+});
 
 // ═══ WATER QUALITY SAMPLING SITES (loaded from GeoJSON) ═══
 interface WaterQualitySiteProps {
@@ -1781,7 +1725,7 @@ function renderFishMarkers() {
       <div style="font-family: Roboto, sans-serif; min-width: 160px;">
         <strong>${fish.commonName}</strong><br>
         <em style="color:#888;">${fish.scientificName}</em><br>
-        <span style="color:${fish.type === 'endemic' ? '#1565C0' : '#E65100'}; font-weight:bold;">${fish.type === 'endemic' ? 'Endemic' : 'Invasive'}</span> ·
+        <span style="color:${fish.type === 'endemic' ? '#1565C0' : fish.type === 'invasive' ? '#D32F2F' : '#F57C00'}; font-weight:bold; text-transform: capitalize;">${fish.type}</span> ·
         <span>${fish.statusShort}</span>
       </div>
     `);

@@ -68,11 +68,11 @@
                   <q-tooltip>Edit Profile</q-tooltip>
                 </q-btn>
                 
-                <q-btn outline round color="teal-6" icon="upload_file" size="md">
+                <q-btn outline round color="teal-6" icon="upload_file" size="md" @click="openUploadDialog">
                   <q-tooltip>Upload Data</q-tooltip>
                 </q-btn>
-                <q-btn unelevated round color="teal-8" text-color="white" icon="add_chart" size="md">
-                  <q-tooltip>New Report</q-tooltip>
+                <q-btn unelevated round color="teal-8" text-color="white" icon="add_chart" size="md" @click="openReportDialog">
+                  <q-tooltip>Reports</q-tooltip>
                 </q-btn>
               </div>
               
@@ -231,18 +231,223 @@
       </q-card>
     </q-dialog>
 
+    <!-- Report Dialog -->
+    <q-dialog v-model="reportDialog" position="right" maximized>
+      <q-card style="width: 450px; border-radius: 0;">
+        <q-card-section class="bg-teal-9 text-white row items-center q-pa-md">
+          <div class="text-h6 row items-center">
+            <q-icon name="analytics" size="24px" class="q-mr-sm" />
+            My Reports
+          </div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+        
+        <q-card-section class="q-pa-lg">
+          <div class="text-subtitle1 text-weight-bold text-teal-10 q-mb-md">Available Reports</div>
+          <div class="q-gutter-y-sm">
+            <q-card flat bordered class="report-card">
+              <q-card-section class="row items-center q-pa-sm">
+                <q-avatar size="40px" color="teal-1" text-color="teal-7" icon="picture_as_pdf" />
+                <div class="col q-ml-md">
+                  <div class="text-weight-bold text-grey-9">Water Quality Summary Q1</div>
+                  <div class="text-caption text-grey-6">Generated: April 12, 2026</div>
+                </div>
+                <q-btn flat dense round color="teal-7" icon="download">
+                  <q-tooltip>Download PDF</q-tooltip>
+                </q-btn>
+              </q-card-section>
+            </q-card>
+            
+            <q-card flat bordered class="report-card">
+              <q-card-section class="row items-center q-pa-sm">
+                <q-avatar size="40px" color="blue-1" text-color="blue-7" icon="description" />
+                <div class="col q-ml-md">
+                  <div class="text-weight-bold text-grey-9">Fish Catch Assessment 2025</div>
+                  <div class="text-caption text-grey-6">Generated: Jan 20, 2026</div>
+                </div>
+                <q-btn flat dense round color="blue-7" icon="download">
+                  <q-tooltip>Download Excel</q-tooltip>
+                </q-btn>
+              </q-card-section>
+            </q-card>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+
+    <!-- Upload Data Dialog -->
+    <q-dialog v-model="uploadDialog" persistent>
+      <q-card style="width: 700px; max-width: 90vw; border-radius: 12px; overflow: hidden;">
+        <q-card-section class="bg-teal-9 text-white row items-center q-pa-md">
+          <div class="text-h6 row items-center">
+            <q-icon name="cloud_upload" size="24px" class="q-mr-sm" />
+            Upload Research Data
+          </div>
+          <q-space />
+          <q-btn icon="close" flat round dense @click="cancelUpload" />
+        </q-card-section>
+
+        <q-stepper
+          v-model="uploadStep"
+          color="teal-8"
+          animated
+          flat
+          header-class="text-weight-bold"
+        >
+          <!-- STEP 1: Select Data Type -->
+          <q-step
+            :name="1"
+            title="Select Data Type"
+            icon="category"
+            :done="uploadStep > 1"
+          >
+            <div class="text-h6 text-teal-10 q-mb-sm text-center">What type of data are you uploading?</div>
+            <div class="text-body2 text-grey-7 text-center q-mb-lg">Select the appropriate category for your dataset to ensure correct processing.</div>
+            
+            <div class="row q-col-gutter-lg justify-center q-pa-md">
+              <div class="col-12 col-sm-6">
+                <q-card 
+                  class="type-selector-card cursor-pointer" 
+                  :class="{ 'active': selectedDataType === 'fish' }"
+                  flat bordered
+                  @click="selectDataType('fish')"
+                >
+                  <q-card-section class="column items-center q-pa-lg text-center">
+                    <q-icon name="phishing" size="64px" color="teal-6" class="q-mb-md" />
+                    <div class="text-h6 text-grey-9">Fish Observation</div>
+                    <div class="text-caption text-grey-6 q-mt-sm">Species count, invasive species, fish catch records</div>
+                  </q-card-section>
+                </q-card>
+              </div>
+              
+              <div class="col-12 col-sm-6">
+                <q-card 
+                  class="type-selector-card cursor-pointer" 
+                  :class="{ 'active': selectedDataType === 'water' }"
+                  flat bordered
+                  @click="selectDataType('water')"
+                >
+                  <q-card-section class="column items-center q-pa-lg text-center">
+                    <q-icon name="water_drop" size="64px" color="blue-6" class="q-mb-md" />
+                    <div class="text-h6 text-grey-9">Water Quality</div>
+                    <div class="text-caption text-grey-6 q-mt-sm">pH, temperature, dissolved oxygen, nutrients</div>
+                  </q-card-section>
+                </q-card>
+              </div>
+            </div>
+            
+            <q-stepper-navigation class="text-right">
+              <q-btn unelevated color="teal-9" label="Continue" @click="uploadStep = 2" :disable="!selectedDataType" />
+            </q-stepper-navigation>
+          </q-step>
+
+          <!-- STEP 2: File Upload -->
+          <q-step
+            :name="2"
+            title="Upload File"
+            icon="upload_file"
+            :done="uploadStep > 2"
+          >
+            <!-- Template download banner -->
+            <div class="template-banner q-mb-lg">
+              <div class="row items-center">
+                <q-icon name="description" :color="selectedDataType === 'fish' ? 'teal-7' : 'blue-7'" size="22px" class="q-mr-sm" />
+                <div class="col">
+                  <div class="text-weight-medium text-grey-9" style="font-size:0.85rem;">
+                    Don't have the template?
+                  </div>
+                  <div class="text-grey-6" style="font-size:0.75rem;">
+                    Download the official {{ selectedDataType === 'fish' ? 'Fish Observation' : 'Water Quality' }} Excel template
+                  </div>
+                </div>
+                <q-btn
+                  flat
+                  dense
+                  icon="download"
+                  label="Download Template"
+                  :color="selectedDataType === 'fish' ? 'teal-7' : 'blue-7'"
+                  size="sm"
+                  @click="downloadTemplate"
+                />
+              </div>
+            </div>
+
+            <!-- Drag & Drop Zone -->
+            <div 
+              class="upload-dropzone column items-center justify-center q-pa-xl cursor-pointer"
+              :class="{ 'has-file': !!uploadFile, 'has-error': !!uploadError }"
+              @dragover.prevent
+              @drop="handleFileDrop"
+              @click="!uploadFile && triggerFileUpload()"
+            >
+              <input 
+                type="file" 
+                ref="fileInputEl" 
+                class="hidden" 
+                accept=".xlsx,.xls" 
+                @change="handleFileInput" 
+              />
+              
+              <template v-if="!uploadFile">
+                <div class="drop-icon-bg q-mb-md flex flex-center">
+                  <q-icon name="cloud_upload" size="48px" :color="selectedDataType === 'fish' ? 'teal-5' : 'blue-5'" />
+                </div>
+                <div class="text-h6 text-grey-9 q-mb-xs">Click or drag Excel file to upload</div>
+                <div class="text-body2 text-grey-6">Only .xlsx or .xls files are supported</div>
+                
+                <div class="text-negative text-caption q-mt-sm" v-if="uploadError">
+                  <q-icon name="error" /> {{ uploadError }}
+                </div>
+              </template>
+              
+              <template v-else>
+                <q-icon name="insert_drive_file" size="64px" color="teal-6" class="q-mb-md" />
+                <div class="text-h6 text-grey-9">{{ uploadFile.name }}</div>
+                <div class="text-body2 text-grey-6 q-mb-md">{{ formatFileSize(uploadFile.size) }}</div>
+                
+                <q-btn flat color="negative" icon="delete" label="Remove File" @click.stop="uploadFile = null" />
+              </template>
+            </div>
+            
+            <q-stepper-navigation class="text-right q-mt-md row items-center">
+              <q-btn flat color="grey-8" label="Back" @click="uploadStep = 1" class="q-mr-sm" />
+              <q-space />
+              <q-btn unelevated label="Upload Data" color="teal-9" icon="cloud_upload" @click="submitUpload" :disable="!uploadFile" />
+            </q-stepper-navigation>
+          </q-step>
+        </q-stepper>
+      </q-card>
+    </q-dialog>
+
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useQuasar } from 'quasar';
 import BackButton from 'src/components/BackButton.vue';
+
+const $q = useQuasar();
 
 const editDialog = ref(false);
 const avatarFile = ref<File | null>(null);
 const avatarPreview = ref<string>('');
 const fileInputRef = ref<any>(null);
 const passwordForm = ref({ current: '', new: '', confirm: '' });
+
+// Upload and Report state
+const reportDialog = ref(false);
+const uploadDialog = ref(false);
+const uploadStep = ref(1);
+const selectedDataType = ref('');
+const uploadFile = ref<File | null>(null);
+const uploadError = ref('');
+const fileInputEl = ref<HTMLInputElement | null>(null);
+
+function triggerFileUpload() {
+  fileInputEl.value?.click();
+}
 
 const editForm = ref({
   name: '',
@@ -292,6 +497,112 @@ function cancelEdit() {
   avatarPreview.value = '';
   passwordForm.value = { current: '', new: '', confirm: '' };
   editDialog.value = false;
+}
+
+// ─── UPLOAD AND REPORT HANDLERS ───
+
+function openReportDialog() {
+  reportDialog.value = true;
+}
+
+function openUploadDialog() {
+  uploadDialog.value = true;
+  uploadStep.value = 1;
+  selectedDataType.value = '';
+  uploadFile.value = null;
+  uploadError.value = '';
+}
+
+function selectDataType(type: string) {
+  selectedDataType.value = type;
+  uploadStep.value = 2;
+}
+
+function cancelUpload() {
+  uploadDialog.value = false;
+  uploadStep.value = 1;
+  selectedDataType.value = '';
+  uploadFile.value = null;
+  uploadError.value = '';
+}
+
+function handleFileDrop(event: DragEvent) {
+  event.preventDefault();
+  const files = event.dataTransfer?.files;
+  if (files && files.length > 0) {
+    const file = files[0];
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext === 'xlsx' || ext === 'xls') {
+      uploadFile.value = file;
+      uploadError.value = '';
+    } else {
+      uploadError.value = 'Only .xlsx or .xls files are accepted.';
+    }
+  }
+}
+
+function handleFileInput(event: Event) {
+  const input = event.target as HTMLInputElement;
+  if (input.files && input.files.length > 0) {
+    const file = input.files[0];
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext === 'xlsx' || ext === 'xls') {
+      uploadFile.value = file;
+      uploadError.value = '';
+    } else {
+      uploadError.value = 'Only .xlsx or .xls files are accepted.';
+    }
+  }
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  if (bytes < k) return `${bytes} B`;
+  if (bytes < k * k) return `${(bytes / k).toFixed(1)} KB`;
+  return `${(bytes / (k * k)).toFixed(1)} MB`;
+}
+
+function downloadTemplate() {
+  const isFish = selectedDataType.value === 'fish';
+  const href = isFish
+    ? '/templates/fish observation template.xlsx'
+    : '/templates/water quality template.xlsx';
+  const filename = isFish
+    ? 'fish observation template.xlsx'
+    : 'water quality template.xlsx';
+
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  $q.notify({
+    message: 'Template download started.',
+    color: isFish ? 'teal-7' : 'blue-7',
+    icon: 'download',
+    position: 'top',
+    timeout: 2000,
+  });
+}
+
+function submitUpload() {
+  if (!uploadFile.value) {
+    uploadError.value = 'Please upload a file first.';
+    return;
+  }
+  
+  $q.notify({
+    message: 'File successfully uploaded and sent for processing!',
+    color: 'teal-7',
+    icon: 'check_circle',
+    position: 'top',
+    timeout: 2500,
+  });
+  
+  cancelUpload();
 }
 
 interface User {
@@ -742,4 +1053,81 @@ function getFileIcon(fileType: string): { icon: string; color: string } {
 .slide-down-leave-to { opacity: 0; max-height: 0; margin-top: 0 !important; }
 .slide-down-enter-to,
 .slide-down-leave-from { opacity: 1; max-height: 300px; }
+
+/* ═══════════════════════════════════════
+   REPORT & UPLOAD DIALOGS
+═══════════════════════════════════════ */
+.report-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.report-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.type-selector-card {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  border: 2px solid transparent;
+  border-radius: 12px;
+}
+.type-selector-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  border-color: #e0f2f1;
+}
+.type-selector-card.active {
+  border-color: #26a69a;
+  background-color: #f0fdfa;
+}
+
+.template-banner {
+  background: #f8fbfb;
+  border: 1px dashed #b2dfdb;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.upload-dropzone {
+  border: 2px dashed #b0bec5;
+  border-radius: 12px;
+  background: #fcfcfc;
+  transition: all 0.2s;
+  min-height: 250px;
+}
+.upload-dropzone:hover:not(.has-file) {
+  border-color: #26a69a;
+  background: #f0fdfa;
+}
+.upload-dropzone.has-file {
+  border: 2px solid #26a69a;
+  background: #f0fdfa;
+}
+.upload-dropzone.has-error {
+  border-color: #ef5350;
+  background: #fffafa;
+}
+
+.drop-icon-bg {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #e0f2f1;
+}
+
+.slide-in {
+  animation: slideIn 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 </style>
