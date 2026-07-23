@@ -78,6 +78,7 @@
                 href="#"
                 class="text-primary text-weight-medium"
                 style="text-decoration: none; font-size: 14px"
+                @click.prevent="goToForgotPassword"
               >
                 Forgot password?
               </a>
@@ -184,6 +185,12 @@ const loginWithGoogle = () => {
 
 function handlesignup() {
   router.push('/auth/signup').catch((err) => {
+    console.error('Navigation error:', err);
+  });
+}
+
+function goToForgotPassword() {
+  router.push('/auth/forgot-password').catch((err) => {
     console.error('Navigation error:', err);
   });
 }
