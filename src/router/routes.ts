@@ -16,14 +16,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/dashboard/WaterQualityDashboardPage.vue'),
       },
       {
-        path: '/researcher',
-        component: () => import('pages/researcher/ResearcherPortalPage.vue'),
-      },
-      {
-        path: '/researcher/upload',
-        component: () => import('pages/researcher/UploadDataPage.vue'),
-      },
-      {
         path: '/researcher/upload/fish',
         component: () => import('pages/researcher/FishObservationPage.vue'),
       },

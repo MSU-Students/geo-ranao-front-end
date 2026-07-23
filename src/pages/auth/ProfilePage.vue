@@ -100,8 +100,23 @@
 
         <!-- ══ BOTTOM SECTION (Research Activity) ══ -->
         <div class="bottom-section col column">
-          <div class="tab-content col relative-position">
-            <div class="activity-tab fit q-pa-lg">
+          <q-tabs
+            v-model="activeSection"
+            dense
+            class="text-grey-7 q-px-lg section-tabs"
+            active-color="teal-8"
+            indicator-color="teal-8"
+            align="left"
+          >
+            <q-tab name="overview" label="Overview" icon="dashboard" />
+            <q-tab name="contributions" label="My Contributions" icon="fact_check" />
+          </q-tabs>
+          <q-separator color="grey-3" />
+
+          <div class="col relative-position">
+            <q-tab-panels v-model="activeSection" animated class="fit bg-transparent">
+              <!-- ═══ OVERVIEW ═══ -->
+              <q-tab-panel name="overview" class="fit q-pa-lg">
                 <div class="activity-grid fit">
                   <!-- Timeline -->
                   <div class="activity-col col column">
@@ -157,7 +172,102 @@
                     </q-scroll-area>
                   </div>
                 </div>
-              </div>
+              </q-tab-panel>
+
+              <!-- ═══ MY CONTRIBUTIONS (this researcher's own submissions only) ═══ -->
+              <q-tab-panel name="contributions" class="fit q-pa-lg column">
+                <div class="row items-center q-mb-md q-gutter-sm col-auto">
+                  <span class="text-grey-7 text-weight-medium q-mr-sm">Filter:</span>
+                  <q-btn
+                    :color="contributionFilter === 'all' ? 'teal-8' : 'grey-4'"
+                    :flat="contributionFilter !== 'all'"
+                    :unelevated="contributionFilter === 'all'"
+                    :text-color="contributionFilter === 'all' ? 'white' : 'grey-8'"
+                    label="All"
+                    size="sm"
+                    rounded
+                    @click="contributionFilter = 'all'"
+                  />
+                  <q-btn
+                    :color="contributionFilter === 'endemic' ? 'blue-7' : 'grey-4'"
+                    :flat="contributionFilter !== 'endemic'"
+                    :unelevated="contributionFilter === 'endemic'"
+                    :text-color="contributionFilter === 'endemic' ? 'white' : 'grey-8'"
+                    label="Endemic"
+                    size="sm"
+                    rounded
+                    @click="contributionFilter = 'endemic'"
+                  />
+                  <q-btn
+                    :color="contributionFilter === 'invasive' ? 'orange-7' : 'grey-4'"
+                    :flat="contributionFilter !== 'invasive'"
+                    :unelevated="contributionFilter === 'invasive'"
+                    :text-color="contributionFilter === 'invasive' ? 'white' : 'grey-8'"
+                    label="Invasive"
+                    size="sm"
+                    rounded
+                    @click="contributionFilter = 'invasive'"
+                  />
+                </div>
+
+                <q-table
+                  class="col my-contributions-table"
+                  :rows="filteredContributions"
+                  :columns="contributionColumns"
+                  row-key="id"
+                  flat
+                  :rows-per-page-options="[5, 10, 20]"
+                >
+                  <template #body-cell-type="props">
+                    <q-td :props="props">
+                      <q-badge
+                        :color="props.row.type === 'endemic' ? 'blue-7' : 'orange-7'"
+                        :label="props.row.type === 'endemic' ? 'Endemic' : 'Invasive'"
+                      />
+                    </q-td>
+                  </template>
+
+                  <template #body-cell-status="props">
+                    <q-td :props="props">
+                      <q-badge :color="getStatusColor(props.row.status)" :label="props.row.status" />
+                    </q-td>
+                  </template>
+
+                  <template #body-cell-actions="props">
+                    <q-td :props="props">
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        icon="edit"
+                        color="teal-8"
+                        size="sm"
+                        @click="handleEditContribution(props.row)"
+                      >
+                        <q-tooltip>Edit</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        flat
+                        round
+                        dense
+                        icon="delete"
+                        color="red-6"
+                        size="sm"
+                        @click="handleDeleteContribution(props.row.id)"
+                      >
+                        <q-tooltip>Delete</q-tooltip>
+                      </q-btn>
+                    </q-td>
+                  </template>
+
+                  <template #no-data>
+                    <div class="full-width text-center text-grey-6 q-pa-lg">
+                      No contributions submitted yet.
+                    </div>
+                  </template>
+                </q-table>
+              </q-tab-panel>
+            </q-tab-panels>
           </div>
         </div>
       </div>
@@ -235,9 +345,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import { useQuasar } from 'quasar';
 import BackButton from 'src/components/BackButton.vue';
 
+const $q = useQuasar();
+
+const activeSection = ref('overview');
 const editDialog = ref(false);
 const avatarFile = ref<File | null>(null);
 const avatarPreview = ref<string>('');
@@ -398,6 +512,126 @@ function getFileIcon(fileType: string): { icon: string; color: string } {
     default:
       return { icon: 'insert_drive_file', color: 'grey' };
   }
+}
+
+// ═══ MY CONTRIBUTIONS (this researcher's own fish/species submissions) ═══
+// Deliberately scoped to the signed-in researcher only — seeing every other
+// researcher's submissions is an admin-only view (Admin Dashboard > Review History).
+interface Contribution {
+  id: number;
+  commonName: string;
+  scientificName: string;
+  type: 'endemic' | 'invasive';
+  status: string;
+  length: string;
+  weight: string;
+  location: string;
+  date: string;
+}
+
+const myContributions = ref<Contribution[]>([
+  {
+    id: 101,
+    commonName: 'Pait',
+    scientificName: 'Puntius sirang',
+    type: 'endemic',
+    status: 'Critically Endangered',
+    length: '10',
+    weight: '35',
+    location: '7.9900, 124.0500',
+    date: '2025-05-12',
+  },
+  {
+    id: 102,
+    commonName: 'Banak',
+    scientificName: 'Puntius lanaoensis',
+    type: 'endemic',
+    status: 'Critically Endangered',
+    length: '12',
+    weight: '55',
+    location: '7.9500, 124.0200',
+    date: '2025-06-01',
+  },
+  {
+    id: 103,
+    commonName: 'Nile Tilapia',
+    scientificName: 'Oreochromis niloticus',
+    type: 'invasive',
+    status: 'Least Concern',
+    length: '28',
+    weight: '850',
+    location: '8.0000, 124.0400',
+    date: '2025-06-10',
+  },
+  {
+    id: 104,
+    commonName: 'Tarong',
+    scientificName: 'Puntius tras',
+    type: 'endemic',
+    status: 'Endangered',
+    length: '11',
+    weight: '45',
+    location: '7.9600, 124.0600',
+    date: '2025-06-15',
+  },
+]);
+
+const contributionColumns = [
+  { name: 'id', label: '#', field: 'id', align: 'left' as const, sortable: true },
+  { name: 'commonName', label: 'Species (Common Name)', field: 'commonName', align: 'left' as const, sortable: true },
+  { name: 'scientificName', label: 'Scientific Name', field: 'scientificName', align: 'left' as const, sortable: true },
+  { name: 'type', label: 'Type', field: 'type', align: 'center' as const, sortable: true },
+  { name: 'status', label: 'Conservation Status', field: 'status', align: 'center' as const, sortable: true },
+  { name: 'length', label: 'Length (cm)', field: 'length', align: 'center' as const, sortable: true },
+  { name: 'weight', label: 'Weight (g)', field: 'weight', align: 'center' as const, sortable: true },
+  { name: 'location', label: 'Coordinates', field: 'location', align: 'left' as const },
+  { name: 'date', label: 'Date Observed', field: 'date', align: 'center' as const, sortable: true },
+  { name: 'actions', label: 'Actions', field: 'actions', align: 'center' as const },
+];
+
+const contributionFilter = ref('all');
+
+const filteredContributions = computed(() =>
+  myContributions.value.filter((c) => {
+    if (contributionFilter.value === 'all') return true;
+    return c.type === contributionFilter.value;
+  }),
+);
+
+function getStatusColor(status: string): string {
+  switch (status) {
+    case 'Critically Endangered':
+      return 'red';
+    case 'Endangered':
+      return 'orange';
+    case 'Vulnerable':
+      return 'yellow-8';
+    case 'Least Concern':
+      return 'green';
+    default:
+      return 'grey';
+  }
+}
+
+function handleEditContribution(row: Contribution) {
+  $q.notify({
+    message: `Editing record for ${row.commonName}...`,
+    color: 'teal',
+    icon: 'edit',
+    position: 'top',
+    timeout: 2000,
+  });
+}
+
+function handleDeleteContribution(id: number) {
+  myContributions.value = myContributions.value.filter((c) => c.id !== id);
+  $q.notify({
+    message: `Record #${id} deleted.`,
+    color: 'red-6',
+    icon: 'delete',
+    position: 'top',
+    timeout: 2000,
+  });
 }
 </script>
 
@@ -721,6 +955,25 @@ function getFileIcon(fileType: string): { icon: string; color: string } {
 .upload-date {
   font-size: 0.7rem;
   margin-top: 4px;
+}
+
+/* ── My Contributions tab ── */
+.section-tabs {
+  flex-shrink: 0;
+}
+
+.my-contributions-table {
+  background: transparent;
+}
+
+.my-contributions-table :deep(thead tr th) {
+  color: #546e7a;
+  background: #f1f8f8;
+  font-weight: 700;
+}
+
+.my-contributions-table :deep(tbody tr:hover td) {
+  background: #f1f8f8;
 }
 
 /* ═══════════════════════════════════════
