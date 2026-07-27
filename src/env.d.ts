@@ -5,3 +5,8 @@ declare namespace NodeJS {
     VUE_ROUTER_BASE: string | undefined;
   }
 }
+
+declare module '*.png' {
+  const src: string;
+  export default src;
+}

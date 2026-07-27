@@ -647,6 +647,64 @@ import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+// ═══ CONSERVATION STATUS COLORS (IUCN scale) ═══
+const STATUS_PIN_COLORS: Record<string, string> = {
+  CR: '#D32F2F',  // Critically Endangered — red
+  EN: '#F57C00',  // Endangered — amber
+  VU: '#FFA000',  // Vulnerable — orange
+  NT: '#7CB342',  // Near Threatened — yellow-green
+  LC: '#43A047',  // Least Concern — green
+};
+
+// ═══ INLINE SVG MAP-PIN BUILDERS ═══
+// Fish marker: circle with a small fish inside
+function fishPinSvg(color: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+    <filter id="fs" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
+    </filter>
+    <circle cx="20" cy="20" r="18"
+            fill="${color}" stroke="#fff" stroke-width="2" filter="url(#fs)"/>
+    <g transform="translate(20,20)" fill="#fff">
+      <ellipse rx="7" ry="4" />
+      <polygon points="7,-1 11,-4 11,4 7,1" />
+      <circle cx="-3" cy="-1" r="1" fill="${color}"/>
+    </g>
+  </svg>`;
+}
+
+function makeFishIcon(statusShort: string): L.DivIcon {
+  const color = STATUS_PIN_COLORS[statusShort] ?? '#78909C';
+  return L.divIcon({
+    className: '',
+    html: fishPinSvg(color),
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -20],
+    tooltipAnchor: [0, -20],
+  });
+}
+
+// Water-quality marker: circle with a water droplet inside
+const WATER_PIN_COLOR = '#0277BD'; // rich cerulean blue
+const waterPinSvgHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <filter id="ws" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
+  </filter>
+  <circle cx="18" cy="18" r="16"
+          fill="${WATER_PIN_COLOR}" stroke="#fff" stroke-width="2" filter="url(#ws)"/>
+  <path d="M18 9 Q22 15 22 18.5 A4 4 0 0 1 14 18.5 Q14 15 18 9Z"
+        fill="#fff" opacity="0.95"/>
+</svg>`;
+
+const waterPinIcon = L.divIcon({
+  className: '',
+  html: waterPinSvgHtml,
+  iconSize: [36, 36],
+  iconAnchor: [18, 18],
+  popupAnchor: [0, -18],
+  tooltipAnchor: [0, -18],
+});
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -1188,23 +1246,9 @@ function getMarkerColor(siteId: string, defaultColor: string): string {
 }
 
 function recolorWaterLayers() {
-  const layerDefaults: [L.GeoJSON | null, string][] = [
-    [wqAllLayerGroup, '#0288D1'],
-    [wqAbove40LayerGroup, '#7B1FA2'],
-    [wqBelow40LayerGroup, '#8D6E63'],
-    [wqTributaryLayerGroup, '#2E7D32'],
-  ];
-  for (const [layerGroup, defaultColor] of layerDefaults) {
-    if (!layerGroup) continue;
-    layerGroup.eachLayer((layer) => {
-      const feature = (layer as L.Layer & { feature?: GeoJSON.Feature }).feature;
-      const props = feature?.properties as WaterQualitySiteProps | undefined;
-      if (!props) return;
-      (layer as L.CircleMarker).setStyle({
-        fillColor: getMarkerColor(props.SITE_ID, defaultColor),
-      });
-    });
-  }
+  // Water-quality markers now use icon images, so colour-based
+  // re-styling is no longer applicable.  We keep the function as
+  // a no-op so existing watchers don't break.
 }
 
 watch([selectedColorParam, selectedMonthIndex], () => {
@@ -1233,18 +1277,11 @@ function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
 
 function createWaterQualitySiteLayer(
   geojson: GeoJSON.GeoJsonObject,
-  defaultColor: string,
+  _defaultColor: string,
 ): L.GeoJSON {
   return L.geoJSON(geojson, {
-    pointToLayer: (feature, latlng) => {
-      const props = feature.properties as WaterQualitySiteProps;
-      return L.circleMarker(latlng, {
-        radius: 7,
-        weight: 2,
-        color: '#ffffff',
-        fillColor: getMarkerColor(props.SITE_ID, defaultColor),
-        fillOpacity: 0.9,
-      });
+    pointToLayer: (_feature, latlng) => {
+      return L.marker(latlng, { icon: waterPinIcon });
     },
     onEachFeature: (feature, layer) => {
       const props = feature.properties as WaterQualitySiteProps;
@@ -1737,20 +1774,14 @@ function renderFishMarkers() {
   fishLayerGroup.clearLayers();
 
   filteredSpecies.value.forEach((fish) => {
-    const markerColor = fish.type === 'endemic' ? '#1565C0' : '#E65100';
-    const icon = L.divIcon({
-      className: 'fish-marker',
-      html: `<div style="background:${markerColor}; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.35);"></div>`,
-      iconSize: [16, 16],
-      iconAnchor: [8, 8],
-    });
+    const icon = makeFishIcon(fish.statusShort);
 
     const marker = L.marker([fish.lat, fish.lng], { icon });
     marker.bindPopup(`
       <div style="font-family: Roboto, sans-serif; min-width: 160px;">
         <strong>${fish.commonName}</strong><br>
         <em style="color:#888;">${fish.scientificName}</em><br>
-        <span style="color:${markerColor}; font-weight:bold;">${fish.type === 'endemic' ? 'Endemic' : 'Invasive'}</span> ·
+        <span style="color:${fish.type === 'endemic' ? '#1565C0' : '#E65100'}; font-weight:bold;">${fish.type === 'endemic' ? 'Endemic' : 'Invasive'}</span> ·
         <span>${fish.statusShort}</span>
       </div>
     `);
