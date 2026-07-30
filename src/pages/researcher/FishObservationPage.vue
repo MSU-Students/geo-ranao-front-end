@@ -9,7 +9,7 @@
     <!-- Dark overlay -->
     <div class="absolute-full bg-overlay" />
 
-    <BackButton to="/researcher" />
+    <BackButton to="/map" />
 
     <!-- Main Content -->
     <div class="page-content full-width q-pa-md" style="max-width: 960px">

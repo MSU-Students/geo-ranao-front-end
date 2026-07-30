@@ -170,15 +170,6 @@ const linksList: NavLink[] = [
     icon: 'water_drop',
     link: '/dashboard/water-quality',
   },
-  { title: 'All Submissions', caption: 'Community Data', icon: 'list_alt', link: '/researcher' },
-  {
-    title: 'My Submissions',
-    caption: 'Your Records',
-    icon: 'assignment_ind',
-    link: '/researcher',
-    query: { tab: 'my' },
-    requiresAuth: true,
-  },
   {
     title: 'Admin Dashboard',
     caption: 'Accounts, Logs & Reviews',
