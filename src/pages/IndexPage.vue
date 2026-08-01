@@ -1710,7 +1710,7 @@ function initMap() {
             const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
             return { siteId: props.SITE_ID, stationId: props.STATION_ID, lat, lng };
           });
-          wqAllLayerGroup = createWaterQualitySiteLayer(geojson, '#0288D1');
+          wqAllLayerGroup = createWaterQualitySiteLayer(geojson, WATER_PIN_COLOR);
           syncLayerVisibility();
         });
     })
