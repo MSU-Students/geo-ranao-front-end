@@ -208,6 +208,16 @@
                     rounded
                     @click="contributionFilter = 'invasive'"
                   />
+                  <q-btn
+                    :color="contributionFilter === 'water-quality' ? 'teal-6' : 'grey-4'"
+                    :flat="contributionFilter !== 'water-quality'"
+                    :unelevated="contributionFilter === 'water-quality'"
+                    :text-color="contributionFilter === 'water-quality' ? 'white' : 'grey-8'"
+                    label="Water Quality"
+                    size="sm"
+                    rounded
+                    @click="contributionFilter = 'water-quality'"
+                  />
                 </div>
 
                 <q-table
@@ -221,8 +231,8 @@
                   <template #body-cell-type="props">
                     <q-td :props="props">
                       <q-badge
-                        :color="props.row.type === 'endemic' ? 'blue-7' : 'orange-7'"
-                        :label="props.row.type === 'endemic' ? 'Endemic' : 'Invasive'"
+                        :color="contributionTypeMeta[props.row.type as ContributionCategory].color"
+                        :label="contributionTypeMeta[props.row.type as ContributionCategory].label"
                       />
                     </q-td>
                   </template>
@@ -514,20 +524,28 @@ function getFileIcon(fileType: string): { icon: string; color: string } {
   }
 }
 
-// ═══ MY CONTRIBUTIONS (this researcher's own fish/species submissions) ═══
+// ═══ MY CONTRIBUTIONS (this researcher's own fish + water quality submissions) ═══
 // Deliberately scoped to the signed-in researcher only — seeing every other
 // researcher's submissions is an admin-only view (Admin Dashboard > Review History).
+type ContributionCategory = 'endemic' | 'invasive' | 'water-quality';
+
 interface Contribution {
   id: number;
-  commonName: string;
-  scientificName: string;
-  type: 'endemic' | 'invasive';
-  status: string;
-  length: string;
-  weight: string;
+  commonName: string; // species common name, or the sampling station label
+  scientificName: string; // scientific name, or the parameter + reading summary
+  type: ContributionCategory;
+  status: string; // conservation status, or a Good/Warning/Serious/Critical water status
+  length: string; // fish only — "—" for water quality rows
+  weight: string; // fish only — "—" for water quality rows
   location: string;
   date: string;
 }
+
+const contributionTypeMeta: Record<ContributionCategory, { label: string; color: string }> = {
+  endemic: { label: 'Endemic', color: 'blue-7' },
+  invasive: { label: 'Invasive', color: 'orange-7' },
+  'water-quality': { label: 'Water Quality', color: 'teal-6' },
+};
 
 const myContributions = ref<Contribution[]>([
   {
@@ -574,14 +592,36 @@ const myContributions = ref<Contribution[]>([
     location: '7.9600, 124.0600',
     date: '2025-06-15',
   },
+  {
+    id: 105,
+    commonName: 'Station WQ-07',
+    scientificName: 'Dissolved Oxygen — 6.2 mg/L',
+    type: 'water-quality',
+    status: 'Good',
+    length: '—',
+    weight: '—',
+    location: '8.0000, 124.0450',
+    date: '2025-06-20',
+  },
+  {
+    id: 106,
+    commonName: 'Station WQ-12',
+    scientificName: 'Turbidity — 18.4 NTU',
+    type: 'water-quality',
+    status: 'Warning',
+    length: '—',
+    weight: '—',
+    location: '8.0100, 124.0900',
+    date: '2025-06-22',
+  },
 ]);
 
 const contributionColumns = [
   { name: 'id', label: '#', field: 'id', align: 'left' as const, sortable: true },
-  { name: 'commonName', label: 'Species (Common Name)', field: 'commonName', align: 'left' as const, sortable: true },
-  { name: 'scientificName', label: 'Scientific Name', field: 'scientificName', align: 'left' as const, sortable: true },
-  { name: 'type', label: 'Type', field: 'type', align: 'center' as const, sortable: true },
-  { name: 'status', label: 'Conservation Status', field: 'status', align: 'center' as const, sortable: true },
+  { name: 'commonName', label: 'Submission', field: 'commonName', align: 'left' as const, sortable: true },
+  { name: 'scientificName', label: 'Details', field: 'scientificName', align: 'left' as const, sortable: true },
+  { name: 'type', label: 'Category', field: 'type', align: 'center' as const, sortable: true },
+  { name: 'status', label: 'Status', field: 'status', align: 'center' as const, sortable: true },
   { name: 'length', label: 'Length (cm)', field: 'length', align: 'center' as const, sortable: true },
   { name: 'weight', label: 'Weight (g)', field: 'weight', align: 'center' as const, sortable: true },
   { name: 'location', label: 'Coordinates', field: 'location', align: 'left' as const },
@@ -608,6 +648,14 @@ function getStatusColor(status: string): string {
       return 'yellow-8';
     case 'Least Concern':
       return 'green';
+    case 'Good':
+      return 'green';
+    case 'Warning':
+      return 'orange';
+    case 'Serious':
+      return 'deep-orange';
+    case 'Critical':
+      return 'red';
     default:
       return 'grey';
   }
