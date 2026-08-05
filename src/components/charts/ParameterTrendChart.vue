@@ -12,6 +12,20 @@
         class="trend-chart__grid"
       />
 
+      <!-- Guideline reference line (e.g. DENR threshold) -->
+      <g v-if="guidelineValue !== undefined">
+        <line
+          :x1="padLeft"
+          :x2="vbWidth - padRight"
+          :y1="guidelineY"
+          :y2="guidelineY"
+          class="trend-chart__guideline"
+        />
+        <text :x="vbWidth - padRight" :y="guidelineY - 4" class="trend-chart__guideline-label" text-anchor="end">
+          {{ guidelineLabel || 'Guideline' }}
+        </text>
+      </g>
+
       <!-- Line -->
       <polyline :points="linePoints" fill="none" :stroke="color" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
 
@@ -71,6 +85,9 @@ const props = withDefaults(
     unit?: string;
     color?: string;
     decimals?: number;
+    /** Reference value (e.g. a DENR guideline) drawn as a dashed horizontal line. */
+    guidelineValue?: number | undefined;
+    guidelineLabel?: string;
   }>(),
   {
     unit: '',
@@ -89,10 +106,20 @@ const padBottom = 8;
 const hoverIndex = ref<number | null>(null);
 
 const valueRange = computed(() => {
-  const min = Math.min(...props.values);
-  const max = Math.max(...props.values);
+  const dataMin = Math.min(...props.values);
+  const dataMax = Math.max(...props.values);
+  // Widen the domain to include the guideline value so its line is never clipped.
+  const min = props.guidelineValue !== undefined ? Math.min(dataMin, props.guidelineValue) : dataMin;
+  const max = props.guidelineValue !== undefined ? Math.max(dataMax, props.guidelineValue) : dataMax;
   const span = max - min || 1;
   return { min: min - span * 0.15, max: max + span * 0.15 };
+});
+
+const guidelineY = computed(() => {
+  if (props.guidelineValue === undefined) return 0;
+  const { min, max } = valueRange.value;
+  const range = max - min || 1;
+  return padTop + (1 - (props.guidelineValue - min) / range) * (vbHeight - padTop - padBottom);
 });
 
 const yTicks = computed(() => {
@@ -144,6 +171,19 @@ function onMouseMove(e: MouseEvent) {
 .trend-chart__grid {
   stroke: #e1e0d9;
   stroke-width: 1;
+}
+
+.trend-chart__guideline {
+  stroke: #fab219;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  opacity: 0.8;
+}
+
+.trend-chart__guideline-label {
+  fill: #fab219;
+  font-size: 9px;
+  font-weight: 700;
 }
 
 .trend-chart__crosshair {

@@ -678,33 +678,49 @@ function makeFishIcon(statusShort: string): L.DivIcon {
   return L.divIcon({
     className: '',
     html: fishPinSvg(color),
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    popupAnchor: [0, -20],
-    tooltipAnchor: [0, -20],
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+    popupAnchor: [0, -13],
+    tooltipAnchor: [0, -13],
   });
 }
 
-// Water-quality marker: circle with a water droplet inside
-const WATER_PIN_COLOR = '#0277BD'; // rich cerulean blue
-const waterPinSvgHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
-  <filter id="ws" x="-20%" y="-20%" width="140%" height="140%">
-    <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
-  </filter>
-  <circle cx="18" cy="18" r="16"
-          fill="${WATER_PIN_COLOR}" stroke="#fff" stroke-width="2" filter="url(#ws)"/>
-  <path d="M18 9 Q22 15 22 18.5 A4 4 0 0 1 14 18.5 Q14 15 18 9Z"
-        fill="#fff" opacity="0.95"/>
-</svg>`;
+// Water-quality marker: circle with a water droplet inside. Recolorable —
+// when a parameter is selected (Water tab → Color Sites By Parameter), each
+// site's pin switches to its good/warning/serious/critical status color.
+const WATER_PIN_COLOR = '#0277BD'; // rich cerulean blue — default when no parameter is selected
+const waterPinIconCache = new Map<string, L.DivIcon>();
 
-const waterPinIcon = L.divIcon({
-  className: '',
-  html: waterPinSvgHtml,
-  iconSize: [36, 36],
-  iconAnchor: [18, 18],
-  popupAnchor: [0, -18],
-  tooltipAnchor: [0, -18],
-});
+function makeWaterPinIcon(color: string): L.DivIcon {
+  let icon = waterPinIconCache.get(color);
+  if (icon) return icon;
+
+  const html = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 36 36">
+    <filter id="ws" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
+    </filter>
+    <circle cx="18" cy="18" r="16"
+            fill="${color}" stroke="#fff" stroke-width="2" filter="url(#ws)"/>
+    <path d="M18 9 Q22 15 22 18.5 A4 4 0 0 1 14 18.5 Q14 15 18 9Z"
+          fill="#fff" opacity="0.95"/>
+  </svg>`;
+
+  icon = L.divIcon({
+    className: '',
+    html,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12],
+    tooltipAnchor: [0, -12],
+  });
+  waterPinIconCache.set(color, icon);
+  return icon;
+}
+
+// Every water-quality marker ever created, across every layer (All Sites +
+// each depth zone) — lets recolorWaterLayers() update every pin in place
+// instead of tearing the layers down and rebuilding them.
+const waterSiteMarkerEntries: { siteId: string; defaultColor: string; marker: L.Marker }[] = [];
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -1190,9 +1206,10 @@ function getMarkerColor(siteId: string, defaultColor: string): string {
 }
 
 function recolorWaterLayers() {
-  // Water-quality markers now use icon images, so colour-based
-  // re-styling is no longer applicable.  We keep the function as
-  // a no-op so existing watchers don't break.
+  for (const entry of waterSiteMarkerEntries) {
+    const color = getMarkerColor(entry.siteId, entry.defaultColor);
+    entry.marker.setIcon(makeWaterPinIcon(color));
+  }
 }
 
 watch([selectedColorParam, selectedMonthIndex], () => {
@@ -1221,11 +1238,15 @@ function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
 
 function createWaterQualitySiteLayer(
   geojson: GeoJSON.GeoJsonObject,
-  _defaultColor: string,
+  defaultColor: string,
 ): L.GeoJSON {
   return L.geoJSON(geojson, {
-    pointToLayer: (_feature, latlng) => {
-      return L.marker(latlng, { icon: waterPinIcon });
+    pointToLayer: (feature, latlng) => {
+      const siteId = (feature.properties as WaterQualitySiteProps).SITE_ID;
+      const color = getMarkerColor(siteId, defaultColor);
+      const marker = L.marker(latlng, { icon: makeWaterPinIcon(color) });
+      waterSiteMarkerEntries.push({ siteId, defaultColor, marker });
+      return marker;
     },
     onEachFeature: (feature, layer) => {
       const props = feature.properties as WaterQualitySiteProps;
@@ -1633,7 +1654,7 @@ function initMap() {
             const [lng, lat] = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
             return { siteId: props.SITE_ID, stationId: props.STATION_ID, lat, lng };
           });
-          wqAllLayerGroup = createWaterQualitySiteLayer(geojson, '#0288D1');
+          wqAllLayerGroup = createWaterQualitySiteLayer(geojson, WATER_PIN_COLOR);
           syncLayerVisibility();
         });
     })

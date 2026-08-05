@@ -98,67 +98,185 @@
 
         <q-separator color="grey-3" />
 
-        <!-- ══ BOTTOM SECTION (Research Activity) ══ -->
+        <!-- ══ BOTTOM SECTION (Activity + My Contributions) ══ -->
         <div class="bottom-section col column">
-          <div class="tab-content col relative-position">
-            <div class="activity-tab fit q-pa-lg">
-                <div class="activity-grid fit">
-                  <!-- Timeline -->
-                  <div class="activity-col col column">
-                    <div class="col-title text-teal-9 q-mb-md col-auto">
-                      <q-icon name="timeline" size="20px" class="q-mr-xs" />
-                      <span class="text-subtitle1 text-weight-bold">Research Timeline</span>
-                    </div>
-                    <q-scroll-area class="col">
-                      <div class="timeline-list q-pr-md">
-                      <div v-for="(item, i) in timeline" :key="i" class="timeline-item">
-                        <div class="tl-dot" :class="`dot-${item.color}`">
-                          <q-icon :name="item.icon" size="14px" />
-                        </div>
-                        <div class="tl-line" v-if="i < timeline.length - 1" />
-                        <div class="tl-body">
-                          <div class="tl-title text-teal-10">{{ item.title }}</div>
-                          <div class="tl-sub text-teal-7">{{ item.subtitle }}</div>
-                          <div class="tl-desc text-grey-8">{{ item.description }}</div>
-                          <div class="tl-time text-grey-6">
-                            <q-icon name="schedule" size="12px" class="q-mr-xs" />
-                            {{ item.timestamp }}
-                          </div>
-                        </div>
-                        </div>
-                      </div>
-                    </q-scroll-area>
-                  </div>
+          <q-tabs
+            v-model="activeProfileTab"
+            dense
+            class="text-grey-7 profile-tabs"
+            active-color="teal-9"
+            indicator-color="teal"
+            narrow-indicator
+            align="left"
+          >
+            <q-tab name="activity" label="Activity" icon="timeline" />
+            <q-tab name="contributions" label="My Contributions" icon="assignment_ind" />
+          </q-tabs>
+          <q-separator color="grey-3" />
 
-                  <!-- Recent Uploads -->
-                  <div class="activity-col col column">
-                    <div class="col-title text-teal-9 q-mb-md col-auto">
-                      <q-icon name="cloud_upload" size="20px" class="q-mr-xs" />
-                      <span class="text-subtitle1 text-weight-bold">Recent Uploads</span>
-                    </div>
-                    <q-scroll-area class="col">
-                      <div class="uploads-list q-pr-md">
-                      <div v-for="(upload, i) in recentUploads" :key="i" class="upload-item bg-white shadow-1">
-                        <div class="upload-icon-wrap" :class="`icon-${getFileIcon(upload.fileType).color}`">
-                          <q-icon :name="getFileIcon(upload.fileType).icon" size="20px" />
+          <q-tab-panels v-model="activeProfileTab" animated class="col">
+            <!-- ═══ TAB: Activity ═══ -->
+            <q-tab-panel name="activity" class="fit q-pa-none">
+              <div class="tab-content col relative-position">
+                <div class="activity-tab fit q-pa-lg">
+                    <div class="activity-grid fit">
+                      <!-- Timeline -->
+                      <div class="activity-col col column">
+                        <div class="col-title text-teal-9 q-mb-md col-auto">
+                          <q-icon name="timeline" size="20px" class="q-mr-xs" />
+                          <span class="text-subtitle1 text-weight-bold">Research Timeline</span>
                         </div>
-                        <div class="upload-info">
-                          <div class="upload-name text-teal-10">{{ upload.fileName }}</div>
-                          <div class="upload-meta text-grey-6">{{ upload.fileType }} · {{ upload.size }}</div>
-                        </div>
-                        <div class="upload-right">
-                          <span class="upload-status" :class="`status-${upload.status.toLowerCase()}`">
-                            {{ upload.status }}
-                          </span>
-                          <div class="upload-date text-grey-6">{{ upload.timestamp }}</div>
-                        </div>
-                        </div>
+                        <q-scroll-area class="col">
+                          <div class="timeline-list q-pr-md">
+                          <div v-for="(item, i) in timeline" :key="i" class="timeline-item">
+                            <div class="tl-dot" :class="`dot-${item.color}`">
+                              <q-icon :name="item.icon" size="14px" />
+                            </div>
+                            <div class="tl-line" v-if="i < timeline.length - 1" />
+                            <div class="tl-body">
+                              <div class="tl-title text-teal-10">{{ item.title }}</div>
+                              <div class="tl-sub text-teal-7">{{ item.subtitle }}</div>
+                              <div class="tl-desc text-grey-8">{{ item.description }}</div>
+                              <div class="tl-time text-grey-6">
+                                <q-icon name="schedule" size="12px" class="q-mr-xs" />
+                                {{ item.timestamp }}
+                              </div>
+                            </div>
+                            </div>
+                          </div>
+                        </q-scroll-area>
                       </div>
-                    </q-scroll-area>
+
+                      <!-- Recent Uploads -->
+                      <div class="activity-col col column">
+                        <div class="col-title text-teal-9 q-mb-md col-auto">
+                          <q-icon name="cloud_upload" size="20px" class="q-mr-xs" />
+                          <span class="text-subtitle1 text-weight-bold">Recent Uploads</span>
+                        </div>
+                        <q-scroll-area class="col">
+                          <div class="uploads-list q-pr-md">
+                          <div v-for="(upload, i) in recentUploads" :key="i" class="upload-item bg-white shadow-1">
+                            <div class="upload-icon-wrap" :class="`icon-${getFileIcon(upload.fileType).color}`">
+                              <q-icon :name="getFileIcon(upload.fileType).icon" size="20px" />
+                            </div>
+                            <div class="upload-info">
+                              <div class="upload-name text-teal-10">{{ upload.fileName }}</div>
+                              <div class="upload-meta text-grey-6">{{ upload.fileType }} · {{ upload.size }}</div>
+                            </div>
+                            <div class="upload-right">
+                              <span class="upload-status" :class="`status-${upload.status.toLowerCase()}`">
+                                {{ upload.status }}
+                              </span>
+                              <div class="upload-date text-grey-6">{{ upload.timestamp }}</div>
+                            </div>
+                            </div>
+                          </div>
+                        </q-scroll-area>
+                      </div>
+                    </div>
                   </div>
-                </div>
               </div>
-          </div>
+            </q-tab-panel>
+
+            <!-- ═══ TAB: My Contributions (this researcher's own submissions only) ═══ -->
+            <q-tab-panel name="contributions" class="fit q-pa-lg">
+              <div class="row items-center q-mb-md q-gutter-sm">
+                <span class="text-grey-8 text-weight-medium q-mr-sm">Filter:</span>
+                <q-btn
+                  :color="contributionFilter === 'all' ? 'teal-8' : 'grey-5'"
+                  :flat="contributionFilter !== 'all'"
+                  :unelevated="contributionFilter === 'all'"
+                  label="All"
+                  size="sm"
+                  rounded
+                  @click="contributionFilter = 'all'"
+                />
+                <q-btn
+                  :color="contributionFilter === 'endemic' ? 'blue-7' : 'grey-5'"
+                  :flat="contributionFilter !== 'endemic'"
+                  :unelevated="contributionFilter === 'endemic'"
+                  label="Endemic"
+                  size="sm"
+                  rounded
+                  @click="contributionFilter = 'endemic'"
+                />
+                <q-btn
+                  :color="contributionFilter === 'invasive' ? 'orange-8' : 'grey-5'"
+                  :flat="contributionFilter !== 'invasive'"
+                  :unelevated="contributionFilter === 'invasive'"
+                  label="Invasive"
+                  size="sm"
+                  rounded
+                  @click="contributionFilter = 'invasive'"
+                />
+                <q-btn
+                  :color="contributionFilter === 'water' ? 'teal-6' : 'grey-5'"
+                  :flat="contributionFilter !== 'water'"
+                  :unelevated="contributionFilter === 'water'"
+                  label="Water Quality"
+                  icon="water_drop"
+                  size="sm"
+                  rounded
+                  @click="contributionFilter = 'water'"
+                />
+              </div>
+
+              <q-table
+                :rows="filteredContributions"
+                :columns="contributionColumns"
+                row-key="id"
+                flat
+                bordered
+                :rows-per-page-options="[10, 20, 50]"
+                class="contributions-table"
+              >
+                <!-- Type column badge -->
+                <template #body-cell-type="props">
+                  <q-td :props="props">
+                    <q-badge
+                      :color="getTypeColor(props.row.type)"
+                      :label="getTypeLabel(props.row.type)"
+                    />
+                  </q-td>
+                </template>
+
+                <!-- Status badge -->
+                <template #body-cell-status="props">
+                  <q-td :props="props">
+                    <q-badge :color="getStatusColor(props.row.status)" :label="props.row.status" />
+                  </q-td>
+                </template>
+
+                <!-- Actions column -->
+                <template #body-cell-actions="props">
+                  <q-td :props="props">
+                    <q-btn
+                      flat
+                      round
+                      dense
+                      icon="edit"
+                      color="teal-8"
+                      size="sm"
+                      @click="handleEditContribution(props.row)"
+                    >
+                      <q-tooltip>Edit</q-tooltip>
+                    </q-btn>
+                    <q-btn
+                      flat
+                      round
+                      dense
+                      icon="delete"
+                      color="red-6"
+                      size="sm"
+                      @click="handleDeleteContribution(props.row.id)"
+                    >
+                      <q-tooltip>Delete</q-tooltip>
+                    </q-btn>
+                  </q-td>
+                </template>
+              </q-table>
+            </q-tab-panel>
+          </q-tab-panels>
         </div>
       </div>
     </div>
@@ -424,11 +542,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useQuasar } from 'quasar';
+import { useRoute } from 'vue-router';
 import BackButton from 'src/components/BackButton.vue';
 
 const $q = useQuasar();
+const route = useRoute();
+
+const activeProfileTab = ref(route.query.tab === 'contributions' ? 'contributions' : 'activity');
 
 const editDialog = ref(false);
 const avatarFile = ref<File | null>(null);
@@ -710,6 +832,143 @@ function getFileIcon(fileType: string): { icon: string; color: string } {
       return { icon: 'insert_drive_file', color: 'grey' };
   }
 }
+
+// ─── MY CONTRIBUTIONS ───
+// Only this researcher's own submissions — cross-researcher visibility lives
+// in the Admin Dashboard, not here.
+type ContributionType = 'endemic' | 'invasive' | 'water';
+
+interface Contribution {
+  id: number;
+  type: ContributionType;
+  title: string;
+  detail: string;
+  status: string;
+  location: string;
+  date: string;
+}
+
+const contributionColumns = [
+  { name: 'id', label: '#', field: 'id', align: 'left' as const, sortable: true },
+  { name: 'title', label: 'Title', field: 'title', align: 'left' as const, sortable: true },
+  { name: 'detail', label: 'Detail', field: 'detail', align: 'left' as const },
+  { name: 'type', label: 'Type', field: 'type', align: 'center' as const, sortable: true },
+  { name: 'status', label: 'Status', field: 'status', align: 'center' as const, sortable: true },
+  { name: 'location', label: 'Coordinates', field: 'location', align: 'left' as const },
+  { name: 'date', label: 'Date Submitted', field: 'date', align: 'center' as const, sortable: true },
+  { name: 'actions', label: 'Actions', field: 'actions', align: 'center' as const },
+];
+
+const myContributions = ref<Contribution[]>([
+  {
+    id: 101,
+    type: 'endemic',
+    title: 'Pait',
+    detail: 'Puntius sirang',
+    status: 'Critically Endangered',
+    location: '7.9900, 124.0500',
+    date: '2025-05-12',
+  },
+  {
+    id: 102,
+    type: 'endemic',
+    title: 'Banak',
+    detail: 'Puntius lanaoensis',
+    status: 'Critically Endangered',
+    location: '7.9500, 124.0200',
+    date: '2025-06-01',
+  },
+  {
+    id: 103,
+    type: 'invasive',
+    title: 'Nile Tilapia',
+    detail: 'Oreochromis niloticus',
+    status: 'Least Concern',
+    location: '8.0000, 124.0400',
+    date: '2025-06-10',
+  },
+  {
+    id: 104,
+    type: 'endemic',
+    title: 'Tarong',
+    detail: 'Puntius tras',
+    status: 'Endangered',
+    location: '7.9600, 124.0600',
+    date: '2025-06-15',
+  },
+  {
+    id: 105,
+    type: 'water',
+    title: 'Station WQ-07 — Dissolved Oxygen Reading',
+    detail: 'DO 6.8 mg/L · Temp 26.5°C · pH 7.2',
+    status: 'Pending Review',
+    location: '8.0000, 124.0450',
+    date: '2025-06-20',
+  },
+  {
+    id: 106,
+    type: 'water',
+    title: 'Station WQ-12 — Turbidity Reading',
+    detail: 'Turbidity 4.8 NTU · TSS 8.7 mg/L',
+    status: 'Reviewed',
+    location: '8.0100, 124.0900',
+    date: '2025-06-22',
+  },
+]);
+
+const contributionFilter = ref<'all' | ContributionType>('all');
+
+const filteredContributions = computed(() =>
+  myContributions.value.filter((c) => {
+    if (contributionFilter.value === 'all') return true;
+    return c.type === contributionFilter.value;
+  }),
+);
+
+function getTypeLabel(type: ContributionType): string {
+  if (type === 'endemic') return 'Endemic';
+  if (type === 'invasive') return 'Invasive';
+  return 'Water Quality';
+}
+
+function getTypeColor(type: ContributionType): string {
+  if (type === 'endemic') return 'blue-7';
+  if (type === 'invasive') return 'orange-8';
+  return 'teal-6';
+}
+
+function getStatusColor(status: string): string {
+  switch (status) {
+    case 'Critically Endangered': return 'red';
+    case 'Endangered': return 'orange';
+    case 'Vulnerable': return 'yellow-8';
+    case 'Least Concern': return 'green';
+    case 'Reviewed': return 'green';
+    case 'Pending Review': return 'blue-grey-6';
+    default: return 'grey';
+  }
+}
+
+function handleEditContribution(contribution: Contribution) {
+  $q.notify({
+    message: `Editing record for ${contribution.title}...`,
+    color: 'teal-8',
+    icon: 'edit',
+    position: 'top',
+    timeout: 2000,
+  });
+}
+
+function handleDeleteContribution(id: number) {
+  myContributions.value = myContributions.value.filter((c) => c.id !== id);
+  $q.notify({
+    message: `Record #${id} deleted.`,
+    color: 'red-6',
+    icon: 'delete',
+    position: 'top',
+    timeout: 2000,
+  });
+}
 </script>
 
 <style scoped>
@@ -873,6 +1132,17 @@ function getFileIcon(fileType: string): { icon: string; color: string } {
 }
 
 
+
+/* ── PROFILE TABS ── */
+.profile-tabs {
+  padding: 0 24px;
+  flex-shrink: 0;
+}
+
+/* ── CONTRIBUTIONS TABLE ── */
+.contributions-table {
+  border-radius: 8px;
+}
 
 /* ── ACTIVITY TAB ── */
 .activity-grid {

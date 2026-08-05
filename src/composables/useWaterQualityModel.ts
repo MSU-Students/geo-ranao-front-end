@@ -50,6 +50,19 @@ function centeredStatus(
   return 'critical';
 }
 
+// For parameters where lower = worse (depletion is the danger — e.g. dissolved oxygen).
+function descendingStatus(
+  value: number,
+  goodMin: number,
+  warningMin: number,
+  seriousMin: number,
+): StatusLevel {
+  if (value >= goodMin) return 'good';
+  if (value >= warningMin) return 'warning';
+  if (value >= seriousMin) return 'serious';
+  return 'critical';
+}
+
 export interface WaterQualityParam {
   key: string;
   label: string;
@@ -59,6 +72,8 @@ export interface WaterQualityParam {
   decimals: number;
   /** Realistic baseline reading (within the "good" band) that simulated values cluster around. */
   typical: number;
+  /** Approximate DENR freshwater guideline value, for reference lines on trend charts — omitted for two-sided ("centered") parameters where a single line doesn't apply. */
+  guideline?: number;
   getStatus: (value: number) => StatusLevel;
 }
 
@@ -85,7 +100,13 @@ export const waterQualityParameterGroups: WaterQualityParamGroup[] = [
       },
       {
         key: 'turbidity', label: 'Turbidity', unit: 'NTU', min: 2, max: 25, decimals: 1, typical: 4,
+        guideline: 6,
         getStatus: (v) => ascendingStatus(v, 6, 11, 17),
+      },
+      {
+        key: 'dissolvedOxygen', label: 'Dissolved Oxygen', unit: 'mg/L', min: 1, max: 10, decimals: 1, typical: 7,
+        guideline: 5,
+        getStatus: (v) => descendingStatus(v, 6, 5, 3),
       },
       {
         key: 'conductivity', label: 'Conductivity', unit: 'µS/cm', min: 100, max: 400, decimals: 0, typical: 140,
@@ -108,14 +129,17 @@ export const waterQualityParameterGroups: WaterQualityParamGroup[] = [
     params: [
       {
         key: 'phosphate', label: 'Phosphate', unit: 'mg/L', min: 0.01, max: 0.5, decimals: 2, typical: 0.05,
+        guideline: 0.08,
         getStatus: (v) => ascendingStatus(v, 0.08, 0.18, 0.32),
       },
       {
         key: 'ammonia', label: 'Ammonia', unit: 'mg/L', min: 0.01, max: 0.3, decimals: 2, typical: 0.025,
+        guideline: 0.04,
         getStatus: (v) => ascendingStatus(v, 0.04, 0.1, 0.18),
       },
       {
         key: 'nitrate', label: 'Nitrate', unit: 'mg/L', min: 0.1, max: 2, decimals: 2, typical: 0.25,
+        guideline: 0.4,
         getStatus: (v) => ascendingStatus(v, 0.4, 0.9, 1.4),
       },
       {
@@ -135,6 +159,7 @@ export const waterQualityParameterGroups: WaterQualityParamGroup[] = [
     params: [
       {
         key: 'chlorophyll', label: 'Chlorophyll-a', unit: 'µg/L', min: 1, max: 15, decimals: 2, typical: 2.5,
+        guideline: 4,
         getStatus: (v) => ascendingStatus(v, 4, 8, 11),
       },
     ],
@@ -176,4 +201,38 @@ export function generateReading(siteId: string, monthIndex: number, param: Water
 
 export function formatReading(value: number, param: WaterQualityParam): string {
   return `${value.toFixed(param.decimals)}${param.unit ? ' ' + param.unit : ''}`;
+}
+
+export interface DepthProfilePoint {
+  depth: number;
+  temperature: number;
+  dissolvedOxygen: number;
+}
+
+const PROFILE_DEPTHS = [0, 2, 4, 6, 8, 10, 15, 20, 25, 30, 40];
+
+// Simulated vertical profile — surface-warm, well-oxygenated water transitioning
+// through a thermocline/oxycline into cooler, oxygen-poorer water at depth. No
+// real profiling-instrument data exists yet; this models a plausible stratified-
+// lake curve (logistic transition around a per-site/month thermocline depth) so
+// the depth-profile chart has something realistic to show.
+export function generateDepthProfile(siteId: string, monthIndex: number): DepthProfilePoint[] {
+  const seed = `${siteId}|${monthIndex}|profile`;
+  const surfaceTemp = 27 + (seededRandom(seed + '|st') * 2 - 1) * 1.2;
+  const bottomTemp = 23 + (seededRandom(seed + '|bt') * 2 - 1) * 0.8;
+  const thermoclineDepth = 8 + seededRandom(seed + '|tc') * 6; // 8–14m
+  const surfaceDO = 7.5 + (seededRandom(seed + '|sdo') * 2 - 1) * 1;
+  const bottomDO = 2.5 + (seededRandom(seed + '|bdo') * 2 - 1) * 1;
+
+  return PROFILE_DEPTHS.map((depth) => {
+    // Logistic transition centered on the thermocline depth — gentle in the
+    // mixed epilimnion, steep through the thermocline, gentle again below it.
+    const t = 1 / (1 + Math.exp(-(depth - thermoclineDepth) / 3));
+    const noise = (seededRandom(seed + '|n' + depth) * 2 - 1) * 0.15;
+    return {
+      depth,
+      temperature: surfaceTemp + (bottomTemp - surfaceTemp) * t + noise,
+      dissolvedOxygen: Math.max(0.5, surfaceDO + (bottomDO - surfaceDO) * t + noise),
+    };
+  });
 }
