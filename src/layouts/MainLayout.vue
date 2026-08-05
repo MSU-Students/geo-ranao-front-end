@@ -4,7 +4,11 @@
     <q-header class="header-glass" :class="{ 'header-hidden': hideHeader }">
       <q-toolbar class="header-toolbar">
         <!-- Logo (left) -->
-        <div class="header-brand" @click="navigateTo(linksList[0]!)">
+        <div
+          class="header-brand"
+          :class="{ 'brand-disabled': isAdminUser }"
+          @click="handleBrandClick"
+        >
           <q-icon name="water_drop" color="teal-3" size="sm" class="q-mr-xs" />
           <span class="brand-text">Ranao FishNet</span>
         </div>
@@ -152,6 +156,7 @@ const linksList: NavLink[] = [
     caption: 'About the Project',
     icon: 'info',
     link: '/',
+    hideForAdmin: true,
   },
   {
     title: 'Interactive Map',
@@ -197,10 +202,12 @@ const linksList: NavLink[] = [
   },
 ];
 
+const isAdminUser = computed(() => authStore.user?.role === 'Admin');
+
 const visibleLinks = computed(() =>
   linksList.filter((link) => {
-    if (link.hideForAdmin && authStore.user?.role === 'Admin') return false;
-    if (link.requiresAdmin) return authStore.user?.role === 'Admin';
+    if (link.hideForAdmin && isAdminUser.value) return false;
+    if (link.requiresAdmin) return isAdminUser.value;
     return !link.requiresAuth || authStore.isLoggedIn;
   }),
 );
@@ -217,6 +224,11 @@ function isActive(link: NavLink): boolean {
     return route.path === link.link && route.query.tab === link.query.tab;
   }
   return route.path === link.link;
+}
+
+function handleBrandClick() {
+  if (isAdminUser.value) return;
+  navigateTo(linksList[0]!);
 }
 
 function navigateTo(link: NavLink) {
@@ -254,6 +266,13 @@ function onPressEnd(e: MouseEvent) {
   (e.currentTarget as HTMLElement).classList.remove('nav-icon-btn--pressed');
 }
 </script>
+
+<style>
+/* Prevent nav shift when scrollbar appears/disappears between pages */
+html {
+  scrollbar-gutter: stable;
+}
+</style>
 
 <style scoped>
 /* ═══════════════════════════════════ */
@@ -294,6 +313,10 @@ function onPressEnd(e: MouseEvent) {
 }
 .header-brand:hover {
   background: rgba(255, 255, 255, 0.06);
+}
+.header-brand.brand-disabled {
+  cursor: default;
+  pointer-events: none;
 }
 
 .brand-text {
@@ -338,7 +361,6 @@ function onPressEnd(e: MouseEvent) {
   color: rgba(255, 255, 255, 0.55);
   cursor: pointer;
   transition:
-    transform 0.2s ease-out,
     background 0.2s ease-out,
     color 0.2s ease-out,
     box-shadow 0.2s ease-out;
@@ -349,7 +371,6 @@ function onPressEnd(e: MouseEvent) {
 .nav-icon-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.92);
-  transform: translateY(-2px) scale(1.08);
 }
 
 .nav-icon-btn--active {
@@ -364,8 +385,8 @@ function onPressEnd(e: MouseEvent) {
 }
 
 .nav-icon-btn--pressed {
-  transform: scale(0.92) !important;
-  transition: transform 0.1s ease-out !important;
+  opacity: 0.7;
+  transition: opacity 0.1s ease-out !important;
 }
 
 /* ═══════════════════════════════════ */
