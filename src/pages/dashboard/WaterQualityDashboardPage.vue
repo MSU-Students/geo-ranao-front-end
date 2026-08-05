@@ -46,6 +46,99 @@
         </div>
       </q-card>
 
+      <!-- Interactive Station Map -->
+      <div class="row q-col-gutter-md q-mb-md">
+        <div class="col-12 col-md-8">
+          <q-card class="glass-morph full-height">
+            <q-card-section>
+              <div class="row items-center justify-between q-mb-sm">
+                <span class="text-white text-subtitle1 text-weight-medium">
+                  <q-icon name="map" color="teal-3" class="q-mr-xs" />
+                  Station Map — {{ selectedParam ? selectedParam.label : 'Select a Parameter' }}
+                </span>
+                <q-btn
+                  v-if="selectedStationId"
+                  flat
+                  dense
+                  size="sm"
+                  color="grey-4"
+                  icon="close"
+                  label="Clear Selection"
+                  @click="selectedStationId = null"
+                />
+              </div>
+              <p class="text-grey-4 text-caption q-mb-sm">
+                27 monitoring stations across Lake Lanao. Click a station to filter the research
+                charts below to that site.
+              </p>
+
+              <div class="station-map-wrap">
+                <StationMap
+                  :sites="sites"
+                  :status-color-by-site="statusColorBySite"
+                  :selected-site-id="selectedStationId"
+                  @select-station="selectStation"
+                />
+              </div>
+
+              <div class="row items-center q-gutter-md q-mt-sm">
+                <div class="row items-center no-wrap">
+                  <span class="status-dot" :style="{ background: STATUS_COLORS.good }" />
+                  <span class="text-caption text-grey-4 q-ml-xs">Good</span>
+                </div>
+                <div class="row items-center no-wrap">
+                  <span class="status-dot" :style="{ background: STATUS_COLORS.warning }" />
+                  <span class="text-caption text-grey-4 q-ml-xs">Warning</span>
+                </div>
+                <div class="row items-center no-wrap">
+                  <span class="status-dot" :style="{ background: STATUS_COLORS.critical }" />
+                  <span class="text-caption text-grey-4 q-ml-xs">Serious / Critical</span>
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <div class="col-12 col-md-4">
+          <q-card class="glass-morph full-height">
+            <q-card-section>
+              <div class="text-white text-subtitle1 text-weight-medium q-mb-xs">
+                <q-icon name="report_problem" color="orange-3" class="q-mr-xs" />
+                Sites of Concern
+              </div>
+              <p class="text-grey-4 text-caption q-mb-sm">
+                Click a site to quick-filter the map and charts.
+              </p>
+              <q-list dark dense>
+                <q-item
+                  v-for="s in sitesOfConcern"
+                  :key="s.siteId"
+                  clickable
+                  class="q-px-sm concern-item"
+                  :class="{ 'concern-item--active': s.siteId === selectedStationId }"
+                  @click="selectStation(s.siteId)"
+                >
+                  <q-item-section>
+                    <q-item-label class="text-grey-2">{{ s.siteId }}</q-item-label>
+                    <q-item-label caption class="text-grey-5">Station: {{ s.stationId }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <span class="status-chip" :style="{ background: STATUS_COLORS[s.status] }">
+                      {{ STATUS_LABELS[s.status] }}
+                    </span>
+                  </q-item-section>
+                </q-item>
+                <q-item v-if="sitesOfConcern.length === 0">
+                  <q-item-section class="text-center text-grey-4 q-py-md">
+                    No sites of concern for this parameter this month.
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+
       <!-- KPI Summary Cards -->
       <div class="row q-col-gutter-md q-mb-md justify-center">
         <div class="col-6 col-md-3">
@@ -154,7 +247,7 @@
           </q-card>
         </div>
 
-        <!-- Status Distribution + Sites of Concern -->
+        <!-- Status Distribution -->
         <div class="col-12 col-md-5">
           <q-card class="glass-morph full-height">
             <q-card-section>
@@ -162,30 +255,148 @@
                 Site Status Distribution
               </div>
               <StatusDistributionBar :counts="statusCounts(selectedParam, selectedMonthIndex)" />
-
-              <q-separator class="q-my-md" style="background: rgba(255, 255, 255, 0.12)" />
-
-              <div class="text-white text-subtitle2 text-weight-medium q-mb-sm">
-                Sites of Concern
+              <div class="text-grey-4 text-caption q-mt-md">
+                <q-icon name="info" size="14px" class="q-mr-xs" />
+                See the "Sites of Concern" panel above the map for the flagged stations.
               </div>
-              <q-list dark dense>
-                <q-item v-for="s in sitesOfConcern" :key="s.siteId" class="q-px-none">
-                  <q-item-section>
-                    <q-item-label class="text-grey-2">{{ s.siteId }}</q-item-label>
-                    <q-item-label caption class="text-grey-5">Station: {{ s.stationId }}</q-item-label>
-                  </q-item-section>
-                  <q-item-section side>
-                    <span class="status-chip" :style="{ background: STATUS_COLORS[s.status] }">
-                      {{ STATUS_LABELS[s.status] }}
-                    </span>
-                  </q-item-section>
-                </q-item>
-                <q-item v-if="sitesOfConcern.length === 0">
-                  <q-item-section class="text-center text-grey-4 q-py-md">
-                    No sites of concern for this parameter this month.
-                  </q-item-section>
-                </q-item>
-              </q-list>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+
+      <!-- Specialized Limnology Research Charts -->
+      <div class="text-white text-h6 text-weight-bold q-mb-sm q-mt-lg">
+        <q-icon name="biotech" color="teal-3" class="q-mr-sm" />
+        Specialized Limnology Research Charts
+      </div>
+
+      <div class="row q-col-gutter-md q-mb-md">
+        <!-- Chart 1: Multi-Parameter Trend Comparison -->
+        <div class="col-12">
+          <q-card class="glass-morph">
+            <q-card-section>
+              <div class="row items-center justify-between q-mb-sm wrap">
+                <span class="text-white text-subtitle1 text-weight-medium">
+                  Multi-Parameter Trend Comparison
+                </span>
+                <div class="row q-gutter-sm">
+                  <q-select
+                    v-model="compareParamKeyA"
+                    :options="paramSelectOptions"
+                    emit-value
+                    map-options
+                    dense
+                    outlined
+                    dark
+                    label="Parameter A"
+                    class="form-field"
+                    style="min-width: 180px"
+                  />
+                  <q-select
+                    v-model="compareParamKeyB"
+                    :options="paramSelectOptions"
+                    emit-value
+                    map-options
+                    dense
+                    outlined
+                    dark
+                    label="Parameter B"
+                    class="form-field"
+                    style="min-width: 180px"
+                  />
+                </div>
+              </div>
+              <p class="text-grey-4 text-caption q-mb-md">
+                {{ selectedStation ? `Station ${selectedStation.siteId}` : 'Lake-wide average' }}
+                over the past 13 months. Each parameter keeps its own axis — plotting different
+                units on one shared axis would be misleading — with an approximate DENR
+                guideline line where one applies.
+              </p>
+              <div class="row q-col-gutter-md">
+                <div class="col-12 col-md-6" v-if="compareParamA">
+                  <div class="row items-center justify-between q-mb-xs">
+                    <span class="text-white text-body2 text-weight-medium">{{ compareParamA.label }}</span>
+                  </div>
+                  <ParameterTrendChart
+                    :months="months"
+                    :values="seriesFor(compareParamA)"
+                    :unit="compareParamA.unit"
+                    :decimals="compareParamA.decimals"
+                    color="#4dd0e1"
+                    :guideline-value="compareParamA.guideline"
+                    guideline-label="DENR Guideline"
+                  />
+                </div>
+                <div class="col-12 col-md-6" v-if="compareParamB">
+                  <div class="row items-center justify-between q-mb-xs">
+                    <span class="text-white text-body2 text-weight-medium">{{ compareParamB.label }}</span>
+                  </div>
+                  <ParameterTrendChart
+                    :months="months"
+                    :values="seriesFor(compareParamB)"
+                    :unit="compareParamB.unit"
+                    :decimals="compareParamB.decimals"
+                    color="#ba68c8"
+                    :guideline-value="compareParamB.guideline"
+                    guideline-label="DENR Guideline"
+                  />
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <!-- Chart 2: Vertical Depth Profile -->
+        <div class="col-12 col-md-6">
+          <q-card class="glass-morph full-height">
+            <q-card-section>
+              <span class="text-white text-subtitle1 text-weight-medium">Vertical Depth Profile</span>
+              <p class="text-grey-4 text-caption q-mb-md">
+                Simulated stratification at {{ depthProfileStationId ?? '—' }} for
+                {{ months[selectedMonthIndex] }}. Select a station on the map to inspect a
+                specific site.
+              </p>
+              <div class="row q-col-gutter-sm">
+                <div class="col-6 text-center">
+                  <div class="text-grey-3 text-caption q-mb-xs">Temperature (°C)</div>
+                  <DepthProfileChart :points="temperatureProfilePoints" unit="°C" color="#ff8a65" :decimals="1" />
+                </div>
+                <div class="col-6 text-center">
+                  <div class="text-grey-3 text-caption q-mb-xs">Dissolved Oxygen (mg/L)</div>
+                  <DepthProfileChart
+                    :points="dissolvedOxygenProfilePoints"
+                    unit="mg/L"
+                    color="#4fc3f7"
+                    :decimals="1"
+                    :guideline-value="dissolvedOxygenParam?.guideline"
+                  />
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <!-- Chart 3: Station Comparison -->
+        <div class="col-12 col-md-6">
+          <q-card class="glass-morph full-height">
+            <q-card-section>
+              <span class="text-white text-subtitle1 text-weight-medium">
+                Station Comparison — {{ selectedParam ? selectedParam.label : '' }}
+              </span>
+              <p class="text-grey-4 text-caption q-mb-md">
+                Nearshore vs. offshore stations for {{ months[selectedMonthIndex] }}. Click a bar
+                to select that station.
+              </p>
+              <q-scroll-area style="height: 360px">
+                <StationComparisonChart
+                  :entries="stationComparisonEntries"
+                  :unit="selectedParam?.unit ?? ''"
+                  :decimals="selectedParam?.decimals ?? 1"
+                  :guideline-value="selectedParam?.guideline"
+                  :selected-site-id="selectedStationId"
+                  @select-station="selectStation"
+                />
+              </q-scroll-area>
             </q-card-section>
           </q-card>
         </div>
@@ -212,11 +423,15 @@ import BackButton from 'src/components/BackButton.vue';
 import TrendSparkline from 'src/components/charts/TrendSparkline.vue';
 import ParameterTrendChart from 'src/components/charts/ParameterTrendChart.vue';
 import StatusDistributionBar from 'src/components/charts/StatusDistributionBar.vue';
+import StationMap from 'src/components/charts/StationMap.vue';
+import DepthProfileChart from 'src/components/charts/DepthProfileChart.vue';
+import StationComparisonChart from 'src/components/charts/StationComparisonChart.vue';
 import {
   waterQualityParameterGroups,
   allWaterQualityParams,
   months,
   generateReading,
+  generateDepthProfile,
   formatReading,
   STATUS_COLORS,
   STATUS_LABELS,
@@ -228,22 +443,73 @@ import {
 interface Site {
   siteId: string;
   stationId: string;
+  lat: number;
+  lng: number;
+  zone: 'Nearshore' | 'Offshore';
 }
 
 const sites = ref<Site[]>([]);
 const selectedMonthIndex = ref(months.length - 1);
 const selectedParamKey = ref(allWaterQualityParams[0]!.key);
+const selectedStationId = ref<string | null>(null);
+
+const compareParamKeyA = ref(
+  allWaterQualityParams.find((p) => p.key === 'chlorophyll')?.key ?? allWaterQualityParams[0]!.key,
+);
+const compareParamKeyB = ref(
+  allWaterQualityParams.find((p) => p.key === 'nitrate')?.key ?? allWaterQualityParams[1]!.key,
+);
+
+const paramSelectOptions = allWaterQualityParams.map((p) => ({ label: p.label, value: p.key }));
 
 onMounted(() => {
-  fetch('/geo/WQ-All-Sampling-Sites.geojson')
-    .then((res) => res.json())
-    .then((geojson: GeoJSON.FeatureCollection) => {
-      sites.value = geojson.features.map((feature) => {
-        const props = feature.properties as unknown as { SITE_ID: string; STATION_ID: string };
-        return { siteId: props.SITE_ID, stationId: props.STATION_ID };
-      });
-    })
-    .catch((err) => console.error('Failed to load water quality sampling sites GeoJSON:', err));
+  function fetchZone(
+    url: string,
+    zone: 'Nearshore' | 'Offshore',
+    target: Map<string, 'Nearshore' | 'Offshore'>,
+  ) {
+    return fetch(url)
+      .then((res) => res.json())
+      .then((geojson: GeoJSON.FeatureCollection) => {
+        geojson.features.forEach((feature) => {
+          const props = feature.properties as unknown as { SITE_ID: string };
+          target.set(props.SITE_ID, zone);
+        });
+      })
+      .catch((err) => console.error(`Failed to load ${url}:`, err));
+  }
+
+  const zoneBySite = new Map<string, 'Nearshore' | 'Offshore'>();
+
+  // Reuse the same depth-zone GeoJSON split as the interactive map: sites in
+  // shallower water (or along tributaries) count as nearshore, sites in the
+  // deeper open-water zone count as offshore.
+  void Promise.all([
+    fetchZone('/geo/WQ-Sampling-Sites-Above-40m-Depth.geojson', 'Nearshore', zoneBySite),
+    fetchZone('/geo/WQ-Sampling-Sites-Below-40m-Depth.geojson', 'Offshore', zoneBySite),
+    fetchZone('/geo/WQ-Sampling-Sites-Tributary.geojson', 'Nearshore', zoneBySite),
+  ]).then(() =>
+    fetch('/geo/WQ-All-Sampling-Sites.geojson')
+      .then((res) => res.json())
+      .then((geojson: GeoJSON.FeatureCollection) => {
+        sites.value = geojson.features.map((feature) => {
+          const props = feature.properties as unknown as {
+            SITE_ID: string;
+            STATION_ID: string;
+            LATITUDE: number;
+            LONGITUDE: number;
+          };
+          return {
+            siteId: props.SITE_ID,
+            stationId: props.STATION_ID,
+            lat: props.LATITUDE,
+            lng: props.LONGITUDE,
+            zone: zoneBySite.get(props.SITE_ID) ?? 'Nearshore',
+          };
+        });
+      })
+      .catch((err) => console.error('Failed to load water quality sampling sites GeoJSON:', err)),
+  );
 });
 
 const selectedParam = computed(() =>
@@ -331,6 +597,80 @@ const sitesOfConcern = computed(() => {
     .sort((a, b) => STATUS_LEVELS.indexOf(b.status) - STATUS_LEVELS.indexOf(a.status))
     .slice(0, 6);
 });
+
+// ═══ INTERACTIVE STATION MAP ═══
+const selectedStation = computed(
+  () => sites.value.find((s) => s.siteId === selectedStationId.value) ?? null,
+);
+
+function selectStation(siteId: string) {
+  selectedStationId.value = selectedStationId.value === siteId ? null : siteId;
+}
+
+// The map deliberately collapses serious+critical into one red — a quick-glance
+// 3-tier read (green/yellow/red), distinct from the 4-level palette used elsewhere
+// on this page where the serious/critical distinction matters more.
+function mapStatusColor(status: StatusLevel): string {
+  if (status === 'good') return STATUS_COLORS.good;
+  if (status === 'warning') return STATUS_COLORS.warning;
+  return STATUS_COLORS.critical;
+}
+
+const statusColorBySite = computed<Record<string, string>>(() => {
+  const param = selectedParam.value;
+  const result: Record<string, string> = {};
+  if (!param) return result;
+  sites.value.forEach((site) => {
+    const value = generateReading(site.siteId, selectedMonthIndex.value, param);
+    result[site.siteId] = mapStatusColor(param.getStatus(value));
+  });
+  return result;
+});
+
+// ═══ MULTI-PARAMETER TREND COMPARISON ═══
+const compareParamA = computed(
+  () => allWaterQualityParams.find((p) => p.key === compareParamKeyA.value) ?? null,
+);
+const compareParamB = computed(
+  () => allWaterQualityParams.find((p) => p.key === compareParamKeyB.value) ?? null,
+);
+
+// A selected station shows its own readings; otherwise falls back to the
+// lake-wide monthly average, matching the rest of the page's default view.
+function seriesFor(param: WaterQualityParam): number[] {
+  if (selectedStation.value) {
+    const siteId = selectedStation.value.siteId;
+    return months.map((_, i) => generateReading(siteId, i, param));
+  }
+  return sparklineValues(param);
+}
+
+// ═══ VERTICAL DEPTH PROFILE ═══
+const dissolvedOxygenParam = computed(
+  () => allWaterQualityParams.find((p) => p.key === 'dissolvedOxygen') ?? null,
+);
+const depthProfileStationId = computed(() => selectedStationId.value ?? sites.value[0]?.siteId ?? null);
+const depthProfilePoints = computed(() =>
+  depthProfileStationId.value
+    ? generateDepthProfile(depthProfileStationId.value, selectedMonthIndex.value)
+    : [],
+);
+const temperatureProfilePoints = computed(() =>
+  depthProfilePoints.value.map((p) => ({ depth: p.depth, value: p.temperature })),
+);
+const dissolvedOxygenProfilePoints = computed(() =>
+  depthProfilePoints.value.map((p) => ({ depth: p.depth, value: p.dissolvedOxygen })),
+);
+
+// ═══ STATION COMPARISON (NEARSHORE VS. OFFSHORE) ═══
+const stationComparisonEntries = computed(() => {
+  const param = selectedParam.value;
+  if (!param) return [];
+  return sites.value.map((site) => {
+    const value = generateReading(site.siteId, selectedMonthIndex.value, param);
+    return { siteId: site.siteId, value, status: param.getStatus(value), zone: site.zone };
+  });
+});
 </script>
 
 <style scoped>
@@ -391,5 +731,33 @@ const sitesOfConcern = computed(() => {
   color: white;
   font-size: 0.7rem;
   font-weight: 700;
+}
+
+.station-map-wrap {
+  height: 360px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.concern-item {
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.concern-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.concern-item--active {
+  background: rgba(38, 166, 154, 0.18);
+  outline: 1px solid rgba(38, 166, 154, 0.5);
+}
+
+.form-field :deep(.q-field__control) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.form-field :deep(.q-field__label) {
+  color: rgba(255, 255, 255, 0.5);
 }
 </style>
