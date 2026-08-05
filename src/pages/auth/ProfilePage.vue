@@ -478,6 +478,10 @@
                   <div class="text-grey-6" style="font-size:0.75rem;">
                     Download the official {{ selectedDataType === 'fish' ? 'Fish Observation' : 'Water Quality' }} Excel template
                   </div>
+                  <div v-if="selectedDataType === 'water'" class="text-grey-6 q-mt-xs" style="font-size:0.72rem;">
+                    <q-icon name="info" size="12px" class="q-mr-xs" />
+                    <strong>site_id</strong>, <strong>date</strong> (YYYY-MM-DD), and <strong>depth_m</strong> are required for every row — everything else may be left blank.
+                  </div>
                 </div>
                 <q-btn
                   flat
@@ -531,7 +535,80 @@
             <q-stepper-navigation class="text-right q-mt-md row items-center">
               <q-btn flat color="grey-8" label="Back" @click="uploadStep = 1" class="q-mr-sm" />
               <q-space />
-              <q-btn unelevated label="Upload Data" color="teal-9" icon="cloud_upload" @click="submitUpload" :disable="!uploadFile" />
+              <q-btn
+                v-if="selectedDataType === 'water'"
+                unelevated
+                label="Continue"
+                color="teal-9"
+                icon="arrow_forward"
+                :loading="parsingFile"
+                :disable="!uploadFile"
+                @click="proceedToReview"
+              />
+              <q-btn
+                v-else
+                unelevated
+                label="Upload Data"
+                color="teal-9"
+                icon="cloud_upload"
+                @click="submitUpload"
+                :disable="!uploadFile"
+              />
+            </q-stepper-navigation>
+          </q-step>
+
+          <!-- STEP 3: Review & Confirm (Water Quality only) -->
+          <q-step
+            v-if="selectedDataType === 'water'"
+            :name="3"
+            title="Review & Confirm"
+            icon="fact_check"
+          >
+            <div v-if="uploadParseResult">
+              <div class="text-h6 text-teal-10 q-mb-sm text-center">
+                {{ uploadParseResult.validRows.length }} of {{ uploadParseResult.totalDataRows }} rows are valid and will be submitted.
+              </div>
+
+              <q-banner v-if="uploadParseResult.invalidRows.length > 0" class="bg-red-1 text-red-9 q-mb-md" rounded>
+                <template #avatar><q-icon name="error" color="red-7" /></template>
+                <div class="text-weight-bold q-mb-xs">
+                  {{ uploadParseResult.invalidRows.length }} row(s) will be skipped:
+                </div>
+                <q-scroll-area style="height: 140px;">
+                  <div v-for="row in uploadParseResult.invalidRows" :key="row.rowNumber" class="text-caption q-mb-xs">
+                    Row {{ row.rowNumber }}: {{ row.reasons.join('; ') }}
+                  </div>
+                </q-scroll-area>
+              </q-banner>
+
+              <q-banner v-if="rowsWithWarnings.length > 0" class="bg-orange-1 text-orange-9 q-mb-md" rounded>
+                <template #avatar><q-icon name="warning" color="orange-7" /></template>
+                <div class="text-weight-bold q-mb-xs">
+                  {{ rowsWithWarnings.length }} valid row(s) have flagged values:
+                </div>
+                <q-scroll-area style="height: 140px;">
+                  <div v-for="(row, i) in rowsWithWarnings" :key="i" class="text-caption q-mb-xs">
+                    {{ row.siteId }} ({{ row.date }}): {{ row.warnings.join('; ') }}
+                  </div>
+                </q-scroll-area>
+              </q-banner>
+
+              <div v-if="uploadParseResult.validRows.length === 0" class="text-center text-negative q-my-md">
+                No valid rows found in this file. Please fix the errors above and re-upload.
+              </div>
+            </div>
+
+            <q-stepper-navigation class="text-right q-mt-md row items-center">
+              <q-btn flat color="grey-8" label="Back" @click="uploadStep = 2" class="q-mr-sm" />
+              <q-space />
+              <q-btn
+                unelevated
+                :label="`Confirm & Submit ${uploadParseResult?.validRows.length ?? 0} Readings`"
+                color="teal-9"
+                icon="cloud_done"
+                :disable="!uploadParseResult || uploadParseResult.validRows.length === 0"
+                @click="confirmBatchSubmit"
+              />
             </q-stepper-navigation>
           </q-step>
         </q-stepper>
@@ -546,9 +623,14 @@ import { ref, computed } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRoute } from 'vue-router';
 import BackButton from 'src/components/BackButton.vue';
+import { useAuthStore } from 'src/stores/auth';
+import { useAdminStore } from 'src/stores/admin';
+import { parseWaterQualityWorkbook, type WaterQualityUploadParseResult } from 'src/composables/useWaterQualityUpload';
 
 const $q = useQuasar();
 const route = useRoute();
+const authStore = useAuthStore();
+const adminStore = useAdminStore();
 
 const activeProfileTab = ref(route.query.tab === 'contributions' ? 'contributions' : 'activity');
 
@@ -566,6 +648,12 @@ const selectedDataType = ref('');
 const uploadFile = ref<File | null>(null);
 const uploadError = ref('');
 const fileInputEl = ref<HTMLInputElement | null>(null);
+const uploadParseResult = ref<WaterQualityUploadParseResult | null>(null);
+const parsingFile = ref(false);
+
+const rowsWithWarnings = computed(
+  () => uploadParseResult.value?.validRows.filter((r) => r.warnings.length > 0) ?? [],
+);
 
 function triggerFileUpload() {
   fileInputEl.value?.click();
@@ -646,6 +734,8 @@ function cancelUpload() {
   selectedDataType.value = '';
   uploadFile.value = null;
   uploadError.value = '';
+  uploadParseResult.value = null;
+  parsingFile.value = false;
 }
 
 function handleFileDrop(event: DragEvent) {
@@ -715,7 +805,7 @@ function submitUpload() {
     uploadError.value = 'Please upload a file first.';
     return;
   }
-  
+
   $q.notify({
     message: 'File successfully uploaded and sent for processing!',
     color: 'teal-7',
@@ -723,7 +813,42 @@ function submitUpload() {
     position: 'top',
     timeout: 2500,
   });
-  
+
+  cancelUpload();
+}
+
+async function proceedToReview() {
+  if (!uploadFile.value) {
+    uploadError.value = 'Please upload a file first.';
+    return;
+  }
+  parsingFile.value = true;
+  uploadError.value = '';
+  try {
+    uploadParseResult.value = await parseWaterQualityWorkbook(uploadFile.value);
+    uploadStep.value = 3;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Could not read this file.';
+    uploadError.value = message;
+    $q.notify({ type: 'negative', message, position: 'top', timeout: 3000 });
+  } finally {
+    parsingFile.value = false;
+  }
+}
+
+function confirmBatchSubmit() {
+  const result = uploadParseResult.value;
+  if (!result || result.validRows.length === 0) return;
+
+  adminStore.recordWaterQualityBatchUpload(authStore.displayName, result.validRows);
+  $q.notify({
+    message: `${result.validRows.length} water quality readings submitted for review.`,
+    color: 'teal-7',
+    icon: 'check_circle',
+    position: 'top',
+    timeout: 3000,
+  });
+
   cancelUpload();
 }
 

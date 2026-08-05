@@ -68,8 +68,8 @@
                 />
               </div>
               <p class="text-grey-4 text-caption q-mb-sm">
-                27 monitoring stations across Lake Lanao. Click a station to filter the research
-                charts below to that site.
+                {{ siteCount }} monitoring stations across Lake Lanao. Click a station to filter
+                the research charts below to that site.
               </p>
 
               <div class="station-map-wrap">
@@ -449,6 +449,7 @@ interface Site {
 }
 
 const sites = ref<Site[]>([]);
+const siteCount = computed(() => sites.value.length);
 const selectedMonthIndex = ref(months.length - 1);
 const selectedParamKey = ref(allWaterQualityParams[0]!.key);
 const selectedStationId = ref<string | null>(null);

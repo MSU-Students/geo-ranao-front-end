@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import type { WaterQualityUploadRow } from 'src/composables/useWaterQualityUpload';
 
 export type AccountStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
 
@@ -39,6 +40,8 @@ export interface UploadReviewItem {
   submittedDate: string;
   status: UploadReviewStatus;
   reviewNote?: string | undefined;
+  /** Present only for bulk Water Quality batch uploads — one entry per submitted reading. */
+  rows?: WaterQualityUploadRow[] | undefined;
 }
 
 let nextAccountId = 1000;
@@ -308,6 +311,26 @@ export const useAdminStore = defineStore('admin', () => {
     return item.id;
   }
 
+  function recordWaterQualityBatchUpload(researcher: string, rows: WaterQualityUploadRow[]) {
+    const uniqueSites = [...new Set(rows.map((r) => r.siteId))];
+    const title = `Bulk Water Quality Upload — ${rows.length} reading${rows.length === 1 ? '' : 's'} (${uniqueSites.length} site${uniqueSites.length === 1 ? '' : 's'})`;
+    const location =
+      uniqueSites.slice(0, 3).join(', ') + (uniqueSites.length > 3 ? ` +${uniqueSites.length - 3} more` : '');
+    const item: UploadReviewItem = {
+      id: nextUploadId++,
+      researcher,
+      category: 'Water Quality',
+      title,
+      location,
+      submittedDate: new Date().toISOString().slice(0, 10),
+      status: 'pending',
+      rows,
+    };
+    uploadReviews.value.unshift(item);
+    logActivity(researcher, 'Uploaded Water Quality Data', title);
+    return item.id;
+  }
+
   function reviewUpload(id: number, status: 'approved' | 'rejected', note?: string) {
     const item = uploadReviews.value.find((u) => u.id === id);
     if (!item) return;
@@ -340,6 +363,7 @@ export const useAdminStore = defineStore('admin', () => {
     revokeAccount,
     deleteAccount,
     recordUpload,
+    recordWaterQualityBatchUpload,
     reviewUpload,
     recordReportGenerated,
     recordMapDownload,

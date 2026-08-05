@@ -232,6 +232,13 @@
                 <template #body-cell-actions="props">
                   <q-td :props="props">
                     <q-btn
+                      v-if="props.row.rows && props.row.rows.length"
+                      flat round dense icon="table_view" color="teal-4" size="sm"
+                      @click="openBatchDetail(props.row)"
+                    >
+                      <q-tooltip>View Rows ({{ props.row.rows.length }})</q-tooltip>
+                    </q-btn>
+                    <q-btn
                       v-if="props.row.status === 'pending'"
                       flat round dense icon="check_circle" color="positive" size="sm"
                       @click="handleApproveUpload(props.row)"
@@ -485,6 +492,72 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Batch Upload Detail Dialog -->
+    <q-dialog v-model="batchDetailShow">
+      <q-card style="min-width: 520px; max-width: 90vw; width: 700px" v-if="batchDetailItem">
+        <q-card-section>
+          <div class="text-h6">{{ batchDetailItem.title }}</div>
+          <div class="text-caption text-grey-7">
+            Submitted by {{ batchDetailItem.researcher }} on {{ batchDetailItem.submittedDate }}
+          </div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section style="max-height: 420px; overflow-y: auto">
+          <q-list bordered separator>
+            <q-expansion-item
+              v-for="(row, i) in batchDetailItem.rows ?? []"
+              :key="i"
+              dense-toggle
+            >
+              <template #header>
+                <q-item-section>
+                  <q-item-label>{{ row.siteId }} — {{ row.date }} — {{ row.depthM }}m</q-item-label>
+                </q-item-section>
+                <q-item-section side v-if="row.warnings.length">
+                  <q-badge color="orange" :label="`${row.warnings.length} warning${row.warnings.length === 1 ? '' : 's'}`">
+                    <q-tooltip>{{ row.warnings.join('; ') }}</q-tooltip>
+                  </q-badge>
+                </q-item-section>
+              </template>
+              <q-card>
+                <q-card-section class="q-pt-none">
+                  <div class="row q-col-gutter-sm">
+                    <div
+                      v-for="param in allWaterQualityParams.filter((p) => row.values[p.key] !== undefined)"
+                      :key="param.key"
+                      class="col-6 col-sm-4"
+                    >
+                      <span class="text-caption text-grey-7">{{ param.label }}: </span>
+                      <span class="text-weight-medium">{{ formatReading(row.values[param.key]!, param) }}</span>
+                    </div>
+                    <div v-if="Object.keys(row.values).length === 0" class="col-12 text-caption text-grey-6">
+                      No optional parameters were filled in for this row.
+                    </div>
+                  </div>
+                  <div v-if="row.notes" class="q-mt-sm text-caption">
+                    <b>Notes:</b> {{ row.notes }}
+                  </div>
+                </q-card-section>
+              </q-card>
+            </q-expansion-item>
+          </q-list>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            v-if="batchDetailItem.status === 'pending'"
+            flat label="Reject" color="negative"
+            @click="handleRejectUpload(batchDetailItem); batchDetailShow = false"
+          />
+          <q-btn
+            v-if="batchDetailItem.status === 'pending'"
+            unelevated label="Approve" color="positive"
+            @click="handleApproveUpload(batchDetailItem); batchDetailShow = false"
+          />
+          <q-btn flat label="Close" color="grey-7" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -502,6 +575,7 @@ import {
   type UploadReviewStatus,
   type ActivitySeverity,
 } from 'src/stores/admin';
+import { allWaterQualityParams, formatReading } from 'src/composables/useWaterQualityModel';
 
 const $q = useQuasar();
 const router = useRouter();
@@ -674,6 +748,34 @@ function openDetail(account: ResearcherAccount) {
   detailDialogShow.value = true;
 }
 
+// ─── Batch Upload Detail Dialog ───
+const batchDetailItem = ref<UploadReviewItem | null>(null);
+const batchDetailShow = ref(false);
+function openBatchDetail(item: UploadReviewItem) {
+  batchDetailItem.value = item;
+  batchDetailShow.value = true;
+}
+
+// ─── Site Coordinates Lookup (for batch GeoJSON export) ───
+const siteCoordsById = ref(new Map<string, { lat: number; lng: number }>());
+onMounted(() => {
+  fetch('/geo/WQ-All-Sampling-Sites.geojson')
+    .then((res) => res.json())
+    .then((geojson: GeoJSON.FeatureCollection) => {
+      const map = new Map<string, { lat: number; lng: number }>();
+      geojson.features.forEach((feature) => {
+        const props = feature.properties as unknown as {
+          SITE_ID: string;
+          LATITUDE: number;
+          LONGITUDE: number;
+        };
+        map.set(props.SITE_ID, { lat: props.LATITUDE, lng: props.LONGITUDE });
+      });
+      siteCoordsById.value = map;
+    })
+    .catch((err) => console.error('Failed to load water quality sampling sites GeoJSON:', err));
+});
+
 // ─── Account Actions ───
 function handleApprove(account: ResearcherAccount) {
   adminStore.approveAccount(account.id);
@@ -739,6 +841,41 @@ function triggerDownload(content: string, filename: string, mime: string) {
 }
 
 function downloadUploadGeoJson(item: UploadReviewItem) {
+  if (item.rows && item.rows.length) {
+    const features = item.rows
+      .map((row) => {
+        const coords = siteCoordsById.value.get(row.siteId);
+        if (!coords) {
+          console.warn(`No coordinates found for site "${row.siteId}" — skipping from GeoJSON export.`);
+          return null;
+        }
+        return {
+          type: 'Feature',
+          properties: {
+            researcher: item.researcher,
+            category: item.category,
+            siteId: row.siteId,
+            date: row.date,
+            depthM: row.depthM,
+            ...row.values,
+            notes: row.notes ?? null,
+            status: item.status,
+          },
+          geometry: { type: 'Point', coordinates: [coords.lng, coords.lat] },
+        };
+      })
+      .filter((f) => f !== null);
+    const geojson = { type: 'FeatureCollection', features };
+    triggerDownload(
+      JSON.stringify(geojson, null, 2),
+      `${item.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.geojson`,
+      'application/geo+json',
+    );
+    adminStore.recordMapDownload('Admin', `${item.title} (map data)`);
+    $q.notify({ type: 'positive', message: 'Map data downloaded.', position: 'top' });
+    return;
+  }
+
   const [lat, lng] = item.location.split(',').map((s) => parseFloat(s.trim()));
   const geojson = {
     type: 'FeatureCollection',

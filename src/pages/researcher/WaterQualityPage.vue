@@ -194,7 +194,7 @@
                   <q-icon name="bubble_chart" color="blue-4" />
                 </template>
                 <template #append>
-                  <span class="unit-label">mg/L</span>
+                  <span class="unit-label">ppm</span>
                 </template>
               </q-input>
             </div>

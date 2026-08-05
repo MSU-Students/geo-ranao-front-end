@@ -104,7 +104,7 @@ export const waterQualityParameterGroups: WaterQualityParamGroup[] = [
         getStatus: (v) => ascendingStatus(v, 6, 11, 17),
       },
       {
-        key: 'dissolvedOxygen', label: 'Dissolved Oxygen', unit: 'mg/L', min: 1, max: 10, decimals: 1, typical: 7,
+        key: 'dissolvedOxygen', label: 'Dissolved Oxygen', unit: 'ppm', min: 1, max: 10, decimals: 1, typical: 7,
         guideline: 5,
         getStatus: (v) => descendingStatus(v, 6, 5, 3),
       },

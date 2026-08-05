@@ -12,7 +12,8 @@
     "test": "echo \"No test specified\" && exit 0",
     "dev": "quasar dev",
     "build": "quasar build",
-    "postinstall": "quasar prepare"
+    "postinstall": "quasar prepare",
+    "generate:wq-template": "node scripts/generate-water-quality-template.mjs"
   },
   "dependencies": {
     "@quasar/extras": "^1.16.4",
@@ -22,7 +23,8 @@
     "pinia": "^3.0.1",
     "quasar": "^2.16.0",
     "vue": "^3.5.22",
-    "vue-router": "^5.0.0"
+    "vue-router": "^5.0.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@eslint/js": "^9.14.0",
@@ -38,7 +40,8 @@
     "typescript": "^5.9.2",
     "vite-plugin-checker": "^0.11.0",
     "vue-eslint-parser": "^10.2.0",
-    "vue-tsc": "^3.0.7"
+    "vue-tsc": "^3.0.7",
+    "xlsx-js-style": "^1.2.0"
   },
   "engines": {
     "node": "^28 || ^26 || ^24 || ^22 || ^20",
