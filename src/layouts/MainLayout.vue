@@ -143,6 +143,7 @@ interface NavLink {
   query?: Record<string, string>;
   requiresAuth?: boolean;
   requiresAdmin?: boolean;
+  hideForAdmin?: boolean;
 }
 
 const linksList: NavLink[] = [
@@ -177,6 +178,7 @@ const linksList: NavLink[] = [
     link: '/auth/profile',
     query: { tab: 'contributions' },
     requiresAuth: true,
+    hideForAdmin: true,
   },
   {
     title: 'Reports & Exports',
@@ -197,6 +199,7 @@ const linksList: NavLink[] = [
 
 const visibleLinks = computed(() =>
   linksList.filter((link) => {
+    if (link.hideForAdmin && authStore.user?.role === 'Admin') return false;
     if (link.requiresAdmin) return authStore.user?.role === 'Admin';
     return !link.requiresAuth || authStore.isLoggedIn;
   }),

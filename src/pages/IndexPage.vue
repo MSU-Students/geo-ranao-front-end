@@ -573,7 +573,7 @@
     <!-- ═══ ADD DATA DROPDOWN BUTTON (for logged-in researchers) ═══ -->
     <transition name="fade-btn">
       <q-btn
-        v-if="authStore.isLoggedIn"
+        v-if="authStore.isLoggedIn && authStore.user?.role !== 'Admin'"
         class="add-data-btn"
         :class="{ 'add-data-btn--shifted': showPanel }"
         unelevated
