@@ -46,31 +46,20 @@
         <q-card class="bright-panel full-height column no-wrap">
           <!-- Panel Header -->
           <q-card-section class="q-pb-xs">
-            <div class="row items-center no-wrap justify-between">
-              <div class="row items-center no-wrap">
-                <q-avatar
-                  size="36px"
-                  class="q-mr-sm"
-                  style="background: linear-gradient(135deg, #00897b, #26a69a)"
-                >
-                  <q-icon name="water_drop" size="20px" color="white" />
-                </q-avatar>
-                <div>
-                  <div class="text-subtitle1 text-grey-9 text-weight-bold" style="line-height: 1.2">
-                    Ranao FishNet
-                  </div>
-                  <div class="text-grey-6 text-caption">Ecological Dashboard</div>
+            <div class="row items-center no-wrap">
+              <q-avatar
+                size="36px"
+                class="q-mr-sm"
+                style="background: linear-gradient(135deg, #00897b, #26a69a)"
+              >
+                <q-icon name="water_drop" size="20px" color="white" />
+              </q-avatar>
+              <div>
+                <div class="text-subtitle1 text-grey-9 text-weight-bold" style="line-height: 1.2">
+                  Ranao FishNet
                 </div>
+                <div class="text-grey-6 text-caption">Ecological Dashboard</div>
               </div>
-              <q-btn
-                flat
-                dense
-                round
-                icon="close"
-                color="grey-6"
-                size="sm"
-                @click="showPanel = false"
-              />
             </div>
           </q-card-section>
 
