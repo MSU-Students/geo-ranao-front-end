@@ -447,8 +447,9 @@
                 Station Comparison — {{ selectedParam ? selectedParam.label : '' }}
               </span>
               <p class="text-grey-4 text-caption q-mb-md">
-                Nearshore vs. offshore stations for {{ months[selectedMonthIndex] }}. Click a bar
-                to select that station.
+                Nearshore, offshore, and tributary stations for {{ months[selectedMonthIndex] }}.
+                Click a bar to select that station (tributaries are Surface-only and shown for
+                reference, not selectable).
               </p>
               <q-scroll-area style="height: 360px">
                 <StationComparisonChart
@@ -473,10 +474,12 @@
           icon="add"
           unelevated
           rounded
-          @click="$router.push('/researcher/upload/water-quality')"
+          @click="uploadDialogRef?.openFor('water')"
         />
       </div>
     </div>
+
+    <UploadDataDialog ref="uploadDialogRef" />
   </q-page>
 </template>
 
@@ -489,6 +492,7 @@ import StatusDistributionBar from 'src/components/charts/StatusDistributionBar.v
 import StationMap from 'src/components/charts/StationMap.vue';
 import DepthProfileChart from 'src/components/charts/DepthProfileChart.vue';
 import StationComparisonChart from 'src/components/charts/StationComparisonChart.vue';
+import UploadDataDialog from 'src/components/UploadDataDialog.vue';
 import {
   waterQualityParameterGroups,
   allWaterQualityParams,
@@ -500,6 +504,8 @@ import {
   STATUS_LABELS,
   STATUS_LEVELS,
   DEPTH_OPTIONS,
+  TRIBUTARY_RIVER_SITES,
+  TRIBUTARY_RIVER_SITE_IDS,
   type WaterQualityParam,
   type StatusLevel,
 } from 'src/composables/useWaterQualityModel';
@@ -509,11 +515,12 @@ interface Site {
   stationId: string;
   lat: number;
   lng: number;
-  zone: 'Nearshore' | 'Offshore';
+  zone: 'Nearshore' | 'Offshore' | 'Tributary';
 }
 
 const sites = ref<Site[]>([]);
 const siteCount = computed(() => sites.value.length);
+const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 const selectedMonthIndex = ref(months.length - 1);
 const selectedParamKey = ref(allWaterQualityParams[0]!.key);
 const selectedStationId = ref<string | null>(null);
@@ -565,7 +572,7 @@ onMounted(() => {
     fetch('/geo/WQ-All-Sampling-Sites.geojson')
       .then((res) => res.json())
       .then((geojson: GeoJSON.FeatureCollection) => {
-        sites.value = geojson.features.map((feature) => {
+        const lakeSites: Site[] = geojson.features.map((feature) => {
           const props = feature.properties as unknown as {
             SITE_ID: string;
             STATION_ID: string;
@@ -580,10 +587,25 @@ onMounted(() => {
             zone: zoneBySite.get(props.SITE_ID) ?? 'Nearshore',
           };
         });
+        // The 6 fixed tributary rivers — always Surface-only, get their own
+        // "Tributary" zone bucket in the Station Comparison chart.
+        const riverSites: Site[] = TRIBUTARY_RIVER_SITES.map((r) => ({
+          siteId: r.siteId,
+          stationId: 'Tributary River',
+          lat: r.lat,
+          lng: r.lng,
+          zone: 'Tributary',
+        }));
+        sites.value = [...lakeSites, ...riverSites];
       })
       .catch((err) => console.error('Failed to load water quality sampling sites GeoJSON:', err)),
   );
 });
+
+// Rivers are always read at Surface, regardless of the page's Depth selector.
+function depthForSite(site: Site): number {
+  return site.zone === 'Tributary' ? 0 : selectedDepthM.value;
+}
 
 const selectedParam = computed(() =>
   allWaterQualityParams.find((p) => p.key === selectedParamKey.value) ?? null,
@@ -592,7 +614,7 @@ const selectedParam = computed(() =>
 function lakeAverage(param: WaterQualityParam, monthIndex: number): number {
   if (sites.value.length === 0) return (param.min + param.max) / 2;
   const total = sites.value.reduce(
-    (sum, site) => sum + generateReading(site.siteId, monthIndex, param, selectedDepthM.value),
+    (sum, site) => sum + generateReading(site.siteId, monthIndex, param, depthForSite(site)),
     0,
   );
   return total / sites.value.length;
@@ -622,7 +644,7 @@ function paramDeltaImproved(param: WaterQualityParam): boolean {
 function statusCounts(param: WaterQualityParam, monthIndex: number): Record<StatusLevel, number> {
   const counts: Record<StatusLevel, number> = { good: 0, warning: 0, serious: 0, critical: 0 };
   sites.value.forEach((site) => {
-    const value = generateReading(site.siteId, monthIndex, param, selectedDepthM.value);
+    const value = generateReading(site.siteId, monthIndex, param, depthForSite(site));
     counts[param.getStatus(value)]++;
   });
   return counts;
@@ -633,7 +655,7 @@ const sitesNeedingAttention = computed(() => {
   sites.value.forEach((site) => {
     const isFlagged = allWaterQualityParams.some((param) => {
       const status = param.getStatus(
-        generateReading(site.siteId, selectedMonthIndex.value, param, selectedDepthM.value),
+        generateReading(site.siteId, selectedMonthIndex.value, param, depthForSite(site)),
       );
       return status === 'serious' || status === 'critical';
     });
@@ -650,7 +672,7 @@ const overallStatus = computed<StatusLevel>(() => {
     allWaterQualityParams.forEach((param) => {
       total++;
       const status = param.getStatus(
-        generateReading(site.siteId, selectedMonthIndex.value, param, selectedDepthM.value),
+        generateReading(site.siteId, selectedMonthIndex.value, param, depthForSite(site)),
       );
       if (status === 'good') goodCount++;
     });
@@ -667,7 +689,7 @@ const sitesOfConcern = computed(() => {
   if (!param) return [];
   return sites.value
     .map((site) => {
-      const value = generateReading(site.siteId, selectedMonthIndex.value, param, selectedDepthM.value);
+      const value = generateReading(site.siteId, selectedMonthIndex.value, param, depthForSite(site));
       return { ...site, status: param.getStatus(value) };
     })
     .filter((s) => s.status === 'serious' || s.status === 'critical')
@@ -681,6 +703,9 @@ const selectedStation = computed(
 );
 
 function selectStation(siteId: string) {
+  // Rivers are Surface-only reference points, not selectable as the active
+  // station — selecting one would drive a meaningless flat Depth Profile.
+  if (TRIBUTARY_RIVER_SITE_IDS.has(siteId)) return;
   selectedStationId.value = selectedStationId.value === siteId ? null : siteId;
 }
 
@@ -698,7 +723,7 @@ const statusColorBySite = computed<Record<string, string>>(() => {
   const result: Record<string, string> = {};
   if (!param) return result;
   sites.value.forEach((site) => {
-    const value = generateReading(site.siteId, selectedMonthIndex.value, param, selectedDepthM.value);
+    const value = generateReading(site.siteId, selectedMonthIndex.value, param, depthForSite(site));
     result[site.siteId] = mapStatusColor(param.getStatus(value));
   });
   return result;
@@ -748,7 +773,7 @@ const stationComparisonEntries = computed(() => {
   const param = selectedParam.value;
   if (!param) return [];
   return sites.value.map((site) => {
-    const value = generateReading(site.siteId, selectedMonthIndex.value, param, selectedDepthM.value);
+    const value = generateReading(site.siteId, selectedMonthIndex.value, param, depthForSite(site));
     return { siteId: site.siteId, value, status: param.getStatus(value), zone: site.zone };
   });
 });
