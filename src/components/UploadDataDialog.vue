@@ -1,7 +1,9 @@
 <template>
   <q-dialog v-model="show" persistent>
-    <q-card style="width: 700px; max-width: 90vw; border-radius: 12px; overflow: hidden;">
-      <q-card-section class="bg-teal-9 text-white row items-center q-pa-md">
+    <q-card
+      style="width: 700px; max-width: 95vw; max-height: 90vh; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;"
+    >
+      <q-card-section class="bg-teal-9 text-white row items-center q-pa-md" style="flex-shrink: 0;">
         <div class="text-h6 row items-center">
           <q-icon name="cloud_upload" size="24px" class="q-mr-sm" />
           Upload Research Data
@@ -16,6 +18,8 @@
         animated
         flat
         header-class="text-weight-bold"
+        class="unified-upload-stepper"
+        style="flex: 1 1 auto; min-height: 0;"
       >
         <!-- STEP 1: Select Data Type -->
         <q-step
@@ -463,6 +467,43 @@ function confirmBatchSubmit() {
 </script>
 
 <style scoped>
+.unified-upload-stepper {
+  display: flex;
+  flex-direction: column;
+}
+.unified-upload-stepper :deep(.q-stepper__header) {
+  flex-shrink: 0;
+}
+.unified-upload-stepper :deep(.q-stepper__content) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* On narrow screens the default header wraps each step tab onto its own
+   full-width row (Quasar's col-grow), eating most of the viewport before
+   any step content is visible. Keep it a single compact scrollable strip. */
+@media (max-width: 599px) {
+  .unified-upload-stepper :deep(.q-stepper__header) {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .unified-upload-stepper :deep(.q-stepper__tab) {
+    flex: 0 0 auto;
+    width: auto;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .unified-upload-stepper :deep(.q-stepper__tab .q-stepper__title) {
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+  .unified-upload-stepper :deep(.q-stepper__tab .q-stepper__dot) {
+    margin-right: 6px;
+  }
+}
+
 .type-selector-card {
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   border: 2px solid transparent;
