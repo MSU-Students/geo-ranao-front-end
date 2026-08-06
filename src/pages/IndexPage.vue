@@ -234,6 +234,30 @@
                   </div>
                 </div>
 
+                <!-- Sampling Depth -->
+                <div class="text-caption text-grey-6 q-mb-xs">
+                  <q-icon name="vertical_align_bottom" size="14px" class="q-mr-xs" />Sampling Depth
+                </div>
+                <q-select
+                  v-model="selectedDepthM"
+                  :options="DEPTH_OPTIONS"
+                  emit-value
+                  map-options
+                  dense
+                  rounded
+                  outlined
+                  class="q-mb-xs"
+                  color="teal"
+                >
+                  <template #prepend>
+                    <q-icon name="layers" color="grey-5" size="xs" />
+                  </template>
+                </q-select>
+                <div class="text-caption text-grey-5 q-mb-md">
+                  Readings vary with depth (e.g. cooler, less-oxygenated water below the
+                  thermocline). Applies to marker colors, tooltips, and the site detail panel.
+                </div>
+
                 <div class="text-caption text-grey-5 q-mb-md">
                   Click anywhere inside the lake for an estimated reading (select a parameter above
                   first).
@@ -526,11 +550,31 @@
                 </q-item>
               </q-list>
 
+              <div class="text-caption text-grey-6 q-mb-xs">
+                <q-icon name="vertical_align_bottom" size="14px" class="q-mr-xs" />Depth
+              </div>
+              <q-select
+                v-model="selectedDepthM"
+                :options="DEPTH_OPTIONS"
+                emit-value
+                map-options
+                dense
+                rounded
+                outlined
+                class="q-mb-md"
+                color="teal"
+              >
+                <template #prepend>
+                  <q-icon name="layers" color="grey-5" size="xs" />
+                </template>
+              </q-select>
+
               <q-banner dense class="bg-teal-1 text-teal-9 q-mb-md rounded-borders">
                 <template #avatar>
                   <q-icon name="calendar_month" color="teal-8" />
                 </template>
-                Reading period: <strong>{{ selectedMonthLabel }}</strong>
+                Reading period: <strong>{{ selectedMonthLabel }}</strong> at
+                <strong>{{ depthLabel(selectedDepthM) }}</strong>
                 <div class="text-caption text-grey-7">
                   Simulated values — real monthly readings are not connected yet.
                 </div>
@@ -547,7 +591,7 @@
                         {{ p.label }}{{ p.unit ? ` (${p.unit})` : '' }}
                       </q-item-label>
                       <q-item-label class="text-grey-9 text-weight-medium">
-                        {{ mockReading(selectedWaterSite.siteId, selectedMonthIndex, p) }}
+                        {{ mockReading(selectedWaterSite.siteId, selectedMonthIndex, p, selectedDepthM) }}
                       </q-item-label>
                     </q-item-section>
                   </q-item>
@@ -608,7 +652,8 @@
         </div>
         <q-card-section>
           <div class="text-caption text-grey-6">
-            {{ parameterModalData.paramLabel }} · {{ selectedMonthLabel }}
+            {{ parameterModalData.paramLabel }} · {{ selectedMonthLabel }} ·
+            {{ parameterModalData.depthLabel }}
           </div>
           <div class="text-h4 text-weight-bold text-grey-9 q-mt-xs">
             {{ parameterModalData.valueText }}
@@ -1476,6 +1521,19 @@ function centeredStatus(
   return 'critical';
 }
 
+// For parameters where lower = worse (depletion is the danger — e.g. dissolved oxygen).
+function descendingStatus(
+  value: number,
+  goodMin: number,
+  warningMin: number,
+  seriousMin: number,
+): StatusLevel {
+  if (value >= goodMin) return 'good';
+  if (value >= warningMin) return 'warning';
+  if (value >= seriousMin) return 'serious';
+  return 'critical';
+}
+
 interface WaterQualityParam {
   key: string;
   label: string;
@@ -1523,6 +1581,15 @@ const waterQualityParameterGroups: {
         max: 25,
         decimals: 1,
         getStatus: (v) => ascendingStatus(v, 6, 11, 17),
+      },
+      {
+        key: 'dissolvedOxygen',
+        label: 'Dissolved Oxygen',
+        unit: 'ppm',
+        min: 1,
+        max: 10,
+        decimals: 1,
+        getStatus: (v) => descendingStatus(v, 6, 5, 3),
       },
       {
         key: 'conductivity',
@@ -1653,17 +1720,71 @@ function seededRandom(seed: string): number {
   return (Math.abs(hash) % 10000) / 10000;
 }
 
-function generateReading(siteId: string, monthIndex: number, param: WaterQualityParam): number {
+// ─── DEPTH MODEL (mirrors src/composables/useWaterQualityModel.ts) ───
+// The client's real field sampling uses these fixed depths, not a continuous
+// profile — matches the "SURFACE / 5m / 10m / .../ 100m" convention in the
+// actual data template.
+const DEPTHS = [0, 5, 10, 15, 20, 40, 60, 80, 100];
+function depthLabel(depthM: number): string {
+  return depthM === 0 ? 'Surface' : `${depthM}m`;
+}
+const DEPTH_OPTIONS = DEPTHS.map((d) => ({ label: depthLabel(d), value: d }));
+const selectedDepthM = ref(0);
+
+// Direction + how much of a parameter's full min–max range it plausibly
+// drifts between the surface and deep water, based on typical lake
+// stratification behavior.
+const DEPTH_TREND: Record<string, { direction: 1 | -1; sensitivity: number }> = {
+  temperature: { direction: -1, sensitivity: 0.55 },
+  ph: { direction: -1, sensitivity: 0.15 },
+  turbidity: { direction: -1, sensitivity: 0.35 },
+  dissolvedOxygen: { direction: -1, sensitivity: 0.75 },
+  conductivity: { direction: 1, sensitivity: 0.25 },
+  tds: { direction: 1, sensitivity: 0.25 },
+  tss: { direction: 1, sensitivity: 0.2 },
+  phosphate: { direction: 1, sensitivity: 0.6 },
+  ammonia: { direction: 1, sensitivity: 0.65 },
+  nitrate: { direction: -1, sensitivity: 0.4 },
+  nitrite: { direction: 1, sensitivity: 0.3 },
+  sulfate: { direction: 1, sensitivity: 0.2 },
+  chlorophyll: { direction: -1, sensitivity: 0.8 },
+};
+
+function applyDepthEffect(
+  surfaceValue: number,
+  depthM: number,
+  param: WaterQualityParam,
+  siteId: string,
+): number {
+  if (depthM <= 0) return surfaceValue;
+  const trend = DEPTH_TREND[param.key];
+  if (!trend) return surfaceValue;
+  const thermoclineDepth = 8 + seededRandom(`${siteId}|thermocline`) * 8; // 8–16m
+  const curve = 1 / (1 + Math.exp(-(depthM - thermoclineDepth) / 6));
+  const range = param.max - param.min;
+  const shift = trend.direction * trend.sensitivity * range * curve;
+  const jitter = (seededRandom(`${siteId}|${depthM}|${param.key}|jitter`) * 2 - 1) * range * 0.03;
+  return surfaceValue + shift + jitter;
+}
+
+function generateReading(
+  siteId: string,
+  monthIndex: number,
+  param: WaterQualityParam,
+  depthM = 0,
+): number {
   const r = seededRandom(`${siteId}|${monthIndex}|${param.key}`);
-  return param.min + r * (param.max - param.min);
+  const surfaceValue = param.min + r * (param.max - param.min);
+  const value = applyDepthEffect(surfaceValue, depthM, param, siteId);
+  return Math.min(Math.max(value, param.min), param.max);
 }
 
 function formatReading(value: number, param: WaterQualityParam): string {
   return `${value.toFixed(param.decimals)}${param.unit ? ' ' + param.unit : ''}`;
 }
 
-function mockReading(siteId: string, monthIndex: number, param: WaterQualityParam): string {
-  return formatReading(generateReading(siteId, monthIndex, param), param);
+function mockReading(siteId: string, monthIndex: number, param: WaterQualityParam, depthM = 0): string {
+  return formatReading(generateReading(siteId, monthIndex, param, depthM), param);
 }
 
 // ── Color-by-parameter map overlay (dropdown in the Water tab) ──
@@ -1683,7 +1804,7 @@ const selectedColorParam = computed(
 function siteStatusBadge(siteId: string): { label: string; background: string } {
   const param = selectedColorParam.value;
   if (!param) return { label: 'No data yet', background: '#9e9e9e' };
-  const value = generateReading(siteId, selectedMonthIndex.value, param);
+  const value = generateReading(siteId, selectedMonthIndex.value, param, selectedDepthM.value);
   const status = param.getStatus(value);
   return {
     label: `${formatReading(value, param)} · ${STATUS_LABELS[status]}`,
@@ -1694,7 +1815,7 @@ function siteStatusBadge(siteId: string): { label: string; background: string } 
 function getMarkerColor(siteId: string, defaultColor: string): string {
   const param = selectedColorParam.value;
   if (!param) return defaultColor;
-  const value = generateReading(siteId, selectedMonthIndex.value, param);
+  const value = generateReading(siteId, selectedMonthIndex.value, param, selectedDepthM.value);
   return STATUS_COLORS[param.getStatus(value)];
 }
 
@@ -1705,7 +1826,7 @@ function recolorWaterLayers() {
   }
 }
 
-watch([selectedColorParam, selectedMonthIndex], () => {
+watch([selectedColorParam, selectedMonthIndex, selectedDepthM], () => {
   recolorWaterLayers();
 });
 
@@ -1714,9 +1835,9 @@ function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
   const param = selectedColorParam.value;
   let paramLine = '';
   if (param) {
-    const value = generateReading(props.SITE_ID, selectedMonthIndex.value, param);
+    const value = generateReading(props.SITE_ID, selectedMonthIndex.value, param, selectedDepthM.value);
     const status = param.getStatus(value);
-    paramLine = `<br><span style="color:${STATUS_COLORS[status]}; font-weight:bold;">${param.label}: ${formatReading(value, param)} (${STATUS_LABELS[status]})</span>`;
+    paramLine = `<br><span style="color:${STATUS_COLORS[status]}; font-weight:bold;">${param.label} @ ${depthLabel(selectedDepthM.value)}: ${formatReading(value, param)} (${STATUS_LABELS[status]})</span>`;
   }
   return `
     <div style="font-family: Roboto, sans-serif; min-width: 170px;">
@@ -1804,12 +1925,14 @@ function extractPolygonRings(geojson: GeoJSON.FeatureCollection): [number, numbe
 }
 
 // Inverse-distance-weighted estimate of a parameter's value at any clicked
-// point, from the real sampling sites' simulated readings.
+// point, from the real sampling sites' simulated readings — at the currently
+// selected sampling depth, same as everywhere else on the map.
 function interpolateValueAt(
   lat: number,
   lng: number,
   param: WaterQualityParam,
   monthIndex: number,
+  depthM: number,
 ): number {
   const sites = waterQualitySites.value;
   if (sites.length === 0) return (param.min + param.max) / 2;
@@ -1819,7 +1942,7 @@ function interpolateValueAt(
     const dLat = site.lat - lat;
     const dLng = site.lng - lng;
     const weight = 1 / (dLat * dLat + dLng * dLng + 0.0001);
-    weightedSum += generateReading(site.siteId, monthIndex, param) * weight;
+    weightedSum += generateReading(site.siteId, monthIndex, param, depthM) * weight;
     weightTotal += weight;
   }
   return weightedSum / weightTotal;
@@ -1833,6 +1956,7 @@ interface ParameterModalData {
   color: string;
   lat: number;
   lng: number;
+  depthLabel: string;
 }
 
 const showParameterModal = ref(false);
@@ -1853,7 +1977,7 @@ function handleMapClick(e: L.LeafletMouseEvent) {
     return;
   }
 
-  const value = interpolateValueAt(lat, lng, param, selectedMonthIndex.value);
+  const value = interpolateValueAt(lat, lng, param, selectedMonthIndex.value, selectedDepthM.value);
   const status = param.getStatus(value);
   parameterModalData.value = {
     paramLabel: param.label,
@@ -1862,6 +1986,7 @@ function handleMapClick(e: L.LeafletMouseEvent) {
     color: STATUS_COLORS[status],
     lat,
     lng,
+    depthLabel: depthLabel(selectedDepthM.value),
   };
   showParameterModal.value = true;
 }

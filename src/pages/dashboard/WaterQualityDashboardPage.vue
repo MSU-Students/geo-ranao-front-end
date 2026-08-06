@@ -40,9 +40,34 @@
           <span>{{ months[0] }}</span>
           <span>{{ months[months.length - 1] }}</span>
         </div>
-        <div class="text-caption text-grey-5 q-mt-sm">
+        <div class="text-caption text-grey-5 q-mt-sm q-mb-md">
           <q-icon name="info" size="14px" class="q-mr-xs" />
           Simulated monthly readings — real data collection is not connected yet.
+        </div>
+
+        <q-separator dark class="q-mb-md" style="opacity: 0.15" />
+
+        <div class="row items-center justify-between q-mb-xs">
+          <span class="text-grey-3 text-caption">
+            <q-icon name="vertical_align_bottom" size="14px" class="q-mr-xs" />
+            Depth
+          </span>
+        </div>
+        <q-select
+          v-model="selectedDepthM"
+          :options="DEPTH_OPTIONS"
+          emit-value
+          map-options
+          dense
+          outlined
+          dark
+          class="form-field"
+          style="max-width: 260px"
+        />
+        <div class="text-caption text-grey-5 q-mt-sm">
+          <q-icon name="info" size="14px" class="q-mr-xs" />
+          Applies to the KPI cards, parameter overview, and charts below — the Vertical Depth
+          Profile chart further down always shows every depth at once.
         </div>
       </q-card>
 
@@ -350,25 +375,63 @@
         <div class="col-12 col-md-6">
           <q-card class="glass-morph full-height">
             <q-card-section>
-              <span class="text-white text-subtitle1 text-weight-medium">Vertical Depth Profile</span>
+              <div class="row items-center justify-between q-mb-sm wrap">
+                <span class="text-white text-subtitle1 text-weight-medium">Vertical Depth Profile</span>
+                <div class="row q-gutter-sm">
+                  <q-select
+                    v-model="depthProfileParamKeyA"
+                    :options="paramSelectOptions"
+                    emit-value
+                    map-options
+                    dense
+                    outlined
+                    dark
+                    label="Parameter A"
+                    class="form-field"
+                    style="min-width: 160px"
+                  />
+                  <q-select
+                    v-model="depthProfileParamKeyB"
+                    :options="paramSelectOptions"
+                    emit-value
+                    map-options
+                    dense
+                    outlined
+                    dark
+                    label="Parameter B"
+                    class="form-field"
+                    style="min-width: 160px"
+                  />
+                </div>
+              </div>
               <p class="text-grey-4 text-caption q-mb-md">
                 Simulated stratification at {{ depthProfileStationId ?? '—' }} for
-                {{ months[selectedMonthIndex] }}. Select a station on the map to inspect a
-                specific site.
+                {{ months[selectedMonthIndex] }} across all 9 sampling depths (Surface–100m).
+                Select a station on the map above to inspect a specific site.
               </p>
               <div class="row q-col-gutter-sm">
-                <div class="col-6 text-center">
-                  <div class="text-grey-3 text-caption q-mb-xs">Temperature (°C)</div>
-                  <DepthProfileChart :points="temperatureProfilePoints" unit="°C" color="#ff8a65" :decimals="1" />
-                </div>
-                <div class="col-6 text-center">
-                  <div class="text-grey-3 text-caption q-mb-xs">Dissolved Oxygen (mg/L)</div>
+                <div class="col-6 text-center" v-if="depthProfileParamA">
+                  <div class="text-grey-3 text-caption q-mb-xs">
+                    {{ depthProfileParamA.label }}{{ depthProfileParamA.unit ? ` (${depthProfileParamA.unit})` : '' }}
+                  </div>
                   <DepthProfileChart
-                    :points="dissolvedOxygenProfilePoints"
-                    unit="mg/L"
+                    :points="depthProfilePointsA"
+                    :unit="depthProfileParamA.unit"
+                    color="#ff8a65"
+                    :decimals="depthProfileParamA.decimals"
+                    :guideline-value="depthProfileParamA.guideline"
+                  />
+                </div>
+                <div class="col-6 text-center" v-if="depthProfileParamB">
+                  <div class="text-grey-3 text-caption q-mb-xs">
+                    {{ depthProfileParamB.label }}{{ depthProfileParamB.unit ? ` (${depthProfileParamB.unit})` : '' }}
+                  </div>
+                  <DepthProfileChart
+                    :points="depthProfilePointsB"
+                    :unit="depthProfileParamB.unit"
                     color="#4fc3f7"
-                    :decimals="1"
-                    :guideline-value="dissolvedOxygenParam?.guideline"
+                    :decimals="depthProfileParamB.decimals"
+                    :guideline-value="depthProfileParamB.guideline"
                   />
                 </div>
               </div>
@@ -436,6 +499,7 @@ import {
   STATUS_COLORS,
   STATUS_LABELS,
   STATUS_LEVELS,
+  DEPTH_OPTIONS,
   type WaterQualityParam,
   type StatusLevel,
 } from 'src/composables/useWaterQualityModel';
@@ -453,12 +517,20 @@ const siteCount = computed(() => sites.value.length);
 const selectedMonthIndex = ref(months.length - 1);
 const selectedParamKey = ref(allWaterQualityParams[0]!.key);
 const selectedStationId = ref<string | null>(null);
+const selectedDepthM = ref(0);
 
 const compareParamKeyA = ref(
   allWaterQualityParams.find((p) => p.key === 'chlorophyll')?.key ?? allWaterQualityParams[0]!.key,
 );
 const compareParamKeyB = ref(
   allWaterQualityParams.find((p) => p.key === 'nitrate')?.key ?? allWaterQualityParams[1]!.key,
+);
+
+const depthProfileParamKeyA = ref(
+  allWaterQualityParams.find((p) => p.key === 'temperature')?.key ?? allWaterQualityParams[0]!.key,
+);
+const depthProfileParamKeyB = ref(
+  allWaterQualityParams.find((p) => p.key === 'dissolvedOxygen')?.key ?? allWaterQualityParams[1]!.key,
 );
 
 const paramSelectOptions = allWaterQualityParams.map((p) => ({ label: p.label, value: p.key }));
@@ -520,7 +592,7 @@ const selectedParam = computed(() =>
 function lakeAverage(param: WaterQualityParam, monthIndex: number): number {
   if (sites.value.length === 0) return (param.min + param.max) / 2;
   const total = sites.value.reduce(
-    (sum, site) => sum + generateReading(site.siteId, monthIndex, param),
+    (sum, site) => sum + generateReading(site.siteId, monthIndex, param, selectedDepthM.value),
     0,
   );
   return total / sites.value.length;
@@ -550,7 +622,7 @@ function paramDeltaImproved(param: WaterQualityParam): boolean {
 function statusCounts(param: WaterQualityParam, monthIndex: number): Record<StatusLevel, number> {
   const counts: Record<StatusLevel, number> = { good: 0, warning: 0, serious: 0, critical: 0 };
   sites.value.forEach((site) => {
-    const value = generateReading(site.siteId, monthIndex, param);
+    const value = generateReading(site.siteId, monthIndex, param, selectedDepthM.value);
     counts[param.getStatus(value)]++;
   });
   return counts;
@@ -560,7 +632,9 @@ const sitesNeedingAttention = computed(() => {
   const flagged = new Set<string>();
   sites.value.forEach((site) => {
     const isFlagged = allWaterQualityParams.some((param) => {
-      const status = param.getStatus(generateReading(site.siteId, selectedMonthIndex.value, param));
+      const status = param.getStatus(
+        generateReading(site.siteId, selectedMonthIndex.value, param, selectedDepthM.value),
+      );
       return status === 'serious' || status === 'critical';
     });
     if (isFlagged) flagged.add(site.siteId);
@@ -575,7 +649,9 @@ const overallStatus = computed<StatusLevel>(() => {
   sites.value.forEach((site) => {
     allWaterQualityParams.forEach((param) => {
       total++;
-      const status = param.getStatus(generateReading(site.siteId, selectedMonthIndex.value, param));
+      const status = param.getStatus(
+        generateReading(site.siteId, selectedMonthIndex.value, param, selectedDepthM.value),
+      );
       if (status === 'good') goodCount++;
     });
   });
@@ -591,7 +667,7 @@ const sitesOfConcern = computed(() => {
   if (!param) return [];
   return sites.value
     .map((site) => {
-      const value = generateReading(site.siteId, selectedMonthIndex.value, param);
+      const value = generateReading(site.siteId, selectedMonthIndex.value, param, selectedDepthM.value);
       return { ...site, status: param.getStatus(value) };
     })
     .filter((s) => s.status === 'serious' || s.status === 'critical')
@@ -622,7 +698,7 @@ const statusColorBySite = computed<Record<string, string>>(() => {
   const result: Record<string, string> = {};
   if (!param) return result;
   sites.value.forEach((site) => {
-    const value = generateReading(site.siteId, selectedMonthIndex.value, param);
+    const value = generateReading(site.siteId, selectedMonthIndex.value, param, selectedDepthM.value);
     result[site.siteId] = mapStatusColor(param.getStatus(value));
   });
   return result;
@@ -641,26 +717,30 @@ const compareParamB = computed(
 function seriesFor(param: WaterQualityParam): number[] {
   if (selectedStation.value) {
     const siteId = selectedStation.value.siteId;
-    return months.map((_, i) => generateReading(siteId, i, param));
+    return months.map((_, i) => generateReading(siteId, i, param, selectedDepthM.value));
   }
   return sparklineValues(param);
 }
 
 // ═══ VERTICAL DEPTH PROFILE ═══
-const dissolvedOxygenParam = computed(
-  () => allWaterQualityParams.find((p) => p.key === 'dissolvedOxygen') ?? null,
+// Independent of the page-level depth selector above — this chart's whole
+// purpose is to show every depth at once for a chosen station.
+const depthProfileParamA = computed(
+  () => allWaterQualityParams.find((p) => p.key === depthProfileParamKeyA.value) ?? null,
+);
+const depthProfileParamB = computed(
+  () => allWaterQualityParams.find((p) => p.key === depthProfileParamKeyB.value) ?? null,
 );
 const depthProfileStationId = computed(() => selectedStationId.value ?? sites.value[0]?.siteId ?? null);
-const depthProfilePoints = computed(() =>
-  depthProfileStationId.value
-    ? generateDepthProfile(depthProfileStationId.value, selectedMonthIndex.value)
+const depthProfilePointsA = computed(() =>
+  depthProfileStationId.value && depthProfileParamA.value
+    ? generateDepthProfile(depthProfileStationId.value, selectedMonthIndex.value, depthProfileParamA.value)
     : [],
 );
-const temperatureProfilePoints = computed(() =>
-  depthProfilePoints.value.map((p) => ({ depth: p.depth, value: p.temperature })),
-);
-const dissolvedOxygenProfilePoints = computed(() =>
-  depthProfilePoints.value.map((p) => ({ depth: p.depth, value: p.dissolvedOxygen })),
+const depthProfilePointsB = computed(() =>
+  depthProfileStationId.value && depthProfileParamB.value
+    ? generateDepthProfile(depthProfileStationId.value, selectedMonthIndex.value, depthProfileParamB.value)
+    : [],
 );
 
 // ═══ STATION COMPARISON (NEARSHORE VS. OFFSHORE) ═══
@@ -668,7 +748,7 @@ const stationComparisonEntries = computed(() => {
   const param = selectedParam.value;
   if (!param) return [];
   return sites.value.map((site) => {
-    const value = generateReading(site.siteId, selectedMonthIndex.value, param);
+    const value = generateReading(site.siteId, selectedMonthIndex.value, param, selectedDepthM.value);
     return { siteId: site.siteId, value, status: param.getStatus(value), zone: site.zone };
   });
 });

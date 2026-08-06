@@ -189,13 +189,21 @@ function seededRandom(seed: string): number {
 // Clusters around each parameter's realistic "typical" baseline rather than
 // spreading uniformly across the full sensor range — real readings are mostly
 // normal with occasional excursions, not evenly distributed across min..max.
-export function generateReading(siteId: string, monthIndex: number, param: WaterQualityParam): number {
+// depthM defaults to 0 (surface) so every existing call site keeps behaving
+// exactly as before unless it opts into a specific depth.
+export function generateReading(
+  siteId: string,
+  monthIndex: number,
+  param: WaterQualityParam,
+  depthM = 0,
+): number {
   const seed = `${siteId}|${monthIndex}|${param.key}`;
   const noise = seededRandom(seed + '|noise') * 2 - 1; // -1..1
   const isExcursion = seededRandom(seed + '|excursion') < 0.18;
   const range = param.max - param.min;
   const spread = isExcursion ? range * 0.55 : range * 0.16;
-  const value = param.typical + noise * spread;
+  const surfaceValue = param.typical + noise * spread;
+  const value = applyDepthEffect(surfaceValue, depthM, param, siteId);
   return Math.min(Math.max(value, param.min), param.max);
 }
 
@@ -203,36 +211,73 @@ export function formatReading(value: number, param: WaterQualityParam): string {
   return `${value.toFixed(param.decimals)}${param.unit ? ' ' + param.unit : ''}`;
 }
 
-export interface DepthProfilePoint {
-  depth: number;
-  temperature: number;
-  dissolvedOxygen: number;
+// ─── DEPTH MODEL ───
+// The client's real field sampling uses these fixed depths (matches the
+// "SURFACE / 5m / 10m / .../ 100m" convention in the actual data template),
+// not an arbitrary continuous profile.
+export const DEPTHS = [0, 5, 10, 15, 20, 40, 60, 80, 100];
+export function depthLabel(depthM: number): string {
+  return depthM === 0 ? 'Surface' : `${depthM}m`;
+}
+export const DEPTH_OPTIONS = DEPTHS.map((d) => ({ label: depthLabel(d), value: d }));
+
+// Direction + how much of a parameter's full min–max range it plausibly
+// drifts between the surface and deep water, based on typical lake
+// stratification behavior. Positive direction = increases with depth
+// (e.g. nutrients released by decomposition in the hypolimnion), negative =
+// decreases with depth (e.g. light- or oxygen-dependent parameters).
+const DEPTH_TREND: Record<string, { direction: 1 | -1; sensitivity: number }> = {
+  temperature: { direction: -1, sensitivity: 0.55 },
+  ph: { direction: -1, sensitivity: 0.15 },
+  turbidity: { direction: -1, sensitivity: 0.35 },
+  dissolvedOxygen: { direction: -1, sensitivity: 0.75 },
+  conductivity: { direction: 1, sensitivity: 0.25 },
+  tds: { direction: 1, sensitivity: 0.25 },
+  tss: { direction: 1, sensitivity: 0.2 },
+  phosphate: { direction: 1, sensitivity: 0.6 },
+  ammonia: { direction: 1, sensitivity: 0.65 },
+  nitrate: { direction: -1, sensitivity: 0.4 },
+  nitrite: { direction: 1, sensitivity: 0.3 },
+  sulfate: { direction: 1, sensitivity: 0.2 },
+  chlorophyll: { direction: -1, sensitivity: 0.8 },
+};
+
+// Logistic transition centered on a per-site thermocline depth — gentle in
+// the mixed epilimnion, steep through the thermocline, gentle again below it.
+// Reused for every parameter so the whole lake shares one physically
+// plausible stratification shape rather than an independent curve per param.
+function applyDepthEffect(
+  surfaceValue: number,
+  depthM: number,
+  param: WaterQualityParam,
+  siteId: string,
+): number {
+  if (depthM <= 0) return surfaceValue;
+  const trend = DEPTH_TREND[param.key];
+  if (!trend) return surfaceValue;
+  const thermoclineDepth = 8 + seededRandom(`${siteId}|thermocline`) * 8; // 8–16m
+  const curve = 1 / (1 + Math.exp(-(depthM - thermoclineDepth) / 6));
+  const range = param.max - param.min;
+  const shift = trend.direction * trend.sensitivity * range * curve;
+  const jitter = (seededRandom(`${siteId}|${depthM}|${param.key}|jitter`) * 2 - 1) * range * 0.03;
+  return surfaceValue + shift + jitter;
 }
 
-const PROFILE_DEPTHS = [0, 2, 4, 6, 8, 10, 15, 20, 25, 30, 40];
+export interface DepthReadingPoint {
+  depth: number;
+  value: number;
+}
 
-// Simulated vertical profile — surface-warm, well-oxygenated water transitioning
-// through a thermocline/oxycline into cooler, oxygen-poorer water at depth. No
-// real profiling-instrument data exists yet; this models a plausible stratified-
-// lake curve (logistic transition around a per-site/month thermocline depth) so
-// the depth-profile chart has something realistic to show.
-export function generateDepthProfile(siteId: string, monthIndex: number): DepthProfilePoint[] {
-  const seed = `${siteId}|${monthIndex}|profile`;
-  const surfaceTemp = 27 + (seededRandom(seed + '|st') * 2 - 1) * 1.2;
-  const bottomTemp = 23 + (seededRandom(seed + '|bt') * 2 - 1) * 0.8;
-  const thermoclineDepth = 8 + seededRandom(seed + '|tc') * 6; // 8–14m
-  const surfaceDO = 7.5 + (seededRandom(seed + '|sdo') * 2 - 1) * 1;
-  const bottomDO = 2.5 + (seededRandom(seed + '|bdo') * 2 - 1) * 1;
-
-  return PROFILE_DEPTHS.map((depth) => {
-    // Logistic transition centered on the thermocline depth — gentle in the
-    // mixed epilimnion, steep through the thermocline, gentle again below it.
-    const t = 1 / (1 + Math.exp(-(depth - thermoclineDepth) / 3));
-    const noise = (seededRandom(seed + '|n' + depth) * 2 - 1) * 0.15;
-    return {
-      depth,
-      temperature: surfaceTemp + (bottomTemp - surfaceTemp) * t + noise,
-      dissolvedOxygen: Math.max(0.5, surfaceDO + (bottomDO - surfaceDO) * t + noise),
-    };
-  });
+// Vertical profile for one parameter across the 9 canonical field-sampling
+// depths, built from the same generateReading() every other chart uses — so
+// the profile always matches whatever the rest of the dashboard shows.
+export function generateDepthProfile(
+  siteId: string,
+  monthIndex: number,
+  param: WaterQualityParam,
+): DepthReadingPoint[] {
+  return DEPTHS.map((depth) => ({
+    depth,
+    value: generateReading(siteId, monthIndex, param, depth),
+  }));
 }
