@@ -7,8 +7,11 @@
         v-for="entry in group.entries"
         :key="entry.siteId"
         class="station-compare__row"
-        :class="{ 'station-compare__row--selected': entry.siteId === selectedSiteId }"
-        @click="emit('select-station', entry.siteId)"
+        :class="{
+          'station-compare__row--selected': entry.siteId === selectedSiteId,
+          'station-compare__row--static': entry.zone === 'Tributary',
+        }"
+        @click="entry.zone !== 'Tributary' && emit('select-station', entry.siteId)"
       >
         <span class="station-compare__label">{{ entry.siteId }}</span>
         <div class="station-compare__track">
@@ -53,7 +56,7 @@ export interface StationComparisonEntry {
   siteId: string;
   value: number;
   status: StatusLevel;
-  zone: 'Nearshore' | 'Offshore';
+  zone: 'Nearshore' | 'Offshore' | 'Tributary';
 }
 
 const props = withDefaults(
@@ -85,11 +88,12 @@ function pct(value: number): number {
 }
 
 const groups = computed(() => {
-  const byZone = (zone: 'Nearshore' | 'Offshore') =>
+  const byZone = (zone: 'Nearshore' | 'Offshore' | 'Tributary') =>
     props.entries.filter((e) => e.zone === zone).sort((a, b) => b.value - a.value);
   return [
     { zone: 'Nearshore' as const, entries: byZone('Nearshore') },
     { zone: 'Offshore' as const, entries: byZone('Offshore') },
+    { zone: 'Tributary' as const, entries: byZone('Tributary') },
   ];
 });
 </script>
@@ -126,6 +130,14 @@ const groups = computed(() => {
 .station-compare__row--selected {
   background: rgba(38, 166, 154, 0.18);
   outline: 1px solid rgba(38, 166, 154, 0.5);
+}
+
+.station-compare__row--static {
+  cursor: default;
+}
+
+.station-compare__row--static:hover {
+  background: transparent;
 }
 
 .station-compare__label {

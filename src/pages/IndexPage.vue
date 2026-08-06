@@ -336,8 +336,12 @@
                     @click="selectWaterSite(site)"
                   >
                     <q-item-section avatar>
-                      <q-avatar color="blue-7" text-color="white" size="36px">
-                        <q-icon name="pin_drop" size="18px" />
+                      <q-avatar
+                        :color="isRiverSite(site.siteId) ? 'deep-orange-8' : 'blue-7'"
+                        text-color="white"
+                        size="36px"
+                      >
+                        <q-icon :name="isRiverSite(site.siteId) ? 'waves' : 'pin_drop'" size="18px" />
                       </q-avatar>
                     </q-item-section>
                     <q-item-section>
@@ -517,8 +521,16 @@
             <!-- Water Quality Site Detail -->
             <template v-else-if="selectedWaterSite">
               <div class="row items-center q-mb-md">
-                <q-avatar color="blue-7" size="56px" class="q-mr-md">
-                  <q-icon name="opacity" size="md" color="white" />
+                <q-avatar
+                  :color="isRiverSite(selectedWaterSite.siteId) ? 'deep-orange-8' : 'blue-7'"
+                  size="56px"
+                  class="q-mr-md"
+                >
+                  <q-icon
+                    :name="isRiverSite(selectedWaterSite.siteId) ? 'waves' : 'opacity'"
+                    size="md"
+                    color="white"
+                  />
                 </q-avatar>
                 <div>
                   <div class="text-grey-9 text-weight-bold text-h6" style="line-height: 1.2">
@@ -550,33 +562,38 @@
                 </q-item>
               </q-list>
 
-              <div class="text-caption text-grey-6 q-mb-xs">
-                <q-icon name="vertical_align_bottom" size="14px" class="q-mr-xs" />Depth
-              </div>
-              <q-select
-                v-model="selectedDepthM"
-                :options="DEPTH_OPTIONS"
-                emit-value
-                map-options
-                dense
-                rounded
-                outlined
-                class="q-mb-md"
-                color="teal"
-              >
-                <template #prepend>
-                  <q-icon name="layers" color="grey-5" size="xs" />
-                </template>
-              </q-select>
+              <template v-if="!isRiverSite(selectedWaterSite.siteId)">
+                <div class="text-caption text-grey-6 q-mb-xs">
+                  <q-icon name="vertical_align_bottom" size="14px" class="q-mr-xs" />Depth
+                </div>
+                <q-select
+                  v-model="selectedDepthM"
+                  :options="DEPTH_OPTIONS"
+                  emit-value
+                  map-options
+                  dense
+                  rounded
+                  outlined
+                  class="q-mb-md"
+                  color="teal"
+                >
+                  <template #prepend>
+                    <q-icon name="layers" color="grey-5" size="xs" />
+                  </template>
+                </q-select>
+              </template>
 
               <q-banner dense class="bg-teal-1 text-teal-9 q-mb-md rounded-borders">
                 <template #avatar>
                   <q-icon name="calendar_month" color="teal-8" />
                 </template>
                 Reading period: <strong>{{ selectedMonthLabel }}</strong> at
-                <strong>{{ depthLabel(selectedDepthM) }}</strong>
+                <strong>{{ isRiverSite(selectedWaterSite.siteId) ? 'Surface' : depthLabel(selectedDepthM) }}</strong>
                 <div class="text-caption text-grey-7">
                   Simulated values — real monthly readings are not connected yet.
+                  <template v-if="isRiverSite(selectedWaterSite.siteId)">
+                    Tributary rivers are sampled at the surface only.
+                  </template>
                 </div>
               </q-banner>
 
@@ -591,7 +608,7 @@
                         {{ p.label }}{{ p.unit ? ` (${p.unit})` : '' }}
                       </q-item-label>
                       <q-item-label class="text-grey-9 text-weight-medium">
-                        {{ mockReading(selectedWaterSite.siteId, selectedMonthIndex, p, selectedDepthM) }}
+                        {{ mockReading(selectedWaterSite.siteId, selectedMonthIndex, p, effectiveDepthFor(selectedWaterSite.siteId)) }}
                       </q-item-label>
                     </q-item-section>
                   </q-item>
@@ -679,6 +696,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
+import { TRIBUTARY_RIVER_SITES, TRIBUTARY_RIVER_SITE_IDS } from 'src/composables/useWaterQualityModel';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 // ═══ CONSERVATION STATUS COLORS (IUCN scale) ═══
@@ -751,10 +769,51 @@ function makeWaterPinIcon(color: string): L.DivIcon {
   return icon;
 }
 
+// Tributary-river marker: same pin size/style as the lake water-quality
+// markers, but a wavy-lines glyph instead of a droplet and a distinct default
+// color — so the 6 fixed river sampling points read as visually different
+// from the 24 lake sites at a glance. Also recolorable by parameter/status.
+const RIVER_PIN_COLOR = '#D84315'; // deep orange — default when no parameter is selected; kept distinct from the depth-zone palette (purple/brown/green) and the lake pin blue
+const riverPinIconCache = new Map<string, L.DivIcon>();
+
+function makeRiverPinIcon(color: string): L.DivIcon {
+  let icon = riverPinIconCache.get(color);
+  if (icon) return icon;
+
+  const html = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 36 36">
+    <filter id="rs" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
+    </filter>
+    <circle cx="18" cy="18" r="16"
+            fill="${color}" stroke="#fff" stroke-width="2" filter="url(#rs)"/>
+    <path d="M9.5 14.5c1.7-2.2 3.4-2.2 5.1 0s3.4 2.2 5.1 0 3.4-2.2 5.1 0"
+          stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.95"/>
+    <path d="M9.5 19c1.7-2.2 3.4-2.2 5.1 0s3.4 2.2 5.1 0 3.4-2.2 5.1 0"
+          stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.95"/>
+    <path d="M9.5 23.5c1.7-2.2 3.4-2.2 5.1 0s3.4 2.2 5.1 0 3.4-2.2 5.1 0"
+          stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.95"/>
+  </svg>`;
+
+  icon = L.divIcon({
+    className: '',
+    html,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12],
+    tooltipAnchor: [0, -12],
+  });
+  riverPinIconCache.set(color, icon);
+  return icon;
+}
+
 // Every water-quality marker ever created, across every layer (All Sites +
 // each depth zone) — lets recolorWaterLayers() update every pin in place
 // instead of tearing the layers down and rebuilding them.
 const waterSiteMarkerEntries: { siteId: string; defaultColor: string; marker: L.Marker }[] = [];
+// River-site markers are separate: fixed at Surface depth, built once from a
+// static coordinate list (not fetched from GeoJSON like the lake sites).
+const riverSiteMarkerEntries: { siteId: string; marker: L.Marker }[] = [];
+let riverSitesLayerGroup: L.LayerGroup | null = null;
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -1435,12 +1494,24 @@ function selectWaterSite(site: WaterQualitySite) {
 }
 
 // ── Site search (mirrors the Fish tab's search-by-name q-select) ──
+// Combines the 24 lake sites with the 6 fixed tributary rivers so both are
+// searchable/selectable together, same as the user asked.
+const allWaterAndRiverSites = computed<WaterQualitySite[]>(() => [
+  ...waterQualitySites.value,
+  ...TRIBUTARY_RIVER_SITES.map((r) => ({
+    siteId: r.siteId,
+    stationId: 'Tributary River',
+    lat: r.lat,
+    lng: r.lng,
+  })),
+]);
+
 const selectedSiteFilter = ref<string[]>([]);
-const allSiteIds = computed(() => waterQualitySites.value.map((s) => s.siteId));
+const allSiteIds = computed(() => allWaterAndRiverSites.value.map((s) => s.siteId));
 const siteOptionsFiltered = ref<string[]>([]);
 
 watch(
-  waterQualitySites,
+  allWaterAndRiverSites,
   () => {
     siteOptionsFiltered.value = allSiteIds.value;
   },
@@ -1461,7 +1532,7 @@ function filterSiteFn(val: string, update: (callback: () => void) => void) {
 }
 
 const filteredWaterSites = computed(() =>
-  waterQualitySites.value.filter(
+  allWaterAndRiverSites.value.filter(
     (site) =>
       selectedSiteFilter.value.length === 0 || selectedSiteFilter.value.includes(site.siteId),
   ),
@@ -1801,10 +1872,19 @@ const selectedColorParam = computed(
   () => allWaterParams.value.find((p) => p.key === selectedColorParamKey.value) ?? null,
 );
 
+// River sites are always Surface-only, regardless of the map's selected depth.
+function effectiveDepthFor(siteId: string): number {
+  return TRIBUTARY_RIVER_SITE_IDS.has(siteId) ? 0 : selectedDepthM.value;
+}
+
+function isRiverSite(siteId: string): boolean {
+  return TRIBUTARY_RIVER_SITE_IDS.has(siteId);
+}
+
 function siteStatusBadge(siteId: string): { label: string; background: string } {
   const param = selectedColorParam.value;
   if (!param) return { label: 'No data yet', background: '#9e9e9e' };
-  const value = generateReading(siteId, selectedMonthIndex.value, param, selectedDepthM.value);
+  const value = generateReading(siteId, selectedMonthIndex.value, param, effectiveDepthFor(siteId));
   const status = param.getStatus(value);
   return {
     label: `${formatReading(value, param)} · ${STATUS_LABELS[status]}`,
@@ -1815,7 +1895,7 @@ function siteStatusBadge(siteId: string): { label: string; background: string } 
 function getMarkerColor(siteId: string, defaultColor: string): string {
   const param = selectedColorParam.value;
   if (!param) return defaultColor;
-  const value = generateReading(siteId, selectedMonthIndex.value, param, selectedDepthM.value);
+  const value = generateReading(siteId, selectedMonthIndex.value, param, effectiveDepthFor(siteId));
   return STATUS_COLORS[param.getStatus(value)];
 }
 
@@ -1823,6 +1903,10 @@ function recolorWaterLayers() {
   for (const entry of waterSiteMarkerEntries) {
     const color = getMarkerColor(entry.siteId, entry.defaultColor);
     entry.marker.setIcon(makeWaterPinIcon(color));
+  }
+  for (const entry of riverSiteMarkerEntries) {
+    const color = getMarkerColor(entry.siteId, RIVER_PIN_COLOR);
+    entry.marker.setIcon(makeRiverPinIcon(color));
   }
 }
 
@@ -2278,6 +2362,35 @@ function initMap() {
     })
     .catch((err) => console.error('Failed to load water quality sampling sites GeoJSON:', err));
 
+  // ── Tributary river sites (fixed coordinates, always Surface — shown
+  // alongside the lake water-quality sites, not a separately toggled layer). ──
+  {
+    const markers = TRIBUTARY_RIVER_SITES.map((site) => {
+      const color = getMarkerColor(site.siteId, RIVER_PIN_COLOR);
+      const marker = L.marker([site.lat, site.lng], { icon: makeRiverPinIcon(color) });
+      marker.bindTooltip(
+        `<div style="font-family: Roboto, sans-serif; min-width: 170px;">
+          <strong style="color:${RIVER_PIN_COLOR};">${site.siteId}</strong><br>
+          <span style="color:#666;">Tributary River — Surface only</span><br>
+          <span style="color:#666;">Coordinates: ${site.lat.toFixed(5)}, ${site.lng.toFixed(5)}</span>
+        </div>`,
+        { sticky: true, direction: 'top', offset: [0, -8] },
+      );
+      marker.on('click', () => {
+        selectWaterSite({
+          siteId: site.siteId,
+          stationId: 'Tributary River',
+          lat: site.lat,
+          lng: site.lng,
+        });
+      });
+      riverSiteMarkerEntries.push({ siteId: site.siteId, marker });
+      return marker;
+    });
+    riverSitesLayerGroup = L.layerGroup(markers);
+    syncLayerVisibility();
+  }
+
   // ── Lake Monitoring Station Zones (polygons — hover to highlight + show info) ──
   fetch('/geo/Lake-Station.geojson')
     .then((res) => res.json())
@@ -2308,20 +2421,31 @@ function initMap() {
     })
     .catch((err) => console.error('Failed to load Lake-Station GeoJSON:', err));
 
-  // ── Lake Tributaries (rivers) ──
-  fetch('/geo/Lake-Tributaries.geojson')
-    .then((res) => res.json())
-    .then((geojson: GeoJSON.GeoJsonObject) => {
-      tributariesLayerGroup = L.geoJSON(geojson, {
-        style: { color: '#1976D2', weight: 2 },
+  // ── Lake Tributaries (the fixed rivers being sampled, plus the Sawir
+  // wetland extent) — two source files merged into one toggle layer. ──
+  Promise.all([
+    fetch('/geo/River-Tributaries-Lake-Lanao.geojson').then((res) => res.json() as Promise<GeoJSON.FeatureCollection>),
+    fetch('/geo/Sawir_Tributary.geojson').then((res) => res.json() as Promise<GeoJSON.FeatureCollection>),
+  ])
+    .then(([rivers, sawir]) => {
+      const merged: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: [...rivers.features, ...sawir.features],
+      };
+      tributariesLayerGroup = L.geoJSON(merged, {
+        style: { color: '#1976D2', weight: 2, fillOpacity: 0.25 },
         onEachFeature: (feature, layer) => {
-          const name = (feature.properties?.name as string) ?? 'Tributary';
+          const props = feature.properties ?? {};
+          const name =
+            (props.name as string | null) ??
+            (props.wetland ? 'Sawir Tributary Wetland' : null) ??
+            'Tributary';
           layer.bindTooltip(`<strong>${name}</strong>`, { sticky: true });
         },
       });
       syncLayerVisibility();
     })
-    .catch((err) => console.error('Failed to load Lake-Tributaries GeoJSON:', err));
+    .catch((err) => console.error('Failed to load tributary river GeoJSON:', err));
 
   // ── Apply initial layer visibility ──
   syncLayerVisibility();
@@ -2348,6 +2472,17 @@ function syncLayerVisibility() {
       if (!map.hasLayer(group)) map.addLayer(group);
     } else {
       if (map.hasLayer(group)) map.removeLayer(group);
+    }
+  }
+
+  // River sites share the "All Water Quality Sites" toggle rather than
+  // getting a separate control — they show/hide together with the lake sites.
+  if (riverSitesLayerGroup) {
+    const wqAllActive = mapLayers.value.find((l) => l.id === 'wqAll')?.active ?? false;
+    if (wqAllActive) {
+      if (!map.hasLayer(riverSitesLayerGroup)) map.addLayer(riverSitesLayerGroup);
+    } else if (map.hasLayer(riverSitesLayerGroup)) {
+      map.removeLayer(riverSitesLayerGroup);
     }
   }
 }

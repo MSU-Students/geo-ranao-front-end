@@ -170,6 +170,26 @@ export const allWaterQualityParams: WaterQualityParam[] = waterQualityParameterG
   (g) => g.params,
 );
 
+// The 6 fixed tributary rivers being sampled — unlike the 24 lake sites,
+// these are always read at Surface only (no depth variation), per the real
+// sampling protocol for tributaries.
+export interface TributaryRiverSite {
+  siteId: string;
+  lat: number;
+  lng: number;
+}
+
+export const TRIBUTARY_RIVER_SITES: TributaryRiverSite[] = [
+  { siteId: 'Masiu Tail (Sawir)', lat: 7.787944, lng: 124.323028 },
+  { siteId: 'Masiu River', lat: 7.816861, lng: 124.329611 },
+  { siteId: 'Taraka River', lat: 7.885528, lng: 124.344472 },
+  { siteId: 'Poona Bayabao River', lat: 7.85075, lng: 124.340306 },
+  { siteId: 'Ditsaan Ramain River', lat: 7.979417, lng: 124.354639 },
+  { siteId: 'Marawi City (Outlet) River', lat: 8.002806, lng: 124.291639 },
+];
+
+export const TRIBUTARY_RIVER_SITE_IDS = new Set(TRIBUTARY_RIVER_SITES.map((r) => r.siteId));
+
 export const months = [
   'Jan 2025', 'Feb 2025', 'Mar 2025', 'Apr 2025', 'May 2025', 'Jun 2025',
   'Jul 2025', 'Aug 2025', 'Sep 2025', 'Oct 2025', 'Nov 2025', 'Dec 2025', 'Jan 2026',
