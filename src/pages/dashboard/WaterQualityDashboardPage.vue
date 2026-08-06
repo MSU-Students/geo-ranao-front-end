@@ -474,10 +474,12 @@
           icon="add"
           unelevated
           rounded
-          @click="$router.push('/researcher/upload/water-quality')"
+          @click="uploadDialogRef?.openFor('water')"
         />
       </div>
     </div>
+
+    <UploadDataDialog ref="uploadDialogRef" />
   </q-page>
 </template>
 
@@ -490,6 +492,7 @@ import StatusDistributionBar from 'src/components/charts/StatusDistributionBar.v
 import StationMap from 'src/components/charts/StationMap.vue';
 import DepthProfileChart from 'src/components/charts/DepthProfileChart.vue';
 import StationComparisonChart from 'src/components/charts/StationComparisonChart.vue';
+import UploadDataDialog from 'src/components/UploadDataDialog.vue';
 import {
   waterQualityParameterGroups,
   allWaterQualityParams,
@@ -517,6 +520,7 @@ interface Site {
 
 const sites = ref<Site[]>([]);
 const siteCount = computed(() => sites.value.length);
+const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 const selectedMonthIndex = ref(months.length - 1);
 const selectedParamKey = ref(allWaterQualityParams[0]!.key);
 const selectedStationId = ref<string | null>(null);

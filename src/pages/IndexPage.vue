@@ -658,6 +658,8 @@
       </q-btn>
     </transition>
 
+    <UploadDataDialog ref="uploadDialogRef" />
+
     <!-- ═══ PARAMETER READING MODAL (click anywhere inside the lake) ═══ -->
     <q-dialog v-model="showParameterModal">
       <q-card v-if="parameterModalData" class="parameter-modal-card">
@@ -693,10 +695,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
 import { TRIBUTARY_RIVER_SITES, TRIBUTARY_RIVER_SITE_IDS } from 'src/composables/useWaterQualityModel';
+import UploadDataDialog from 'src/components/UploadDataDialog.vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 // ═══ CONSERVATION STATUS COLORS (IUCN scale) ═══
@@ -815,9 +817,9 @@ const waterSiteMarkerEntries: { siteId: string; defaultColor: string; marker: L.
 const riverSiteMarkerEntries: { siteId: string; marker: L.Marker }[] = [];
 let riverSitesLayerGroup: L.LayerGroup | null = null;
 
-const router = useRouter();
 const authStore = useAuthStore();
 const $q = useQuasar();
+const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 
 // ═══ STATE ═══
 const activeTab = ref('fish');
@@ -2540,11 +2542,11 @@ watch(showPanel, () => {
 });
 
 function goToFishObservation() {
-  router.push('/researcher/upload/fish');
+  uploadDialogRef.value?.openFor('fish');
 }
 
 function goToWaterQuality() {
-  router.push('/researcher/upload/water-quality');
+  uploadDialogRef.value?.openFor('water');
 }
 </script>
 
