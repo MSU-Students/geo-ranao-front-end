@@ -2202,7 +2202,9 @@ function renderHeatmapOverlay() {
 
   const monthIndex = selectedMonthIndex.value;
   const depthM = selectedDepthM.value;
-  const fadeRadiusKm = heatmapFadeRadiusKm.value;
+  // Standard deviation of each site's coverage contribution — derived from
+  // the fade radius (itself derived from real site spacing above).
+  const sigmaKm = heatmapFadeRadiusKm.value * 0.55;
   const sites = waterQualitySites.value;
 
   for (let py = 0; py < height; py++) {
@@ -2210,12 +2212,17 @@ function renderHeatmapOverlay() {
     for (let px = 0; px < width; px++) {
       const lng = minLng + (px / width) * lngSpan;
 
-      let nearestKm = Infinity;
+      // Sum of each site's Gaussian contribution, rather than "distance to
+      // the single nearest site" — a nearest-site model has a kink exactly
+      // where the nearest site switches from one to another, which shows up
+      // as a visible seam between neighboring sites. A sum of smooth
+      // (Gaussian) contributions has no such seam anywhere.
+      let coverage = 0;
       for (const site of sites) {
         const d = haversineKm(lat, lng, site.lat, site.lng);
-        if (d < nearestKm) nearestKm = d;
+        coverage += Math.exp(-(d * d) / (2 * sigmaKm * sigmaKm));
       }
-      const coverage = Math.max(0, 1 - nearestKm / fadeRadiusKm);
+      coverage = Math.min(coverage, 1);
       if (coverage <= 0.02) continue; // leave fully transparent — a coverage gap
 
       const value = interpolateValueAt(lat, lng, param, monthIndex, depthM);
@@ -2249,6 +2256,9 @@ function renderHeatmapOverlay() {
     finalCtx.closePath();
   }
   finalCtx.clip('evenodd');
+  // Soften the raster's remaining hard edges (status-color band transitions,
+  // grid-resolution jaggedness) into a smooth blend.
+  finalCtx.filter = 'blur(3px)';
   finalCtx.drawImage(rawCanvas, 0, 0);
 
   heatmapOverlay = L.imageOverlay(
