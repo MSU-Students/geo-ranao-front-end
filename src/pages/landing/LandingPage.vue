@@ -146,14 +146,14 @@
               Resources (DENR), researchers, and local communities an intuitive, evidence-based
               picture of the lake's health.
             </p>
-            <div class="row q-gutter-sm q-mt-md">
+            <div class="row q-gutter-sm q-mt-md flex flex-center">
               <div class="stat-chip">13 Parameters Tracked</div>
               <div class="stat-chip">24 Monitoring Sites</div>
               <div class="stat-chip">GIS Interpolation &amp; Heatmaps</div>
             </div>
             <p class="dive-credit">By Al-moain U. Algamar &amp; Huamza M. Ampaso</p>
             <p class="dive-credit-adviser">Adviser: Prof. Jasmine Janette C. Mama</p>
-            <p class="dive-credit-adviser">Co-Advised: Prof.Lucman M. Abdulrachman</p>
+            <p class="dive-credit-adviser">Co-Adviser: Prof.Lucman M. Abdulrachman</p>
             <p class="dive-credit-adviser">Technical Adviser: Prof. Jollymar M. Capistrano</p>
           </div>
         </div>
@@ -171,16 +171,16 @@
               — endemic, invasive, and general catch records alike — to support fisheries management
               and the conservation of the lake's native biodiversity.
             </p>
-            <div class="row q-gutter-md q-mt-lg">
+            <div class="row q-gutter-md q-mt-lg flex flex-center">
               <div class="hero-stat" v-for="stat in fishStats" :key="stat.label">
                 <div class="hero-stat-value">{{ stat.value }}</div>
                 <div class="hero-stat-label">{{ stat.label }}</div>
               </div>
             </div>
-            <p class="dive-credit">
-              Sibling capstone project · College of Information and Computing Sciences, MSU Main
-              Campus
-            </p>
+            <p class="dive-credit">By Abduljabbar A. Batara &amp; Sainoor T. Saud</p>
+            <p class="dive-credit-adviser">Adviser: Prof. Jogie A. Vistal</p>
+            <p class="dive-credit-adviser">Co-Adviser: Prof. Johaira Isra</p>
+            <p class="dive-credit-adviser">Technical Adviser: Prof. Jollymar M. Capistrano</p>
           </div>
         </div>
 
@@ -447,7 +447,7 @@ onUnmounted(() => {
 .info-block {
   max-width: 720px;
   margin: 0 auto;
-  padding: 90px 8px;
+  padding: 80px 8px 20px 8px;
   text-align: center;
 }
 .info-block--cta {
@@ -585,7 +585,7 @@ onUnmounted(() => {
 
 .dive-credit {
   margin-top: 22px;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   color: rgba(255, 255, 255, 0.7);
   font-style: italic;
   margin-bottom: 4px;
