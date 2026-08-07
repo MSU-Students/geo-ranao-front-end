@@ -234,6 +234,18 @@
                   </div>
                 </div>
 
+                <!-- Coverage Heatmap -->
+                <div v-if="selectedColorParam" class="q-mb-md">
+                  <q-toggle v-model="showHeatmap" color="teal" dense>
+                    <span class="text-caption text-grey-8">Show Coverage Heatmap</span>
+                  </q-toggle>
+                  <div class="text-caption text-grey-5 q-mt-xs">
+                    Colors show the estimated status across the whole lake; areas that fade to
+                    transparent are far from any sampling site — a coordinate gap, not a
+                    reading.
+                  </div>
+                </div>
+
                 <!-- Sampling Depth -->
                 <div class="text-caption text-grey-6 q-mb-xs">
                   <q-icon name="vertical_align_bottom" size="14px" class="q-mr-xs" />Sampling Depth
@@ -839,6 +851,7 @@ let wqTributaryLayerGroup: L.GeoJSON | null = null;
 let lakeStationsLayerGroup: L.GeoJSON | null = null;
 let tributariesLayerGroup: L.GeoJSON | null = null;
 let currentBaseTileLayer: L.TileLayer | null = null;
+let heatmapOverlay: L.ImageOverlay | null = null;
 
 // Lake Lanao boundary rings ([lat, lng][]) — populated once the boundary GeoJSON
 // loads, used to detect "click anywhere inside the lake" for the reading popup.
@@ -1874,6 +1887,10 @@ const selectedColorParam = computed(
   () => allWaterParams.value.find((p) => p.key === selectedColorParamKey.value) ?? null,
 );
 
+// Coverage heatmap for the selected parameter — off by default, only usable
+// once a parameter is picked (see the "PARAMETER HEATMAP" section below).
+const showHeatmap = ref(false);
+
 // River sites are always Surface-only, regardless of the map's selected depth.
 function effectiveDepthFor(siteId: string): number {
   return TRIBUTARY_RIVER_SITE_IDS.has(siteId) ? 0 : selectedDepthM.value;
@@ -1912,8 +1929,9 @@ function recolorWaterLayers() {
   }
 }
 
-watch([selectedColorParam, selectedMonthIndex, selectedDepthM], () => {
+watch([selectedColorParam, selectedMonthIndex, selectedDepthM, showHeatmap], () => {
   recolorWaterLayers();
+  renderHeatmapOverlay();
 });
 
 function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
@@ -2075,6 +2093,173 @@ function handleMapClick(e: L.LeafletMouseEvent) {
     depthLabel: depthLabel(selectedDepthM.value),
   };
   showParameterModal.value = true;
+}
+
+// ═══ PARAMETER HEATMAP (visualizes estimated status + coverage gaps) ═══
+// Same IDW model as the click-anywhere reading above, rendered as a colored
+// overlay across the whole lake. Color = estimated status at that point;
+// opacity fades out with distance from the nearest real sampling site, so
+// stretches of open water far from any site read as blank/transparent
+// (a coverage gap) instead of a falsely confident color.
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function computeRingsBounds(
+  rings: [number, number][][],
+): { minLat: number; maxLat: number; minLng: number; maxLng: number } | null {
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  for (const ring of rings) {
+    for (const [lat, lng] of ring) {
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    }
+  }
+  if (!isFinite(minLat) || !isFinite(minLng)) return null;
+  return { minLat, maxLat, minLng, maxLng };
+}
+
+// How far (in km) the heatmap's color fades out around each sampling site —
+// derived from the sites' own average nearest-neighbor spacing, so it auto-
+// adapts if sites are added/removed rather than relying on a guessed constant.
+const heatmapFadeRadiusKm = computed(() => {
+  const sites = waterQualitySites.value;
+  if (sites.length < 2) return 3;
+  let total = 0;
+  for (const site of sites) {
+    let nearest = Infinity;
+    for (const other of sites) {
+      if (other === site) continue;
+      const d = haversineKm(site.lat, site.lng, other.lat, other.lng);
+      if (d < nearest) nearest = d;
+    }
+    total += nearest;
+  }
+  return (total / sites.length) * 1.4;
+});
+
+function renderHeatmapOverlay() {
+  if (!map) return;
+
+  if (heatmapOverlay) {
+    map.removeLayer(heatmapOverlay);
+    heatmapOverlay = null;
+  }
+
+  const param = selectedColorParam.value;
+  if (
+    !showHeatmap.value ||
+    !param ||
+    lakePolygonRings.length === 0 ||
+    waterQualitySites.value.length === 0
+  ) {
+    return;
+  }
+
+  const bounds = computeRingsBounds(lakePolygonRings);
+  if (!bounds) return;
+  const { minLat, maxLat, minLng, maxLng } = bounds;
+  const latSpan = maxLat - minLat;
+  const lngSpan = maxLng - minLng;
+  if (latSpan <= 0 || lngSpan <= 0) return;
+
+  // Longitude degrees are narrower than latitude degrees away from the
+  // equator — correct for that so the raster grid isn't stretched.
+  const midLatRad = (((minLat + maxLat) / 2) * Math.PI) / 180;
+  const lngCorrection = Math.max(Math.cos(midLatRad), 0.1);
+  const correctedLngSpan = lngSpan * lngCorrection;
+  const RES = 160;
+  let width: number;
+  let height: number;
+  if (correctedLngSpan >= latSpan) {
+    width = RES;
+    height = Math.max(40, Math.round((RES * latSpan) / correctedLngSpan));
+  } else {
+    height = RES;
+    width = Math.max(40, Math.round((RES * correctedLngSpan) / latSpan));
+  }
+
+  // Raster the raw status color + coverage opacity across the full bounding
+  // box first...
+  const rawCanvas = document.createElement('canvas');
+  rawCanvas.width = width;
+  rawCanvas.height = height;
+  const rawCtx = rawCanvas.getContext('2d');
+  if (!rawCtx) return;
+  const imageData = rawCtx.createImageData(width, height);
+  const data = imageData.data;
+
+  const monthIndex = selectedMonthIndex.value;
+  const depthM = selectedDepthM.value;
+  const fadeRadiusKm = heatmapFadeRadiusKm.value;
+  const sites = waterQualitySites.value;
+
+  for (let py = 0; py < height; py++) {
+    const lat = maxLat - (py / height) * latSpan;
+    for (let px = 0; px < width; px++) {
+      const lng = minLng + (px / width) * lngSpan;
+
+      let nearestKm = Infinity;
+      for (const site of sites) {
+        const d = haversineKm(lat, lng, site.lat, site.lng);
+        if (d < nearestKm) nearestKm = d;
+      }
+      const coverage = Math.max(0, 1 - nearestKm / fadeRadiusKm);
+      if (coverage <= 0.02) continue; // leave fully transparent — a coverage gap
+
+      const value = interpolateValueAt(lat, lng, param, monthIndex, depthM);
+      const status = param.getStatus(value);
+      const hex = STATUS_COLORS[status];
+      const idx = (py * width + px) * 4;
+      data[idx] = parseInt(hex.slice(1, 3), 16);
+      data[idx + 1] = parseInt(hex.slice(3, 5), 16);
+      data[idx + 2] = parseInt(hex.slice(5, 7), 16);
+      data[idx + 3] = Math.round(coverage * 0.75 * 255);
+    }
+  }
+  rawCtx.putImageData(imageData, 0, 0);
+
+  // ...then composite it through a clip mask shaped like the actual lake
+  // boundary (putImageData ignores canvas clip paths, so this has to be a
+  // second pass) so only the water gets painted, not the surrounding land.
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width = width;
+  finalCanvas.height = height;
+  const finalCtx = finalCanvas.getContext('2d');
+  if (!finalCtx) return;
+  finalCtx.beginPath();
+  for (const ring of lakePolygonRings) {
+    ring.forEach(([lat, lng], i) => {
+      const x = ((lng - minLng) / lngSpan) * width;
+      const y = ((maxLat - lat) / latSpan) * height;
+      if (i === 0) finalCtx.moveTo(x, y);
+      else finalCtx.lineTo(x, y);
+    });
+    finalCtx.closePath();
+  }
+  finalCtx.clip('evenodd');
+  finalCtx.drawImage(rawCanvas, 0, 0);
+
+  heatmapOverlay = L.imageOverlay(
+    finalCanvas.toDataURL('image/png'),
+    [
+      [minLat, minLng],
+      [maxLat, maxLng],
+    ],
+    { interactive: false, className: 'heatmap-overlay-img' },
+  );
+  heatmapOverlay.addTo(map);
 }
 
 // ═══ MAP LAYERS ═══
@@ -2315,6 +2500,7 @@ function initMap() {
       lakeBoundaryLayerGroup!.addLayer(boundaryLayer);
       lakePolygonRings = extractPolygonRings(geojson);
       syncLayerVisibility();
+      renderHeatmapOverlay();
     })
     .catch((err) => {
       console.error('Failed to load Lake Lanao boundary GeoJSON:', err);
@@ -2360,6 +2546,7 @@ function initMap() {
           });
           wqAllLayerGroup = createWaterQualitySiteLayer(geojson, WATER_PIN_COLOR);
           syncLayerVisibility();
+          renderHeatmapOverlay();
         });
     })
     .catch((err) => console.error('Failed to load water quality sampling sites GeoJSON:', err));
