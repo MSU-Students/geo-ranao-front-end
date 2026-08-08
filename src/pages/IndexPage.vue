@@ -852,6 +852,8 @@ let lakeStationsLayerGroup: L.GeoJSON | null = null;
 let tributariesLayerGroup: L.GeoJSON | null = null;
 let currentBaseTileLayer: L.TileLayer | null = null;
 let heatmapOverlay: L.ImageOverlay | null = null;
+let contourLinesLayerGroup: L.LayerGroup | null = null;
+let contourFilledLayerGroup: L.LayerGroup | null = null;
 
 // Lake Lanao boundary rings ([lat, lng][]) — populated once the boundary GeoJSON
 // loads, used to detect "click anywhere inside the lake" for the reading popup.
@@ -2272,6 +2274,330 @@ function renderHeatmapOverlay() {
   heatmapOverlay.addTo(map);
 }
 
+// ═══ BATHYMETRY CONTOURS ═══
+// No real depth survey exists for this project, so depth is modeled as a
+// function of distance-to-shore, saturating toward a plausible max depth —
+// giving a single-basin "bowl" shape with nested contour rings. Two toggle
+// layers share the same underlying contour lines: one plain, one filled.
+const CONTOUR_LEVELS = [20, 40, 60, 80, 100];
+const CONTOUR_LINE_COLOR = '#E65100';
+const CONTOUR_BAND_COLORS = ['#FFE0B2', '#FFB74D', '#FB8C00', '#E65100', '#BF360C'];
+const CONTOUR_MAX_DEPTH_M = 110;
+
+// Douglas-Peucker simplification — the real coastline has thousands of
+// vertices, far more detail than a smooth depth field needs, and the
+// per-grid-point distance-to-shore scan below is O(vertices) per point.
+function simplifyRing(points: [number, number][], toleranceDeg: number): [number, number][] {
+  if (points.length < 3) return points.slice();
+  let maxDist = 0;
+  let index = 0;
+  const first = points[0]!;
+  const last = points[points.length - 1]!;
+  for (let i = 1; i < points.length - 1; i++) {
+    const d = perpendicularDistance(points[i]!, first, last);
+    if (d > maxDist) {
+      maxDist = d;
+      index = i;
+    }
+  }
+  if (maxDist > toleranceDeg) {
+    const left = simplifyRing(points.slice(0, index + 1), toleranceDeg);
+    const right = simplifyRing(points.slice(index), toleranceDeg);
+    return left.slice(0, -1).concat(right);
+  }
+  return [first, last];
+}
+
+function perpendicularDistance(
+  p: [number, number],
+  a: [number, number],
+  b: [number, number],
+): number {
+  const [px, py] = p;
+  const [ax, ay] = a;
+  const [bx, by] = b;
+  const dx = bx - ax;
+  const dy = by - ay;
+  if (dx === 0 && dy === 0) return Math.hypot(px - ax, py - ay);
+  const t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
+  const cx = ax + t * dx;
+  const cy = ay + t * dy;
+  return Math.hypot(px - cx, py - cy);
+}
+
+function distanceToSegmentM(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  let t = lenSq === 0 ? 0 : ((px - ax) * dx + (py - ay) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + t * dx;
+  const cy = ay + t * dy;
+  return Math.hypot(px - cx, py - cy);
+}
+
+interface DepthGrid {
+  width: number;
+  height: number;
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+  values: Float32Array; // meters of depth, 0 outside the lake
+}
+
+let cachedDepthGrid: DepthGrid | null = null;
+
+function buildDepthGrid(): DepthGrid | null {
+  if (cachedDepthGrid) return cachedDepthGrid;
+  if (lakePolygonRings.length === 0) return null;
+
+  const bounds = computeRingsBounds(lakePolygonRings);
+  if (!bounds) return null;
+  const { minLat, maxLat, minLng, maxLng } = bounds;
+  const latSpan = maxLat - minLat;
+  const lngSpan = maxLng - minLng;
+  if (latSpan <= 0 || lngSpan <= 0) return null;
+
+  const simplifiedRings = lakePolygonRings.map((ring) => simplifyRing(ring, 0.0008));
+
+  const midLatRad = (((minLat + maxLat) / 2) * Math.PI) / 180;
+  const lngCorrection = Math.max(Math.cos(midLatRad), 0.1);
+  const EARTH_R = 6371000;
+  const toXY = (lat: number, lng: number): [number, number] => [
+    lng * (Math.PI / 180) * EARTH_R * lngCorrection,
+    lat * (Math.PI / 180) * EARTH_R,
+  ];
+  const simplifiedRingsXY = simplifiedRings.map((ring) => ring.map(([lat, lng]) => toXY(lat, lng)));
+
+  const correctedLngSpan = lngSpan * lngCorrection;
+  const RES = 220;
+  let width: number;
+  let height: number;
+  if (correctedLngSpan >= latSpan) {
+    width = RES;
+    height = Math.max(40, Math.round((RES * latSpan) / correctedLngSpan));
+  } else {
+    height = RES;
+    width = Math.max(40, Math.round((RES * correctedLngSpan) / latSpan));
+  }
+
+  function distanceToShoreM(px: number, py: number): number {
+    let min = Infinity;
+    for (const ring of simplifiedRingsXY) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [ax, ay] = ring[j]!;
+        const [bx, by] = ring[i]!;
+        const d = distanceToSegmentM(px, py, ax, ay, bx, by);
+        if (d < min) min = d;
+      }
+    }
+    return min;
+  }
+
+  const values = new Float32Array(width * height);
+  const distances = new Float32Array(width * height);
+  let maxDistM = 0;
+  for (let row = 0; row < height; row++) {
+    const lat = maxLat - (row / (height - 1)) * latSpan;
+    for (let col = 0; col < width; col++) {
+      const lng = minLng + (col / (width - 1)) * lngSpan;
+      const idx = row * width + col;
+      if (!pointInPolygon(lat, lng, simplifiedRings)) {
+        distances[idx] = -1;
+        continue;
+      }
+      const [px, py] = toXY(lat, lng);
+      const d = distanceToShoreM(px, py);
+      distances[idx] = d;
+      if (d > maxDistM) maxDistM = d;
+    }
+  }
+
+  const scaleM = maxDistM / 3.5;
+  for (let i = 0; i < distances.length; i++) {
+    const d = distances[i]!;
+    values[i] = d < 0 ? 0 : CONTOUR_MAX_DEPTH_M * (1 - Math.exp(-d / scaleM));
+  }
+
+  cachedDepthGrid = { width, height, minLat, maxLat, minLng, maxLng, values };
+  return cachedDepthGrid;
+}
+
+// Marching squares — extracts line segments where the depth field crosses a
+// given contour level. Segments aren't stitched into continuous rings; each
+// is rendered as its own 2-point line, which reads fine at map scale.
+function marchContourLevel(grid: DepthGrid, level: number): [number, number][][] {
+  const { width, height, values, minLat, maxLat, minLng, maxLng } = grid;
+  const latSpan = maxLat - minLat;
+  const lngSpan = maxLng - minLng;
+  const latAt = (row: number) => maxLat - (row / (height - 1)) * latSpan;
+  const lngAt = (col: number) => minLng + (col / (width - 1)) * lngSpan;
+  const interp = (v0: number, v1: number) => (v0 === v1 ? 0.5 : (level - v0) / (v1 - v0));
+
+  const segments: [number, number][][] = [];
+  for (let row = 0; row < height - 1; row++) {
+    const topLat = latAt(row);
+    const botLat = latAt(row + 1);
+    for (let col = 0; col < width - 1; col++) {
+      const tl = values[row * width + col]!;
+      const tr = values[row * width + col + 1]!;
+      const bl = values[(row + 1) * width + col]!;
+      const br = values[(row + 1) * width + col + 1]!;
+      let idx = 0;
+      if (tl > level) idx |= 8;
+      if (tr > level) idx |= 4;
+      if (br > level) idx |= 2;
+      if (bl > level) idx |= 1;
+      if (idx === 0 || idx === 15) continue;
+
+      const leftLng = lngAt(col);
+      const rightLng = lngAt(col + 1);
+      const top: [number, number] = [topLat, leftLng + interp(tl, tr) * (rightLng - leftLng)];
+      const bottom: [number, number] = [botLat, leftLng + interp(bl, br) * (rightLng - leftLng)];
+      const left: [number, number] = [topLat + interp(tl, bl) * (botLat - topLat), leftLng];
+      const right: [number, number] = [topLat + interp(tr, br) * (botLat - topLat), rightLng];
+
+      switch (idx) {
+        case 1:
+        case 14:
+          segments.push([left, bottom]);
+          break;
+        case 2:
+        case 13:
+          segments.push([bottom, right]);
+          break;
+        case 3:
+        case 12:
+          segments.push([left, right]);
+          break;
+        case 4:
+        case 11:
+          segments.push([top, right]);
+          break;
+        case 6:
+        case 9:
+          segments.push([top, bottom]);
+          break;
+        case 7:
+        case 8:
+          segments.push([top, left]);
+          break;
+        case 5:
+          segments.push([top, left], [bottom, right]);
+          break;
+        case 10:
+          segments.push([top, right], [left, bottom]);
+          break;
+      }
+    }
+  }
+  return segments;
+}
+
+// Builds both toggleable contour layers once (cheap to leave built even when
+// hidden — toggling them just adds/removes the pre-built layer group).
+function buildContourLayers() {
+  if (!map || contourLinesLayerGroup) return;
+  const grid = buildDepthGrid();
+  if (!grid) return;
+
+  contourLinesLayerGroup = L.layerGroup();
+  contourFilledLayerGroup = L.layerGroup();
+
+  // ── Filled color bands, rasterized straight from the depth grid, then
+  // clipped to the real coastline (putImageData ignores canvas clip paths,
+  // so — same as the parameter heatmap above — this needs a second pass). ──
+  const { width, height, minLat, maxLat, minLng, maxLng, values } = grid;
+  const rawCanvas = document.createElement('canvas');
+  rawCanvas.width = width;
+  rawCanvas.height = height;
+  const rawCtx = rawCanvas.getContext('2d');
+  if (rawCtx) {
+    const imageData = rawCtx.createImageData(width, height);
+    const data = imageData.data;
+    for (let i = 0; i < values.length; i++) {
+      const d = values[i]!;
+      if (d <= 0) continue;
+      let hex: string;
+      if (d < 20) hex = CONTOUR_BAND_COLORS[0]!;
+      else if (d < 40) hex = CONTOUR_BAND_COLORS[1]!;
+      else if (d < 60) hex = CONTOUR_BAND_COLORS[2]!;
+      else if (d < 80) hex = CONTOUR_BAND_COLORS[3]!;
+      else hex = CONTOUR_BAND_COLORS[4]!;
+      const idx = i * 4;
+      data[idx] = parseInt(hex.slice(1, 3), 16);
+      data[idx + 1] = parseInt(hex.slice(3, 5), 16);
+      data[idx + 2] = parseInt(hex.slice(5, 7), 16);
+      data[idx + 3] = Math.round(0.65 * 255);
+    }
+    rawCtx.putImageData(imageData, 0, 0);
+
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = width;
+    finalCanvas.height = height;
+    const finalCtx = finalCanvas.getContext('2d');
+    if (finalCtx) {
+      const latSpan = maxLat - minLat;
+      const lngSpan = maxLng - minLng;
+      finalCtx.beginPath();
+      for (const ring of lakePolygonRings) {
+        ring.forEach(([lat, lng], i) => {
+          const x = ((lng - minLng) / lngSpan) * width;
+          const y = ((maxLat - lat) / latSpan) * height;
+          if (i === 0) finalCtx.moveTo(x, y);
+          else finalCtx.lineTo(x, y);
+        });
+        finalCtx.closePath();
+      }
+      finalCtx.clip('evenodd');
+      finalCtx.drawImage(rawCanvas, 0, 0);
+
+      const filledOverlay = L.imageOverlay(
+        finalCanvas.toDataURL('image/png'),
+        [
+          [minLat, minLng],
+          [maxLat, maxLng],
+        ],
+        { interactive: false, className: 'contour-filled-img' },
+      );
+      contourFilledLayerGroup.addLayer(filledOverlay);
+    }
+  }
+
+  // ── Contour lines, shared by both layers — plain orange for the line-only
+  // layer, redrawn in a lighter tone on top of the fill for definition. ──
+  CONTOUR_LEVELS.forEach((level, i) => {
+    const segments = marchContourLevel(grid, level);
+    if (segments.length === 0) return;
+    const weight = 1.2 + i * 0.35;
+
+    const plainLine = L.polyline(segments, {
+      color: CONTOUR_LINE_COLOR,
+      weight,
+      opacity: 0.85,
+      interactive: false,
+    });
+    plainLine.bindTooltip(`${level}m depth contour`, { sticky: true });
+    contourLinesLayerGroup!.addLayer(plainLine);
+
+    const overlayLine = L.polyline(segments, {
+      color: '#FFF3E0',
+      weight: Math.max(1, weight - 0.6),
+      opacity: 0.55,
+      interactive: false,
+    });
+    contourFilledLayerGroup!.addLayer(overlayLine);
+  });
+}
+
 // ═══ MAP LAYERS ═══
 // ═══ BASE MAP (switchable tile provider) ═══
 interface BaseLayerOption {
@@ -2391,10 +2717,22 @@ const mapLayers = ref<MapLayer[]>([
     description: 'Rivers feeding into Lake Lanao',
     active: false,
   },
+  {
+    id: 'contourLines',
+    name: 'Bathymetry Contours (Lines)',
+    description: 'Modeled depth contours — 20/40/60/80/100m, lines only',
+    active: false,
+  },
+  {
+    id: 'contourFilled',
+    name: 'Bathymetry Contours (Filled)',
+    description: 'Modeled depth contours — filled color bands + lines',
+    active: false,
+  },
 ]);
 
 // Layers shown in the "Layers" tab (kept separate from the Water tab's own layer controls).
-const exceptionLayerIds = ['fish', 'lakeBoundary', 'wqAll'];
+const exceptionLayerIds = ['fish', 'lakeBoundary', 'wqAll', 'contourLines', 'contourFilled'];
 const exceptionLayers = computed(() =>
   mapLayers.value.filter((l) => exceptionLayerIds.includes(l.id)),
 );
@@ -2509,6 +2847,7 @@ function initMap() {
       });
       lakeBoundaryLayerGroup!.addLayer(boundaryLayer);
       lakePolygonRings = extractPolygonRings(geojson);
+      buildContourLayers();
       syncLayerVisibility();
       renderHeatmapOverlay();
     })
@@ -2662,6 +3001,8 @@ function syncLayerVisibility() {
     wqTributary: wqTributaryLayerGroup,
     lakeStations: lakeStationsLayerGroup,
     tributaries: tributariesLayerGroup,
+    contourLines: contourLinesLayerGroup,
+    contourFilled: contourFilledLayerGroup,
   };
 
   for (const layerConfig of mapLayers.value) {
