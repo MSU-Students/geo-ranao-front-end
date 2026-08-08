@@ -670,6 +670,21 @@
       </q-btn>
     </transition>
 
+    <!-- ═══ BATHYMETRY DEPTH LEGEND (shown while the filled contour layer is on) ═══ -->
+    <div
+      v-if="showContourLegend"
+      class="contour-legend"
+      :class="{ 'contour-legend--shifted': !!(selectedFish || selectedWaterSite) }"
+    >
+      <div class="contour-legend-title">Depth (m)</div>
+      <div class="contour-legend-body">
+        <div class="contour-legend-gradient" :style="{ background: contourGradientCss }" />
+        <div class="contour-legend-ticks">
+          <span v-for="lvl in CONTOUR_LEVELS" :key="lvl">{{ lvl }}</span>
+        </div>
+      </div>
+    </div>
+
     <UploadDataDialog ref="uploadDialogRef" />
 
     <!-- ═══ PARAMETER READING MODAL (click anywhere inside the lake) ═══ -->
@@ -854,6 +869,7 @@ let currentBaseTileLayer: L.TileLayer | null = null;
 let heatmapOverlay: L.ImageOverlay | null = null;
 let contourLinesLayerGroup: L.LayerGroup | null = null;
 let contourFilledLayerGroup: L.LayerGroup | null = null;
+let contourLabelsLayerGroup: L.LayerGroup | null = null;
 
 // Lake Lanao boundary rings ([lat, lng][]) — populated once the boundary GeoJSON
 // loads, used to detect "click anywhere inside the lake" for the reading popup.
@@ -2275,14 +2291,55 @@ function renderHeatmapOverlay() {
 }
 
 // ═══ BATHYMETRY CONTOURS ═══
-// No real depth survey exists for this project, so depth is modeled as a
-// function of distance-to-shore, saturating toward a plausible max depth —
-// giving a single-basin "bowl" shape with nested contour rings. Two toggle
-// layers share the same underlying contour lines: one plain, one filled.
+// No real depth survey exists for this project. Published bathymetric
+// studies of Lake Lanao (e.g. the PHL16 site series) show a single deep
+// basin off-center toward the lake's south-western lobe, not a basin that
+// evenly follows the whole shoreline — so depth here is modeled as the
+// lesser of (a) a radial falloff from an approximate basin center placed in
+// that same south-western area, and (b) a shore-proximity taper (so depth
+// still truthfully reaches 0 at every shoreline, including ones close to the
+// basin center). Two toggle layers share the same underlying contour lines:
+// one plain, one filled with a smooth (not banded) gradient.
 const CONTOUR_LEVELS = [20, 40, 60, 80, 100];
-const CONTOUR_LINE_COLOR = '#E65100';
-const CONTOUR_BAND_COLORS = ['#FFE0B2', '#FFB74D', '#FB8C00', '#E65100', '#BF360C'];
+const CONTOUR_LINE_COLOR = '#000000';
+// Depth labels along the contour lines only appear once zoomed in this far —
+// at the default whole-lake view they'd just be unreadable clutter.
+const CONTOUR_LABEL_MIN_ZOOM = 14;
+// Smooth light-to-dark blue ramp, sampled continuously by depth (not
+// snapped into flat bands) so the fill reads as a gradient, matching the
+// contour-map reference image the client provided.
+const CONTOUR_COLOR_STOPS: { depth: number; rgb: [number, number, number] }[] = [
+  { depth: 0, rgb: [227, 242, 253] }, // #E3F2FD
+  { depth: 25, rgb: [144, 202, 249] }, // #90CAF9
+  { depth: 50, rgb: [66, 165, 245] }, // #42A5F5
+  { depth: 75, rgb: [21, 101, 192] }, // #1565C0
+  { depth: 100, rgb: [13, 71, 161] }, // #0D47A1
+];
 const CONTOUR_MAX_DEPTH_M = 110;
+// Approximate deep-basin center (south-western lobe), as a fraction of the
+// lake's bounding box — calibrated against the reference bathymetry figure
+// rather than any precise surveyed coordinate.
+const CONTOUR_BASIN_FRACTION = { lat: 0.27, lng: 0.29 };
+
+function colorForDepth(d: number): [number, number, number] {
+  const stops = CONTOUR_COLOR_STOPS;
+  if (d <= stops[0]!.depth) return stops[0]!.rgb;
+  const last = stops[stops.length - 1]!;
+  if (d >= last.depth) return last.rgb;
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i]!;
+    const b = stops[i + 1]!;
+    if (d >= a.depth && d <= b.depth) {
+      const t = (d - a.depth) / (b.depth - a.depth);
+      return [
+        Math.round(a.rgb[0] + t * (b.rgb[0] - a.rgb[0])),
+        Math.round(a.rgb[1] + t * (b.rgb[1] - a.rgb[1])),
+        Math.round(a.rgb[2] + t * (b.rgb[2] - a.rgb[2])),
+      ];
+    }
+  }
+  return last.rgb;
+}
 
 // Douglas-Peucker simplification — the real coastline has thousands of
 // vertices, far more detail than a smooth depth field needs, and the
@@ -2402,8 +2459,8 @@ function buildDepthGrid(): DepthGrid | null {
     return min;
   }
 
-  const values = new Float32Array(width * height);
   const distances = new Float32Array(width * height);
+  const inside = new Uint8Array(width * height);
   let maxDistM = 0;
   for (let row = 0; row < height; row++) {
     const lat = maxLat - (row / (height - 1)) * latSpan;
@@ -2414,6 +2471,7 @@ function buildDepthGrid(): DepthGrid | null {
         distances[idx] = -1;
         continue;
       }
+      inside[idx] = 1;
       const [px, py] = toXY(lat, lng);
       const d = distanceToShoreM(px, py);
       distances[idx] = d;
@@ -2421,10 +2479,26 @@ function buildDepthGrid(): DepthGrid | null {
     }
   }
 
-  const scaleM = maxDistM / 3.5;
+  // Radial falloff from the approximate basin center, capped by the shore
+  // taper so no shoreline (even one near the basin) is shown as deep water.
+  const basinLat = minLat + CONTOUR_BASIN_FRACTION.lat * latSpan;
+  const basinLng = minLng + CONTOUR_BASIN_FRACTION.lng * lngSpan;
+  const [basinX, basinY] = toXY(basinLat, basinLng);
+  const radialScaleM = Math.min(latSpan, correctedLngSpan) * 111320 * 0.24;
+  const shoreScaleM = maxDistM / 3.5;
+
+  const values = new Float32Array(width * height);
   for (let i = 0; i < distances.length; i++) {
-    const d = distances[i]!;
-    values[i] = d < 0 ? 0 : CONTOUR_MAX_DEPTH_M * (1 - Math.exp(-d / scaleM));
+    if (!inside[i]) continue;
+    const row = Math.floor(i / width);
+    const col = i % width;
+    const lat = maxLat - (row / (height - 1)) * latSpan;
+    const lng = minLng + (col / (width - 1)) * lngSpan;
+    const [px, py] = toXY(lat, lng);
+    const radialDistM = Math.hypot(px - basinX, py - basinY);
+    const radialDepth = CONTOUR_MAX_DEPTH_M * Math.exp(-radialDistM / radialScaleM);
+    const shoreDepth = CONTOUR_MAX_DEPTH_M * (1 - Math.exp(-distances[i]! / shoreScaleM));
+    values[i] = Math.min(radialDepth, shoreDepth);
   }
 
   cachedDepthGrid = { width, height, minLat, maxLat, minLng, maxLng, values };
@@ -2512,7 +2586,7 @@ function buildContourLayers() {
   contourLinesLayerGroup = L.layerGroup();
   contourFilledLayerGroup = L.layerGroup();
 
-  // ── Filled color bands, rasterized straight from the depth grid, then
+  // ── Filled color gradient, rasterized straight from the depth grid, then
   // clipped to the real coastline (putImageData ignores canvas clip paths,
   // so — same as the parameter heatmap above — this needs a second pass). ──
   const { width, height, minLat, maxLat, minLng, maxLng, values } = grid;
@@ -2526,16 +2600,11 @@ function buildContourLayers() {
     for (let i = 0; i < values.length; i++) {
       const d = values[i]!;
       if (d <= 0) continue;
-      let hex: string;
-      if (d < 20) hex = CONTOUR_BAND_COLORS[0]!;
-      else if (d < 40) hex = CONTOUR_BAND_COLORS[1]!;
-      else if (d < 60) hex = CONTOUR_BAND_COLORS[2]!;
-      else if (d < 80) hex = CONTOUR_BAND_COLORS[3]!;
-      else hex = CONTOUR_BAND_COLORS[4]!;
+      const [r, g, b] = colorForDepth(d);
       const idx = i * 4;
-      data[idx] = parseInt(hex.slice(1, 3), 16);
-      data[idx + 1] = parseInt(hex.slice(3, 5), 16);
-      data[idx + 2] = parseInt(hex.slice(5, 7), 16);
+      data[idx] = r;
+      data[idx + 1] = g;
+      data[idx + 2] = b;
       data[idx + 3] = Math.round(0.65 * 255);
     }
     rawCtx.putImageData(imageData, 0, 0);
@@ -2558,6 +2627,9 @@ function buildContourLayers() {
         finalCtx.closePath();
       }
       finalCtx.clip('evenodd');
+      // Soften the grid's resolution artifacts into a smooth gradient blend,
+      // matching the reference figure's continuous (not banded) shading.
+      finalCtx.filter = 'blur(2.5px)';
       finalCtx.drawImage(rawCanvas, 0, 0);
 
       const filledOverlay = L.imageOverlay(
@@ -2572,8 +2644,10 @@ function buildContourLayers() {
     }
   }
 
-  // ── Contour lines, shared by both layers — plain orange for the line-only
-  // layer, redrawn in a lighter tone on top of the fill for definition. ──
+  // ── Contour lines, shared by both layers — black in both, slightly
+  // lighter opacity on top of the fill so it doesn't overpower the deepest
+  // (darkest) bands. ──
+  contourLabelsLayerGroup = L.layerGroup();
   CONTOUR_LEVELS.forEach((level, i) => {
     const segments = marchContourLevel(grid, level);
     if (segments.length === 0) return;
@@ -2589,12 +2663,36 @@ function buildContourLayers() {
     contourLinesLayerGroup!.addLayer(plainLine);
 
     const overlayLine = L.polyline(segments, {
-      color: '#FFF3E0',
-      weight: Math.max(1, weight - 0.6),
-      opacity: 0.55,
+      color: CONTOUR_LINE_COLOR,
+      weight: Math.max(1, weight - 0.4),
+      opacity: 0.4,
       interactive: false,
     });
     contourFilledLayerGroup!.addLayer(overlayLine);
+
+    // A handful of small depth labels spaced along the line — only shown
+    // once zoomed in far enough that they wouldn't just clutter the map.
+    const desiredLabelCount = 5;
+    const stride = Math.max(1, Math.floor(segments.length / desiredLabelCount));
+    for (let s = 0; s < segments.length; s += stride) {
+      const segment = segments[s]!;
+      const [lat1, lng1] = segment[0]!;
+      const [lat2, lng2] = segment[1]!;
+      const midLat = (lat1 + lat2) / 2;
+      const midLng = (lng1 + lng2) / 2;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="background:#fff; border:1px solid #000; border-radius:3px; padding:0 4px; font-size:10px; font-weight:700; line-height:14px; color:#000; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.35);">${level}m</div>`,
+        iconSize: [28, 16],
+        iconAnchor: [14, 8],
+      });
+      const labelMarker = L.marker([midLat, midLng], {
+        icon,
+        interactive: false,
+        keyboard: false,
+      });
+      contourLabelsLayerGroup!.addLayer(labelMarker);
+    }
   });
 }
 
@@ -2737,6 +2835,18 @@ const exceptionLayers = computed(() =>
   mapLayers.value.filter((l) => exceptionLayerIds.includes(l.id)),
 );
 
+// Floating depth legend — only shown while the filled contour layer is on,
+// built from the same color stops used to paint it (single source of truth).
+const showContourLegend = computed(
+  () => mapLayers.value.find((l) => l.id === 'contourFilled')?.active ?? false,
+);
+const contourGradientCss = computed(() => {
+  const stops = CONTOUR_COLOR_STOPS.map(
+    (s) => `rgb(${s.rgb[0]}, ${s.rgb[1]}, ${s.rgb[2]}) ${s.depth}%`,
+  );
+  return `linear-gradient(to bottom, ${stops.join(', ')})`;
+});
+
 // Depth-zone sampling layers, surfaced as filter chips in the Water tab.
 const waterDepthLayerIds = ['wqAbove40', 'wqBelow40', 'wqTributary'];
 const waterDepthLayers = computed(() =>
@@ -2821,11 +2931,16 @@ function initMap() {
   setBaseLayer(selectedBaseLayer.value);
 
   L.control.zoom({ position: 'bottomright' }).addTo(map);
+  L.control.scale({ position: 'bottomleft', metric: true, imperial: false, maxWidth: 150 }).addTo(map);
 
   // Lets users click anywhere inside the lake to view an estimated reading for
   // the selected parameter (non-interactive layers, like the boundary outline
   // below, don't intercept this).
   map.on('click', handleMapClick);
+
+  // Contour depth labels only show once zoomed in far enough (see
+  // syncLayerVisibility) — re-check on every zoom change.
+  map.on('zoomend', syncLayerVisibility);
 
   // ── Create Fish Layer Group ──
   fishLayerGroup = L.layerGroup();
@@ -3023,6 +3138,20 @@ function syncLayerVisibility() {
       if (!map.hasLayer(riverSitesLayerGroup)) map.addLayer(riverSitesLayerGroup);
     } else if (map.hasLayer(riverSitesLayerGroup)) {
       map.removeLayer(riverSitesLayerGroup);
+    }
+  }
+
+  // Depth labels ride along with either contour layer, but only once zoomed
+  // in — they'd just be unreadable clutter at the default whole-lake view.
+  if (contourLabelsLayerGroup) {
+    const contourActive =
+      (mapLayers.value.find((l) => l.id === 'contourLines')?.active ?? false) ||
+      (mapLayers.value.find((l) => l.id === 'contourFilled')?.active ?? false);
+    const zoomedInEnough = map.getZoom() >= CONTOUR_LABEL_MIN_ZOOM;
+    if (contourActive && zoomedInEnough) {
+      if (!map.hasLayer(contourLabelsLayerGroup)) map.addLayer(contourLabelsLayerGroup);
+    } else if (map.hasLayer(contourLabelsLayerGroup)) {
+      map.removeLayer(contourLabelsLayerGroup);
     }
   }
 }
@@ -3464,6 +3593,51 @@ function goToWaterQuality() {
   width: 340px;
   z-index: 1000;
   pointer-events: auto;
+}
+
+/* ═══════════════════════════════════ */
+/* BATHYMETRY DEPTH LEGEND (top-right) */
+/* ═══════════════════════════════════ */
+.contour-legend {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  z-index: 999;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  transition: right 0.25s ease-out;
+}
+.contour-legend--shifted {
+  right: 366px;
+}
+.contour-legend-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #263238;
+  text-align: center;
+  margin-bottom: 6px;
+}
+.contour-legend-body {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.contour-legend-gradient {
+  width: 16px;
+  height: 100px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+.contour-legend-ticks {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #37474f;
 }
 
 /* ═══════════════════════════════════ */
