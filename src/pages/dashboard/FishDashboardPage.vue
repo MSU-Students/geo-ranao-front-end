@@ -186,7 +186,28 @@
                 <q-item v-for="d in selectedFishDetails" :key="d.label" class="q-px-none">
                   <q-item-section>
                     <q-item-label caption class="text-grey-4">{{ d.label }}</q-item-label>
-                    <q-item-label class="text-grey-2">{{ d.value }}</q-item-label>
+                    <template v-if="d.label === 'Municipal' && d.value !== '-'">
+                      <q-btn-dropdown
+                        auto-close
+                        unelevated
+                        dense
+                        no-caps
+                        color="grey-9"
+                        text-color="grey-2"
+                        :label="d.value.split(',').length + ' Municipalities'"
+                        class="text-weight-medium q-px-sm q-mt-xs"
+                        style="max-width: max-content; font-size: 13px;"
+                      >
+                        <q-list dense class="bg-dark text-white">
+                          <q-item v-for="m in d.value.split(',')" :key="m">
+                            <q-item-section>
+                              <q-item-label>{{ m.trim() }}</q-item-label>
+                            </q-item-section>
+                          </q-item>
+                        </q-list>
+                      </q-btn-dropdown>
+                    </template>
+                    <q-item-label v-else class="text-grey-2">{{ d.value }}</q-item-label>
                   </q-item-section>
                 </q-item>
               </q-list>
@@ -400,6 +421,7 @@ const selectedFishDetails = computed(() =>
         { label: 'True Length', value: selectedFish.value.length },
         { label: 'Weight', value: selectedFish.value.weight },
         { label: 'Location', value: selectedFish.value.location },
+        { label: 'Municipal', value: selectedFish.value.municipal || '-' },
         { label: 'Conservation Status', value: selectedFish.value.status },
         { label: 'Date Recorded', value: selectedFish.value.date },
       ]

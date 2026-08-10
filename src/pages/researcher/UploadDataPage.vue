@@ -232,7 +232,7 @@ if (!authStore.isLoggedIn) {
     icon: 'lock',
     position: 'top',
   });
-  router.replace('/auth/login');
+  void router.replace('/auth/login');
 }
 
 // ─── Species data for auto-fill ───

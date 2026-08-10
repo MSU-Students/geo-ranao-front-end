@@ -21,7 +21,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   const displayName = computed(() => user.value?.username ?? 'Guest');
 
-  function login(username: string, _password: string) {
+  function login(username: string, password?: string) {
+    void password;
     // No real backend — accept any credentials. Typing "admin" as the
     // username signs in with administrative access (account/log review).
     isLoggedIn.value = true;
