@@ -2750,25 +2750,24 @@ interface LakeMunicipality {
 const LAKE_MUNICIPALITIES: LakeMunicipality[] = (
   [
     { name: 'Marawi City', lat: 8.0047262, lng: 124.2854351 },
-    { name: 'Saguiaran', lat: 8.0340831, lng: 124.2687239 },
-    { name: 'Marantao', lat: 7.9482892, lng: 124.2315699 },
-    { name: 'Buadiposo-Buntong', lat: 7.9654, lng: 124.37615 },
-    { name: 'Poona Bayabao', lat: 7.8531283, lng: 124.3394332 },
-    { name: 'Bubong', lat: 7.9833903, lng: 124.3855095 },
-    { name: 'Ditsaan-Ramain', lat: 7.9788768, lng: 124.3516506 },
-    { name: 'Taraka', lat: 7.8998799, lng: 124.3339467 },
-    { name: 'Mulondo', lat: 7.9170563, lng: 124.3615673 },
-    { name: 'Maguing', lat: 7.8882749, lng: 124.3718527 },
-    { name: 'Tamparan', lat: 7.8765155, lng: 124.3264879 },
-    { name: 'Lumba-Bayabao', lat: 7.8634383, lng: 124.370507 },
     { name: 'Bacolod-Kalawi', lat: 7.8576753, lng: 124.1423567 },
-    { name: 'Binidayan', lat: 7.7949244, lng: 124.1670371 },
-    { name: 'Pagayawan', lat: 7.7965721, lng: 124.1001642 },
-    { name: 'Tugaya', lat: 7.883728, lng: 124.17801 },
-    { name: 'Madalum', lat: 7.8540188, lng: 124.1140094 },
-    { name: 'Ganassi', lat: 7.8260261, lng: 124.1018827 },
     { name: 'Balindong', lat: 7.9162827, lng: 124.2055463 },
-    { name: 'Piagapo', lat: 7.989793, lng: 124.1796138 },
+    { name: 'Bayang', lat: 7.793733, lng: 124.1972049 },
+    { name: 'Binidayan', lat: 7.7949244, lng: 124.1670371 },
+    { name: 'Buadiposo-Buntong', lat: 7.9654, lng: 124.37615 },
+    { name: 'Ditsaan-Ramain', lat: 7.9788768, lng: 124.3516506 },
+    { name: 'Ganassi', lat: 7.8260261, lng: 124.1018827 },
+    { name: 'Lumbatan', lat: 7.7848782, lng: 124.2552241 },
+    { name: 'Lumbayanague', lat: 7.7830923, lng: 124.2815746 },
+    { name: 'Madalum', lat: 7.8540188, lng: 124.1140094 },
+    { name: 'Madamba', lat: 7.8588264, lng: 124.050705 },
+    { name: 'Marantao', lat: 7.9482892, lng: 124.2315699 },
+    { name: 'Masiu', lat: 7.8184459, lng: 124.3308048 },
+    { name: 'Mulondo', lat: 7.9170563, lng: 124.3615673 },
+    { name: 'Poona Bayabao', lat: 7.8531283, lng: 124.3394332 },
+    { name: 'Tamparan', lat: 7.8765155, lng: 124.3264879 },
+    { name: 'Taraka', lat: 7.8998799, lng: 124.3339467 },
+    { name: 'Tugaya', lat: 7.883728, lng: 124.17801 },
   ] as Omit<LakeMunicipality, 'color'>[]
 ).map((m, i, arr) => ({ ...m, color: `hsl(${Math.round((i * 360) / arr.length)}, 62%, 50%)` }));
 
@@ -2919,13 +2918,22 @@ function buildMunicipalZones() {
   // Label each municipality at the centroid of its own assigned zone (inside
   // the lake), not at its town center (which is usually on land) — skip any
   // municipality that never won a single cell under this model.
+  //
+  // Leaflet's default marker CSS constrains an icon container's width unless
+  // iconSize says otherwise — omitting it (relying on "auto size to content")
+  // silently clips longer names like "Ditsaan-Ramain". So iconSize is sized
+  // explicitly per label, from its own text length.
   LAKE_MUNICIPALITIES.forEach((town, m) => {
     if (cellCount[m]! === 0) return;
     const labelLat = cellSumLat[m]! / cellCount[m]!;
     const labelLng = cellSumLng[m]! / cellCount[m]!;
+    const width = Math.ceil(town.name.length * 4.4) + 8;
+    const height = 12;
     const icon = L.divIcon({
       className: '',
-      html: `<div style="transform: translate(-50%, -50%); background:rgba(255,255,255,0.92); border:1px solid #333; border-radius:4px; padding:1px 5px; font-size:10px; font-weight:700; color:#212121; white-space:nowrap; box-shadow:0 1px 3px rgba(0,0,0,0.35);">${town.name}</div>`,
+      html: `<div style="width:100%; height:100%; box-sizing:border-box; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.88); border:1px solid #555; border-radius:2px; font-size:7px; font-weight:700; color:#212121; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.3);">${town.name}</div>`,
+      iconSize: [width, height],
+      iconAnchor: [width / 2, height / 2],
     });
     const marker = L.marker([labelLat, labelLng], { icon, interactive: false, keyboard: false });
     municipalLabelsLayerGroup!.addLayer(marker);
