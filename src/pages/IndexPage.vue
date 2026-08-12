@@ -172,6 +172,33 @@
                     </q-item-section>
                   </q-item>
                 </q-list>
+
+                <q-separator class="q-my-md" />
+
+                <!-- Fisheries Jurisdiction Layer -->
+                <div class="text-caption text-grey-6 q-mb-xs">
+                  <q-icon name="gavel" size="14px" class="q-mr-xs" />Fisheries Jurisdiction
+                </div>
+                <q-item tag="label" class="species-item rounded-borders q-mb-xs">
+                  <q-item-section avatar>
+                    <q-toggle v-model="municipalWaterLayer.active" color="teal" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label class="text-grey-9" style="font-size: 0.8rem">
+                      Municipal Water Zones (~15km)
+                    </q-item-label>
+                    <q-item-label caption class="text-grey-6" style="font-size: 0.7rem">
+                      Illustrative median-line division among lakeshore LGUs
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+                <div class="text-caption text-grey-5" style="font-size: 0.68rem; line-height: 1.4">
+                  Modeled using RA 8550's 15km / equidistant-line method for adjacent municipal
+                  waters, from real town coordinates — but Lake Lanao has no official municipal
+                  water boundaries today, and this is a simplified nearest-town model, not a
+                  cadastral survey. Treat it as a discussion starting point, not a legal
+                  determination.
+                </div>
               </q-tab-panel>
 
               <!-- ═══ WATER QUALITY TAB ═══ -->
@@ -879,6 +906,21 @@
       </q-btn>
     </transition>
 
+    <!-- ═══ BATHYMETRY DEPTH LEGEND (shown while the filled contour layer is on) ═══ -->
+    <div
+      v-if="showContourLegend"
+      class="contour-legend"
+      :class="{ 'contour-legend--shifted': !!(selectedFish || selectedWaterSite) }"
+    >
+      <div class="contour-legend-title">Depth (m)</div>
+      <div class="contour-legend-body">
+        <div class="contour-legend-gradient" :style="{ background: contourGradientCss }" />
+        <div class="contour-legend-ticks">
+          <span v-for="lvl in CONTOUR_LEVELS" :key="lvl">{{ lvl }}</span>
+        </div>
+      </div>
+    </div>
+
     <UploadDataDialog ref="uploadDialogRef" />
 
     <!-- ═══ PARAMETER READING MODAL (click anywhere inside the lake) ═══ -->
@@ -1080,6 +1122,11 @@ let lakeStationsLayerGroup: L.GeoJSON | null = null;
 let tributariesLayerGroup: L.GeoJSON | null = null;
 let currentBaseTileLayer: L.TileLayer | null = null;
 let heatmapOverlay: L.ImageOverlay | null = null;
+let contourLinesLayerGroup: L.LayerGroup | null = null;
+let contourFilledLayerGroup: L.LayerGroup | null = null;
+let contourLabelsLayerGroup: L.LayerGroup | null = null;
+let municipalZonesLayerGroup: L.LayerGroup | null = null;
+let municipalLabelsLayerGroup: L.LayerGroup | null = null;
 
 // Lake Lanao boundary rings ([lat, lng][]) — populated once the boundary GeoJSON
 // loads, used to detect "click anywhere inside the lake" for the reading popup.
@@ -3141,6 +3188,627 @@ function renderHeatmapOverlay() {
   heatmapOverlay.addTo(map);
 }
 
+// ═══ BATHYMETRY CONTOURS ═══
+// No real depth survey exists for this project. Published bathymetric
+// studies of Lake Lanao (e.g. the PHL16 site series) show a single deep
+// basin off-center toward the lake's south-western lobe, not a basin that
+// evenly follows the whole shoreline — so depth here is modeled as the
+// lesser of (a) a radial falloff from an approximate basin center placed in
+// that same south-western area, and (b) a shore-proximity taper (so depth
+// still truthfully reaches 0 at every shoreline, including ones close to the
+// basin center). Two toggle layers share the same underlying contour lines:
+// one plain, one filled with a smooth (not banded) gradient.
+const CONTOUR_LEVELS = [20, 40, 60, 80, 100];
+const CONTOUR_LINE_COLOR = '#000000';
+// Depth labels along the contour lines only appear once zoomed in this far —
+// at the default whole-lake view they'd just be unreadable clutter.
+const CONTOUR_LABEL_MIN_ZOOM = 14;
+// Smooth light-to-dark blue ramp, sampled continuously by depth (not
+// snapped into flat bands) so the fill reads as a gradient, matching the
+// contour-map reference image the client provided.
+const CONTOUR_COLOR_STOPS: { depth: number; rgb: [number, number, number] }[] = [
+  { depth: 0, rgb: [227, 242, 253] }, // #E3F2FD
+  { depth: 25, rgb: [144, 202, 249] }, // #90CAF9
+  { depth: 50, rgb: [66, 165, 245] }, // #42A5F5
+  { depth: 75, rgb: [21, 101, 192] }, // #1565C0
+  { depth: 100, rgb: [13, 71, 161] }, // #0D47A1
+];
+const CONTOUR_MAX_DEPTH_M = 110;
+// Approximate deep-basin center (south-western lobe), as a fraction of the
+// lake's bounding box — calibrated against the reference bathymetry figure
+// rather than any precise surveyed coordinate.
+const CONTOUR_BASIN_FRACTION = { lat: 0.27, lng: 0.29 };
+
+function colorForDepth(d: number): [number, number, number] {
+  const stops = CONTOUR_COLOR_STOPS;
+  if (d <= stops[0]!.depth) return stops[0]!.rgb;
+  const last = stops[stops.length - 1]!;
+  if (d >= last.depth) return last.rgb;
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i]!;
+    const b = stops[i + 1]!;
+    if (d >= a.depth && d <= b.depth) {
+      const t = (d - a.depth) / (b.depth - a.depth);
+      return [
+        Math.round(a.rgb[0] + t * (b.rgb[0] - a.rgb[0])),
+        Math.round(a.rgb[1] + t * (b.rgb[1] - a.rgb[1])),
+        Math.round(a.rgb[2] + t * (b.rgb[2] - a.rgb[2])),
+      ];
+    }
+  }
+  return last.rgb;
+}
+
+// Douglas-Peucker simplification — the real coastline has thousands of
+// vertices, far more detail than a smooth depth field needs, and the
+// per-grid-point distance-to-shore scan below is O(vertices) per point.
+function simplifyRing(points: [number, number][], toleranceDeg: number): [number, number][] {
+  if (points.length < 3) return points.slice();
+  let maxDist = 0;
+  let index = 0;
+  const first = points[0]!;
+  const last = points[points.length - 1]!;
+  for (let i = 1; i < points.length - 1; i++) {
+    const d = perpendicularDistance(points[i]!, first, last);
+    if (d > maxDist) {
+      maxDist = d;
+      index = i;
+    }
+  }
+  if (maxDist > toleranceDeg) {
+    const left = simplifyRing(points.slice(0, index + 1), toleranceDeg);
+    const right = simplifyRing(points.slice(index), toleranceDeg);
+    return left.slice(0, -1).concat(right);
+  }
+  return [first, last];
+}
+
+function perpendicularDistance(
+  p: [number, number],
+  a: [number, number],
+  b: [number, number],
+): number {
+  const [px, py] = p;
+  const [ax, ay] = a;
+  const [bx, by] = b;
+  const dx = bx - ax;
+  const dy = by - ay;
+  if (dx === 0 && dy === 0) return Math.hypot(px - ax, py - ay);
+  const t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
+  const cx = ax + t * dx;
+  const cy = ay + t * dy;
+  return Math.hypot(px - cx, py - cy);
+}
+
+function distanceToSegmentM(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  let t = lenSq === 0 ? 0 : ((px - ax) * dx + (py - ay) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + t * dx;
+  const cy = ay + t * dy;
+  return Math.hypot(px - cx, py - cy);
+}
+
+interface DepthGrid {
+  width: number;
+  height: number;
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+  values: Float32Array; // meters of depth, 0 outside the lake
+}
+
+let cachedDepthGrid: DepthGrid | null = null;
+
+function buildDepthGrid(): DepthGrid | null {
+  if (cachedDepthGrid) return cachedDepthGrid;
+  if (lakePolygonRings.length === 0) return null;
+
+  const bounds = computeRingsBounds(lakePolygonRings);
+  if (!bounds) return null;
+  const { minLat, maxLat, minLng, maxLng } = bounds;
+  const latSpan = maxLat - minLat;
+  const lngSpan = maxLng - minLng;
+  if (latSpan <= 0 || lngSpan <= 0) return null;
+
+  const simplifiedRings = lakePolygonRings.map((ring) => simplifyRing(ring, 0.0008));
+
+  const midLatRad = (((minLat + maxLat) / 2) * Math.PI) / 180;
+  const lngCorrection = Math.max(Math.cos(midLatRad), 0.1);
+  const EARTH_R = 6371000;
+  const toXY = (lat: number, lng: number): [number, number] => [
+    lng * (Math.PI / 180) * EARTH_R * lngCorrection,
+    lat * (Math.PI / 180) * EARTH_R,
+  ];
+  const simplifiedRingsXY = simplifiedRings.map((ring) => ring.map(([lat, lng]) => toXY(lat, lng)));
+
+  const correctedLngSpan = lngSpan * lngCorrection;
+  const RES = 220;
+  let width: number;
+  let height: number;
+  if (correctedLngSpan >= latSpan) {
+    width = RES;
+    height = Math.max(40, Math.round((RES * latSpan) / correctedLngSpan));
+  } else {
+    height = RES;
+    width = Math.max(40, Math.round((RES * correctedLngSpan) / latSpan));
+  }
+
+  function distanceToShoreM(px: number, py: number): number {
+    let min = Infinity;
+    for (const ring of simplifiedRingsXY) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [ax, ay] = ring[j]!;
+        const [bx, by] = ring[i]!;
+        const d = distanceToSegmentM(px, py, ax, ay, bx, by);
+        if (d < min) min = d;
+      }
+    }
+    return min;
+  }
+
+  const distances = new Float32Array(width * height);
+  const inside = new Uint8Array(width * height);
+  let maxDistM = 0;
+  for (let row = 0; row < height; row++) {
+    const lat = maxLat - (row / (height - 1)) * latSpan;
+    for (let col = 0; col < width; col++) {
+      const lng = minLng + (col / (width - 1)) * lngSpan;
+      const idx = row * width + col;
+      if (!pointInPolygon(lat, lng, simplifiedRings)) {
+        distances[idx] = -1;
+        continue;
+      }
+      inside[idx] = 1;
+      const [px, py] = toXY(lat, lng);
+      const d = distanceToShoreM(px, py);
+      distances[idx] = d;
+      if (d > maxDistM) maxDistM = d;
+    }
+  }
+
+  // Radial falloff from the approximate basin center, capped by the shore
+  // taper so no shoreline (even one near the basin) is shown as deep water.
+  const basinLat = minLat + CONTOUR_BASIN_FRACTION.lat * latSpan;
+  const basinLng = minLng + CONTOUR_BASIN_FRACTION.lng * lngSpan;
+  const [basinX, basinY] = toXY(basinLat, basinLng);
+  const radialScaleM = Math.min(latSpan, correctedLngSpan) * 111320 * 0.24;
+  const shoreScaleM = maxDistM / 3.5;
+
+  const values = new Float32Array(width * height);
+  for (let i = 0; i < distances.length; i++) {
+    if (!inside[i]) continue;
+    const row = Math.floor(i / width);
+    const col = i % width;
+    const lat = maxLat - (row / (height - 1)) * latSpan;
+    const lng = minLng + (col / (width - 1)) * lngSpan;
+    const [px, py] = toXY(lat, lng);
+    const radialDistM = Math.hypot(px - basinX, py - basinY);
+    const radialDepth = CONTOUR_MAX_DEPTH_M * Math.exp(-radialDistM / radialScaleM);
+    const shoreDepth = CONTOUR_MAX_DEPTH_M * (1 - Math.exp(-distances[i]! / shoreScaleM));
+    values[i] = Math.min(radialDepth, shoreDepth);
+  }
+
+  cachedDepthGrid = { width, height, minLat, maxLat, minLng, maxLng, values };
+  return cachedDepthGrid;
+}
+
+// Marching squares — extracts line segments where the depth field crosses a
+// given contour level. Segments aren't stitched into continuous rings; each
+// is rendered as its own 2-point line, which reads fine at map scale.
+function marchContourLevel(grid: DepthGrid, level: number): [number, number][][] {
+  const { width, height, values, minLat, maxLat, minLng, maxLng } = grid;
+  const latSpan = maxLat - minLat;
+  const lngSpan = maxLng - minLng;
+  const latAt = (row: number) => maxLat - (row / (height - 1)) * latSpan;
+  const lngAt = (col: number) => minLng + (col / (width - 1)) * lngSpan;
+  const interp = (v0: number, v1: number) => (v0 === v1 ? 0.5 : (level - v0) / (v1 - v0));
+
+  const segments: [number, number][][] = [];
+  for (let row = 0; row < height - 1; row++) {
+    const topLat = latAt(row);
+    const botLat = latAt(row + 1);
+    for (let col = 0; col < width - 1; col++) {
+      const tl = values[row * width + col]!;
+      const tr = values[row * width + col + 1]!;
+      const bl = values[(row + 1) * width + col]!;
+      const br = values[(row + 1) * width + col + 1]!;
+      let idx = 0;
+      if (tl > level) idx |= 8;
+      if (tr > level) idx |= 4;
+      if (br > level) idx |= 2;
+      if (bl > level) idx |= 1;
+      if (idx === 0 || idx === 15) continue;
+
+      const leftLng = lngAt(col);
+      const rightLng = lngAt(col + 1);
+      const top: [number, number] = [topLat, leftLng + interp(tl, tr) * (rightLng - leftLng)];
+      const bottom: [number, number] = [botLat, leftLng + interp(bl, br) * (rightLng - leftLng)];
+      const left: [number, number] = [topLat + interp(tl, bl) * (botLat - topLat), leftLng];
+      const right: [number, number] = [topLat + interp(tr, br) * (botLat - topLat), rightLng];
+
+      switch (idx) {
+        case 1:
+        case 14:
+          segments.push([left, bottom]);
+          break;
+        case 2:
+        case 13:
+          segments.push([bottom, right]);
+          break;
+        case 3:
+        case 12:
+          segments.push([left, right]);
+          break;
+        case 4:
+        case 11:
+          segments.push([top, right]);
+          break;
+        case 6:
+        case 9:
+          segments.push([top, bottom]);
+          break;
+        case 7:
+        case 8:
+          segments.push([top, left]);
+          break;
+        case 5:
+          segments.push([top, left], [bottom, right]);
+          break;
+        case 10:
+          segments.push([top, right], [left, bottom]);
+          break;
+      }
+    }
+  }
+  return segments;
+}
+
+// Builds both toggleable contour layers once (cheap to leave built even when
+// hidden — toggling them just adds/removes the pre-built layer group).
+function buildContourLayers() {
+  if (!map || contourLinesLayerGroup) return;
+  const grid = buildDepthGrid();
+  if (!grid) return;
+
+  contourLinesLayerGroup = L.layerGroup();
+  contourFilledLayerGroup = L.layerGroup();
+
+  // ── Filled color gradient, rasterized straight from the depth grid, then
+  // clipped to the real coastline (putImageData ignores canvas clip paths,
+  // so — same as the parameter heatmap above — this needs a second pass). ──
+  const { width, height, minLat, maxLat, minLng, maxLng, values } = grid;
+  const rawCanvas = document.createElement('canvas');
+  rawCanvas.width = width;
+  rawCanvas.height = height;
+  const rawCtx = rawCanvas.getContext('2d');
+  if (rawCtx) {
+    const imageData = rawCtx.createImageData(width, height);
+    const data = imageData.data;
+    for (let i = 0; i < values.length; i++) {
+      const d = values[i]!;
+      if (d <= 0) continue;
+      const [r, g, b] = colorForDepth(d);
+      const idx = i * 4;
+      data[idx] = r;
+      data[idx + 1] = g;
+      data[idx + 2] = b;
+      data[idx + 3] = Math.round(0.65 * 255);
+    }
+    rawCtx.putImageData(imageData, 0, 0);
+
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = width;
+    finalCanvas.height = height;
+    const finalCtx = finalCanvas.getContext('2d');
+    if (finalCtx) {
+      const latSpan = maxLat - minLat;
+      const lngSpan = maxLng - minLng;
+      finalCtx.beginPath();
+      for (const ring of lakePolygonRings) {
+        ring.forEach(([lat, lng], i) => {
+          const x = ((lng - minLng) / lngSpan) * width;
+          const y = ((maxLat - lat) / latSpan) * height;
+          if (i === 0) finalCtx.moveTo(x, y);
+          else finalCtx.lineTo(x, y);
+        });
+        finalCtx.closePath();
+      }
+      finalCtx.clip('evenodd');
+      // Soften the grid's resolution artifacts into a smooth gradient blend,
+      // matching the reference figure's continuous (not banded) shading.
+      finalCtx.filter = 'blur(2.5px)';
+      finalCtx.drawImage(rawCanvas, 0, 0);
+
+      const filledOverlay = L.imageOverlay(
+        finalCanvas.toDataURL('image/png'),
+        [
+          [minLat, minLng],
+          [maxLat, maxLng],
+        ],
+        { interactive: false, className: 'contour-filled-img' },
+      );
+      contourFilledLayerGroup.addLayer(filledOverlay);
+    }
+  }
+
+  // ── Contour lines, shared by both layers — black in both, slightly
+  // lighter opacity on top of the fill so it doesn't overpower the deepest
+  // (darkest) bands. ──
+  contourLabelsLayerGroup = L.layerGroup();
+  CONTOUR_LEVELS.forEach((level, i) => {
+    const segments = marchContourLevel(grid, level);
+    if (segments.length === 0) return;
+    const weight = 1.2 + i * 0.35;
+
+    const plainLine = L.polyline(segments, {
+      color: CONTOUR_LINE_COLOR,
+      weight,
+      opacity: 0.85,
+      interactive: false,
+    });
+    plainLine.bindTooltip(`${level}m depth contour`, { sticky: true });
+    contourLinesLayerGroup!.addLayer(plainLine);
+
+    const overlayLine = L.polyline(segments, {
+      color: CONTOUR_LINE_COLOR,
+      weight: Math.max(1, weight - 0.4),
+      opacity: 0.4,
+      interactive: false,
+    });
+    contourFilledLayerGroup!.addLayer(overlayLine);
+
+    // A handful of small depth labels spaced along the line — only shown
+    // once zoomed in far enough that they wouldn't just clutter the map.
+    const desiredLabelCount = 5;
+    const stride = Math.max(1, Math.floor(segments.length / desiredLabelCount));
+    for (let s = 0; s < segments.length; s += stride) {
+      const segment = segments[s]!;
+      const [lat1, lng1] = segment[0]!;
+      const [lat2, lng2] = segment[1]!;
+      const midLat = (lat1 + lat2) / 2;
+      const midLng = (lng1 + lng2) / 2;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="background:#fff; border:1px solid #000; border-radius:3px; padding:0 4px; font-size:10px; font-weight:700; line-height:14px; color:#000; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.35);">${level}m</div>`,
+        iconSize: [28, 16],
+        iconAnchor: [14, 8],
+      });
+      const labelMarker = L.marker([midLat, midLng], {
+        icon,
+        interactive: false,
+        keyboard: false,
+      });
+      contourLabelsLayerGroup!.addLayer(labelMarker);
+    }
+  });
+}
+
+// ═══ MUNICIPAL WATER ZONES (illustrative — see disclaimer in the Fish tab) ═══
+// Lake Lanao has no official RA 8550-style municipal water delineation. OSM's
+// own administrative-boundary data confirms this: of the lakeshore LGUs
+// below, only Marawi City has a mapped boundary polygon at all — every other
+// one is only a town-center point (no drawn territory in OSM at all). So
+// this layer models, rather than looks up, each municipality's share of the
+// lake: every point on the lake surface is assigned to whichever town center
+// is nearest — the "equidistant / median line" method RA 8550 itself uses
+// for adjacent/opposite municipal waters under 30km apart. The Act's 15km
+// reach is checked (MUNICIPAL_WATER_LIMIT_KM) but never actually caps
+// anything here — the lake's widest point is well under 30km, so every spot
+// on it already sits within 15km of some shore, meaning the median line
+// (not the 15km limit) is what actually divides the surface among
+// neighboring LGUs. Town coordinates are real (geocoded from OpenStreetMap),
+// but this is a simplified nearest-neighbor model, not a cadastral survey.
+interface LakeMunicipality {
+  name: string;
+  lat: number;
+  lng: number;
+  color: string;
+}
+
+const LAKE_MUNICIPALITIES: LakeMunicipality[] = (
+  [
+    { name: 'Marawi City', lat: 8.0047262, lng: 124.2854351 },
+    { name: 'Bacolod-Kalawi', lat: 7.8576753, lng: 124.1423567 },
+    { name: 'Balindong', lat: 7.9162827, lng: 124.2055463 },
+    { name: 'Bayang', lat: 7.793733, lng: 124.1972049 },
+    { name: 'Binidayan', lat: 7.7949244, lng: 124.1670371 },
+    { name: 'Buadiposo-Buntong', lat: 7.9654, lng: 124.37615 },
+    { name: 'Ditsaan-Ramain', lat: 7.9788768, lng: 124.3516506 },
+    { name: 'Ganassi', lat: 7.8260261, lng: 124.1018827 },
+    { name: 'Lumbatan', lat: 7.7848782, lng: 124.2552241 },
+    { name: 'Lumbayanague', lat: 7.7830923, lng: 124.2815746 },
+    { name: 'Madalum', lat: 7.8540188, lng: 124.1140094 },
+    { name: 'Madamba', lat: 7.8588264, lng: 124.050705 },
+    { name: 'Marantao', lat: 7.9482892, lng: 124.2315699 },
+    { name: 'Masiu', lat: 7.8184459, lng: 124.3308048 },
+    { name: 'Mulondo', lat: 7.9170563, lng: 124.3615673 },
+    { name: 'Poona Bayabao', lat: 7.8531283, lng: 124.3394332 },
+    { name: 'Tamparan', lat: 7.8765155, lng: 124.3264879 },
+    { name: 'Taraka', lat: 7.8998799, lng: 124.3339467 },
+    { name: 'Tugaya', lat: 7.883728, lng: 124.17801 },
+  ] as Omit<LakeMunicipality, 'color'>[]
+).map((m, i, arr) => ({ ...m, color: `hsl(${Math.round((i * 360) / arr.length)}, 62%, 50%)` }));
+
+const MUNICIPAL_WATER_LIMIT_KM = 15;
+
+function hslToRgb(hsl: string): [number, number, number] {
+  const match = /hsl\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)%,\s*(\d+(?:\.\d+)?)%\)/.exec(hsl);
+  if (!match) return [128, 128, 128];
+  const h = Number(match[1]) / 360;
+  const s = Number(match[2]) / 100;
+  const l = Number(match[3]) / 100;
+  if (s === 0) {
+    const v = Math.round(l * 255);
+    return [v, v, v];
+  }
+  const hue2rgb = (p: number, q: number, t: number) => {
+    let tt = t;
+    if (tt < 0) tt += 1;
+    if (tt > 1) tt -= 1;
+    if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+    if (tt < 1 / 2) return q;
+    if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+    return p;
+  };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [
+    Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+    Math.round(hue2rgb(p, q, h) * 255),
+    Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
+  ];
+}
+
+function buildMunicipalZones() {
+  if (!map || municipalZonesLayerGroup) return;
+  const grid = buildDepthGrid();
+  if (!grid) return;
+
+  municipalZonesLayerGroup = L.layerGroup();
+  municipalLabelsLayerGroup = L.layerGroup();
+
+  const { width, height, minLat, maxLat, minLng, maxLng, values } = grid;
+  const latSpan = maxLat - minLat;
+  const lngSpan = maxLng - minLng;
+  const municipalRgb = LAKE_MUNICIPALITIES.map((m) => hslToRgb(m.color));
+
+  // For every grid cell already known to be inside the lake (the bathymetry
+  // grid's depth is 0 only outside the shoreline), find the nearest town.
+  const assignment = new Int16Array(width * height).fill(-1);
+  const cellSumLat = new Float64Array(LAKE_MUNICIPALITIES.length);
+  const cellSumLng = new Float64Array(LAKE_MUNICIPALITIES.length);
+  const cellCount = new Int32Array(LAKE_MUNICIPALITIES.length);
+
+  for (let row = 0; row < height; row++) {
+    const lat = maxLat - (row / (height - 1)) * latSpan;
+    for (let col = 0; col < width; col++) {
+      const idx = row * width + col;
+      if (values[idx]! <= 0) continue; // outside the lake
+      const lng = minLng + (col / (width - 1)) * lngSpan;
+
+      let nearest = -1;
+      let nearestKm = Infinity;
+      for (let m = 0; m < LAKE_MUNICIPALITIES.length; m++) {
+        const town = LAKE_MUNICIPALITIES[m]!;
+        const d = haversineKm(lat, lng, town.lat, town.lng);
+        if (d < nearestKm) {
+          nearestKm = d;
+          nearest = m;
+        }
+      }
+      if (nearest < 0 || nearestKm > MUNICIPAL_WATER_LIMIT_KM) continue;
+      assignment[idx] = nearest;
+      cellSumLat[nearest]! += lat;
+      cellSumLng[nearest]! += lng;
+      cellCount[nearest]! += 1;
+    }
+  }
+
+  // ── Rasterize flat zone colors + a boundary stroke between neighboring
+  // zones (a simple neighbor-comparison edge, not vector geometry — this is
+  // a categorical field, not the continuous one marching squares needs). ──
+  const rawCanvas = document.createElement('canvas');
+  rawCanvas.width = width;
+  rawCanvas.height = height;
+  const rawCtx = rawCanvas.getContext('2d');
+  if (rawCtx) {
+    const imageData = rawCtx.createImageData(width, height);
+    const data = imageData.data;
+    for (let row = 0; row < height; row++) {
+      for (let col = 0; col < width; col++) {
+        const idx = row * width + col;
+        const m = assignment[idx]!;
+        if (m < 0) continue;
+        const idx4 = idx * 4;
+
+        const isBoundary =
+          (col > 0 && assignment[idx - 1] !== m && assignment[idx - 1]! >= 0) ||
+          (col < width - 1 && assignment[idx + 1] !== m && assignment[idx + 1]! >= 0) ||
+          (row > 0 && assignment[idx - width] !== m && assignment[idx - width]! >= 0) ||
+          (row < height - 1 && assignment[idx + width] !== m && assignment[idx + width]! >= 0);
+
+        if (isBoundary) {
+          data[idx4] = 33;
+          data[idx4 + 1] = 33;
+          data[idx4 + 2] = 33;
+          data[idx4 + 3] = 230;
+        } else {
+          const [r, g, b] = municipalRgb[m]!;
+          data[idx4] = r;
+          data[idx4 + 1] = g;
+          data[idx4 + 2] = b;
+          data[idx4 + 3] = Math.round(0.4 * 255);
+        }
+      }
+    }
+    rawCtx.putImageData(imageData, 0, 0);
+
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = width;
+    finalCanvas.height = height;
+    const finalCtx = finalCanvas.getContext('2d');
+    if (finalCtx) {
+      finalCtx.beginPath();
+      for (const ring of lakePolygonRings) {
+        ring.forEach(([lat, lng], i) => {
+          const x = ((lng - minLng) / lngSpan) * width;
+          const y = ((maxLat - lat) / latSpan) * height;
+          if (i === 0) finalCtx.moveTo(x, y);
+          else finalCtx.lineTo(x, y);
+        });
+        finalCtx.closePath();
+      }
+      finalCtx.clip('evenodd');
+      finalCtx.drawImage(rawCanvas, 0, 0);
+
+      const zonesOverlay = L.imageOverlay(
+        finalCanvas.toDataURL('image/png'),
+        [
+          [minLat, minLng],
+          [maxLat, maxLng],
+        ],
+        { interactive: false, className: 'municipal-zones-img' },
+      );
+      municipalZonesLayerGroup.addLayer(zonesOverlay);
+    }
+  }
+
+  // Label each municipality at the centroid of its own assigned zone (inside
+  // the lake), not at its town center (which is usually on land) — skip any
+  // municipality that never won a single cell under this model.
+  //
+  // Leaflet's default marker CSS constrains an icon container's width unless
+  // iconSize says otherwise — omitting it (relying on "auto size to content")
+  // silently clips longer names like "Ditsaan-Ramain". So iconSize is sized
+  // explicitly per label, from its own text length.
+  LAKE_MUNICIPALITIES.forEach((town, m) => {
+    if (cellCount[m]! === 0) return;
+    const labelLat = cellSumLat[m]! / cellCount[m]!;
+    const labelLng = cellSumLng[m]! / cellCount[m]!;
+    const width = Math.ceil(town.name.length * 4.4) + 8;
+    const height = 12;
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:100%; height:100%; box-sizing:border-box; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.88); border:1px solid #555; border-radius:2px; font-size:7px; font-weight:700; color:#212121; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.3);">${town.name}</div>`,
+      iconSize: [width, height],
+      iconAnchor: [width / 2, height / 2],
+    });
+    const marker = L.marker([labelLat, labelLng], { icon, interactive: false, keyboard: false });
+    municipalLabelsLayerGroup!.addLayer(marker);
+  });
+}
+
 // ═══ MAP LAYERS ═══
 // ═══ BASE MAP (switchable tile provider) ═══
 interface BaseLayerOption {
@@ -3262,24 +3930,42 @@ const mapLayers = ref<MapLayer[]>([
     active: false,
   },
   {
-    id: 'territories',
-    name: 'Lake Territory Boundaries',
-    description: '15km territory zones for municipalities',
+    id: 'contourLines',
+    name: 'Bathymetry Contours (Lines)',
+    description: 'Modeled depth contours — 20/40/60/80/100m, lines only',
     active: false,
   },
   {
-    id: 'freeZone',
-    name: 'Open Lake (Unclaimed)',
-    description: 'Neutral water beyond 15km of every shore — no municipal claim',
+    id: 'contourFilled',
+    name: 'Bathymetry Contours (Filled)',
+    description: 'Modeled depth contours — filled color bands + lines',
+    active: false,
+  },
+  {
+    id: 'municipalWaters',
+    name: 'Municipal Water Zones (~15km)',
+    description: 'Illustrative median-line division among lakeshore LGUs',
     active: false,
   },
 ]);
 
 // Layers shown in the "Layers" tab (kept separate from the Water tab's own layer controls).
-const exceptionLayerIds = ['fish', 'lakeBoundary', 'wqAll', 'territories', 'freeZone'];
+const exceptionLayerIds = ['fish', 'lakeBoundary', 'wqAll', 'contourLines', 'contourFilled'];
 const exceptionLayers = computed(() =>
   mapLayers.value.filter((l) => exceptionLayerIds.includes(l.id)),
 );
+
+// Floating depth legend — only shown while the filled contour layer is on,
+// built from the same color stops used to paint it (single source of truth).
+const showContourLegend = computed(
+  () => mapLayers.value.find((l) => l.id === 'contourFilled')?.active ?? false,
+);
+const contourGradientCss = computed(() => {
+  const stops = CONTOUR_COLOR_STOPS.map(
+    (s) => `rgb(${s.rgb[0]}, ${s.rgb[1]}, ${s.rgb[2]}) ${s.depth}%`,
+  );
+  return `linear-gradient(to bottom, ${stops.join(', ')})`;
+});
 
 // Depth-zone sampling layers, surfaced as filter chips in the Water tab.
 const waterDepthLayerIds = ['wqAbove40', 'wqBelow40', 'wqTributary'];
@@ -3302,6 +3988,10 @@ const waterExtraLayerIds = ['lakeStations', 'tributaries'];
 const waterExtraLayers = computed(() =>
   mapLayers.value.filter((l) => waterExtraLayerIds.includes(l.id)),
 );
+
+// Surfaced as its own toggle in the Fish tab, not the generic Layers tab —
+// fisheries jurisdiction is a fish-tab concern.
+const municipalWaterLayer = computed(() => mapLayers.value.find((l) => l.id === 'municipalWaters')!);
 
 // ═══ HELPERS ═══
 function getStatusColor(status: string): string {
@@ -3688,11 +4378,16 @@ function initMap() {
   setBaseLayer(selectedBaseLayer.value);
 
   L.control.zoom({ position: 'bottomright' }).addTo(map);
+  L.control.scale({ position: 'bottomleft', metric: true, imperial: false, maxWidth: 150 }).addTo(map);
 
   // Lets users click anywhere inside the lake to view an estimated reading for
   // the selected parameter (non-interactive layers, like the boundary outline
   // below, don't intercept this).
   map.on('click', handleMapClick);
+
+  // Contour depth labels only show once zoomed in far enough (see
+  // syncLayerVisibility) — re-check on every zoom change.
+  map.on('zoomend', syncLayerVisibility);
 
   // ── Create Fish Layer Group ──
   fishLayerGroup = L.layerGroup();
@@ -3721,7 +4416,8 @@ function initMap() {
       );
       lakeBoundaryLayerGroup!.addLayer(boundaryLayer);
       lakePolygonRings = extractPolygonRings(geojson);
-      initMunicipalLayers();
+      buildContourLayers();
+      buildMunicipalZones();
       syncLayerVisibility();
       renderHeatmapOverlay();
     })
@@ -3875,9 +4571,9 @@ function syncLayerVisibility() {
     wqTributary: wqTributaryLayerGroup,
     lakeStations: lakeStationsLayerGroup,
     tributaries: tributariesLayerGroup,
-    municipalHalls: municipalHallLayerGroup,
-    territories: territoryLayerGroup,
-    freeZone: freeZoneLayerGroup,
+    contourLines: contourLinesLayerGroup,
+    contourFilled: contourFilledLayerGroup,
+    municipalWaters: municipalZonesLayerGroup,
   };
 
   for (const layerConfig of mapLayers.value) {
@@ -3898,6 +4594,32 @@ function syncLayerVisibility() {
       if (!map.hasLayer(riverSitesLayerGroup)) map.addLayer(riverSitesLayerGroup);
     } else if (map.hasLayer(riverSitesLayerGroup)) {
       map.removeLayer(riverSitesLayerGroup);
+    }
+  }
+
+  // Depth labels ride along with either contour layer, but only once zoomed
+  // in — they'd just be unreadable clutter at the default whole-lake view.
+  if (contourLabelsLayerGroup) {
+    const contourActive =
+      (mapLayers.value.find((l) => l.id === 'contourLines')?.active ?? false) ||
+      (mapLayers.value.find((l) => l.id === 'contourFilled')?.active ?? false);
+    const zoomedInEnough = map.getZoom() >= CONTOUR_LABEL_MIN_ZOOM;
+    if (contourActive && zoomedInEnough) {
+      if (!map.hasLayer(contourLabelsLayerGroup)) map.addLayer(contourLabelsLayerGroup);
+    } else if (map.hasLayer(contourLabelsLayerGroup)) {
+      map.removeLayer(contourLabelsLayerGroup);
+    }
+  }
+
+  // Municipality name labels ride along with the zones layer — no zoom gate,
+  // there are only ~19 of them (about as many as the water-quality markers
+  // already shown together on the default view).
+  if (municipalLabelsLayerGroup) {
+    const zonesActive = mapLayers.value.find((l) => l.id === 'municipalWaters')?.active ?? false;
+    if (zonesActive) {
+      if (!map.hasLayer(municipalLabelsLayerGroup)) map.addLayer(municipalLabelsLayerGroup);
+    } else if (map.hasLayer(municipalLabelsLayerGroup)) {
+      map.removeLayer(municipalLabelsLayerGroup);
     }
   }
 }
@@ -4350,6 +5072,51 @@ function goToWaterQuality() {
   width: 340px;
   z-index: 1000;
   pointer-events: auto;
+}
+
+/* ═══════════════════════════════════ */
+/* BATHYMETRY DEPTH LEGEND (top-right) */
+/* ═══════════════════════════════════ */
+.contour-legend {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  z-index: 999;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  transition: right 0.25s ease-out;
+}
+.contour-legend--shifted {
+  right: 366px;
+}
+.contour-legend-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #263238;
+  text-align: center;
+  margin-bottom: 6px;
+}
+.contour-legend-body {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.contour-legend-gradient {
+  width: 16px;
+  height: 100px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+.contour-legend-ticks {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #37474f;
 }
 
 /* ═══════════════════════════════════ */
