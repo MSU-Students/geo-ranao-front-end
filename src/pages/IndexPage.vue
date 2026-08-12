@@ -172,6 +172,33 @@
                     </q-item-section>
                   </q-item>
                 </q-list>
+
+                <q-separator class="q-my-md" />
+
+                <!-- Fisheries Jurisdiction Layer -->
+                <div class="text-caption text-grey-6 q-mb-xs">
+                  <q-icon name="gavel" size="14px" class="q-mr-xs" />Fisheries Jurisdiction
+                </div>
+                <q-item tag="label" class="species-item rounded-borders q-mb-xs">
+                  <q-item-section avatar>
+                    <q-toggle v-model="municipalWaterLayer.active" color="teal" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label class="text-grey-9" style="font-size: 0.8rem">
+                      Municipal Water Zones (~15km)
+                    </q-item-label>
+                    <q-item-label caption class="text-grey-6" style="font-size: 0.7rem">
+                      Illustrative median-line division among lakeshore LGUs
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+                <div class="text-caption text-grey-5" style="font-size: 0.68rem; line-height: 1.4">
+                  Modeled using RA 8550's 15km / equidistant-line method for adjacent municipal
+                  waters, from real town coordinates — but Lake Lanao has no official municipal
+                  water boundaries today, and this is a simplified nearest-town model, not a
+                  cadastral survey. Treat it as a discussion starting point, not a legal
+                  determination.
+                </div>
               </q-tab-panel>
 
               <!-- ═══ WATER QUALITY TAB ═══ -->
@@ -870,6 +897,8 @@ let heatmapOverlay: L.ImageOverlay | null = null;
 let contourLinesLayerGroup: L.LayerGroup | null = null;
 let contourFilledLayerGroup: L.LayerGroup | null = null;
 let contourLabelsLayerGroup: L.LayerGroup | null = null;
+let municipalZonesLayerGroup: L.LayerGroup | null = null;
+let municipalLabelsLayerGroup: L.LayerGroup | null = null;
 
 // Lake Lanao boundary rings ([lat, lng][]) — populated once the boundary GeoJSON
 // loads, used to detect "click anywhere inside the lake" for the reading popup.
@@ -2696,6 +2725,213 @@ function buildContourLayers() {
   });
 }
 
+// ═══ MUNICIPAL WATER ZONES (illustrative — see disclaimer in the Fish tab) ═══
+// Lake Lanao has no official RA 8550-style municipal water delineation. OSM's
+// own administrative-boundary data confirms this: of the lakeshore LGUs
+// below, only Marawi City has a mapped boundary polygon at all — every other
+// one is only a town-center point (no drawn territory in OSM at all). So
+// this layer models, rather than looks up, each municipality's share of the
+// lake: every point on the lake surface is assigned to whichever town center
+// is nearest — the "equidistant / median line" method RA 8550 itself uses
+// for adjacent/opposite municipal waters under 30km apart. The Act's 15km
+// reach is checked (MUNICIPAL_WATER_LIMIT_KM) but never actually caps
+// anything here — the lake's widest point is well under 30km, so every spot
+// on it already sits within 15km of some shore, meaning the median line
+// (not the 15km limit) is what actually divides the surface among
+// neighboring LGUs. Town coordinates are real (geocoded from OpenStreetMap),
+// but this is a simplified nearest-neighbor model, not a cadastral survey.
+interface LakeMunicipality {
+  name: string;
+  lat: number;
+  lng: number;
+  color: string;
+}
+
+const LAKE_MUNICIPALITIES: LakeMunicipality[] = (
+  [
+    { name: 'Marawi City', lat: 8.0047262, lng: 124.2854351 },
+    { name: 'Saguiaran', lat: 8.0340831, lng: 124.2687239 },
+    { name: 'Marantao', lat: 7.9482892, lng: 124.2315699 },
+    { name: 'Buadiposo-Buntong', lat: 7.9654, lng: 124.37615 },
+    { name: 'Poona Bayabao', lat: 7.8531283, lng: 124.3394332 },
+    { name: 'Bubong', lat: 7.9833903, lng: 124.3855095 },
+    { name: 'Ditsaan-Ramain', lat: 7.9788768, lng: 124.3516506 },
+    { name: 'Taraka', lat: 7.8998799, lng: 124.3339467 },
+    { name: 'Mulondo', lat: 7.9170563, lng: 124.3615673 },
+    { name: 'Maguing', lat: 7.8882749, lng: 124.3718527 },
+    { name: 'Tamparan', lat: 7.8765155, lng: 124.3264879 },
+    { name: 'Lumba-Bayabao', lat: 7.8634383, lng: 124.370507 },
+    { name: 'Bacolod-Kalawi', lat: 7.8576753, lng: 124.1423567 },
+    { name: 'Binidayan', lat: 7.7949244, lng: 124.1670371 },
+    { name: 'Pagayawan', lat: 7.7965721, lng: 124.1001642 },
+    { name: 'Tugaya', lat: 7.883728, lng: 124.17801 },
+    { name: 'Madalum', lat: 7.8540188, lng: 124.1140094 },
+    { name: 'Ganassi', lat: 7.8260261, lng: 124.1018827 },
+    { name: 'Balindong', lat: 7.9162827, lng: 124.2055463 },
+    { name: 'Piagapo', lat: 7.989793, lng: 124.1796138 },
+  ] as Omit<LakeMunicipality, 'color'>[]
+).map((m, i, arr) => ({ ...m, color: `hsl(${Math.round((i * 360) / arr.length)}, 62%, 50%)` }));
+
+const MUNICIPAL_WATER_LIMIT_KM = 15;
+
+function hslToRgb(hsl: string): [number, number, number] {
+  const match = /hsl\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)%,\s*(\d+(?:\.\d+)?)%\)/.exec(hsl);
+  if (!match) return [128, 128, 128];
+  const h = Number(match[1]) / 360;
+  const s = Number(match[2]) / 100;
+  const l = Number(match[3]) / 100;
+  if (s === 0) {
+    const v = Math.round(l * 255);
+    return [v, v, v];
+  }
+  const hue2rgb = (p: number, q: number, t: number) => {
+    let tt = t;
+    if (tt < 0) tt += 1;
+    if (tt > 1) tt -= 1;
+    if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+    if (tt < 1 / 2) return q;
+    if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+    return p;
+  };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [
+    Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+    Math.round(hue2rgb(p, q, h) * 255),
+    Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
+  ];
+}
+
+function buildMunicipalZones() {
+  if (!map || municipalZonesLayerGroup) return;
+  const grid = buildDepthGrid();
+  if (!grid) return;
+
+  municipalZonesLayerGroup = L.layerGroup();
+  municipalLabelsLayerGroup = L.layerGroup();
+
+  const { width, height, minLat, maxLat, minLng, maxLng, values } = grid;
+  const latSpan = maxLat - minLat;
+  const lngSpan = maxLng - minLng;
+  const municipalRgb = LAKE_MUNICIPALITIES.map((m) => hslToRgb(m.color));
+
+  // For every grid cell already known to be inside the lake (the bathymetry
+  // grid's depth is 0 only outside the shoreline), find the nearest town.
+  const assignment = new Int16Array(width * height).fill(-1);
+  const cellSumLat = new Float64Array(LAKE_MUNICIPALITIES.length);
+  const cellSumLng = new Float64Array(LAKE_MUNICIPALITIES.length);
+  const cellCount = new Int32Array(LAKE_MUNICIPALITIES.length);
+
+  for (let row = 0; row < height; row++) {
+    const lat = maxLat - (row / (height - 1)) * latSpan;
+    for (let col = 0; col < width; col++) {
+      const idx = row * width + col;
+      if (values[idx]! <= 0) continue; // outside the lake
+      const lng = minLng + (col / (width - 1)) * lngSpan;
+
+      let nearest = -1;
+      let nearestKm = Infinity;
+      for (let m = 0; m < LAKE_MUNICIPALITIES.length; m++) {
+        const town = LAKE_MUNICIPALITIES[m]!;
+        const d = haversineKm(lat, lng, town.lat, town.lng);
+        if (d < nearestKm) {
+          nearestKm = d;
+          nearest = m;
+        }
+      }
+      if (nearest < 0 || nearestKm > MUNICIPAL_WATER_LIMIT_KM) continue;
+      assignment[idx] = nearest;
+      cellSumLat[nearest]! += lat;
+      cellSumLng[nearest]! += lng;
+      cellCount[nearest]! += 1;
+    }
+  }
+
+  // ── Rasterize flat zone colors + a boundary stroke between neighboring
+  // zones (a simple neighbor-comparison edge, not vector geometry — this is
+  // a categorical field, not the continuous one marching squares needs). ──
+  const rawCanvas = document.createElement('canvas');
+  rawCanvas.width = width;
+  rawCanvas.height = height;
+  const rawCtx = rawCanvas.getContext('2d');
+  if (rawCtx) {
+    const imageData = rawCtx.createImageData(width, height);
+    const data = imageData.data;
+    for (let row = 0; row < height; row++) {
+      for (let col = 0; col < width; col++) {
+        const idx = row * width + col;
+        const m = assignment[idx]!;
+        if (m < 0) continue;
+        const idx4 = idx * 4;
+
+        const isBoundary =
+          (col > 0 && assignment[idx - 1] !== m && assignment[idx - 1]! >= 0) ||
+          (col < width - 1 && assignment[idx + 1] !== m && assignment[idx + 1]! >= 0) ||
+          (row > 0 && assignment[idx - width] !== m && assignment[idx - width]! >= 0) ||
+          (row < height - 1 && assignment[idx + width] !== m && assignment[idx + width]! >= 0);
+
+        if (isBoundary) {
+          data[idx4] = 33;
+          data[idx4 + 1] = 33;
+          data[idx4 + 2] = 33;
+          data[idx4 + 3] = 230;
+        } else {
+          const [r, g, b] = municipalRgb[m]!;
+          data[idx4] = r;
+          data[idx4 + 1] = g;
+          data[idx4 + 2] = b;
+          data[idx4 + 3] = Math.round(0.4 * 255);
+        }
+      }
+    }
+    rawCtx.putImageData(imageData, 0, 0);
+
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = width;
+    finalCanvas.height = height;
+    const finalCtx = finalCanvas.getContext('2d');
+    if (finalCtx) {
+      finalCtx.beginPath();
+      for (const ring of lakePolygonRings) {
+        ring.forEach(([lat, lng], i) => {
+          const x = ((lng - minLng) / lngSpan) * width;
+          const y = ((maxLat - lat) / latSpan) * height;
+          if (i === 0) finalCtx.moveTo(x, y);
+          else finalCtx.lineTo(x, y);
+        });
+        finalCtx.closePath();
+      }
+      finalCtx.clip('evenodd');
+      finalCtx.drawImage(rawCanvas, 0, 0);
+
+      const zonesOverlay = L.imageOverlay(
+        finalCanvas.toDataURL('image/png'),
+        [
+          [minLat, minLng],
+          [maxLat, maxLng],
+        ],
+        { interactive: false, className: 'municipal-zones-img' },
+      );
+      municipalZonesLayerGroup.addLayer(zonesOverlay);
+    }
+  }
+
+  // Label each municipality at the centroid of its own assigned zone (inside
+  // the lake), not at its town center (which is usually on land) — skip any
+  // municipality that never won a single cell under this model.
+  LAKE_MUNICIPALITIES.forEach((town, m) => {
+    if (cellCount[m]! === 0) return;
+    const labelLat = cellSumLat[m]! / cellCount[m]!;
+    const labelLng = cellSumLng[m]! / cellCount[m]!;
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="transform: translate(-50%, -50%); background:rgba(255,255,255,0.92); border:1px solid #333; border-radius:4px; padding:1px 5px; font-size:10px; font-weight:700; color:#212121; white-space:nowrap; box-shadow:0 1px 3px rgba(0,0,0,0.35);">${town.name}</div>`,
+    });
+    const marker = L.marker([labelLat, labelLng], { icon, interactive: false, keyboard: false });
+    municipalLabelsLayerGroup!.addLayer(marker);
+  });
+}
+
 // ═══ MAP LAYERS ═══
 // ═══ BASE MAP (switchable tile provider) ═══
 interface BaseLayerOption {
@@ -2827,6 +3063,12 @@ const mapLayers = ref<MapLayer[]>([
     description: 'Modeled depth contours — filled color bands + lines',
     active: false,
   },
+  {
+    id: 'municipalWaters',
+    name: 'Municipal Water Zones (~15km)',
+    description: 'Illustrative median-line division among lakeshore LGUs',
+    active: false,
+  },
 ]);
 
 // Layers shown in the "Layers" tab (kept separate from the Water tab's own layer controls).
@@ -2868,6 +3110,10 @@ const waterExtraLayerIds = ['lakeStations', 'tributaries'];
 const waterExtraLayers = computed(() =>
   mapLayers.value.filter((l) => waterExtraLayerIds.includes(l.id)),
 );
+
+// Surfaced as its own toggle in the Fish tab, not the generic Layers tab —
+// fisheries jurisdiction is a fish-tab concern.
+const municipalWaterLayer = computed(() => mapLayers.value.find((l) => l.id === 'municipalWaters')!);
 
 // ═══ HELPERS ═══
 function getStatusColor(status: string): string {
@@ -2963,6 +3209,7 @@ function initMap() {
       lakeBoundaryLayerGroup!.addLayer(boundaryLayer);
       lakePolygonRings = extractPolygonRings(geojson);
       buildContourLayers();
+      buildMunicipalZones();
       syncLayerVisibility();
       renderHeatmapOverlay();
     })
@@ -3118,6 +3365,7 @@ function syncLayerVisibility() {
     tributaries: tributariesLayerGroup,
     contourLines: contourLinesLayerGroup,
     contourFilled: contourFilledLayerGroup,
+    municipalWaters: municipalZonesLayerGroup,
   };
 
   for (const layerConfig of mapLayers.value) {
@@ -3152,6 +3400,18 @@ function syncLayerVisibility() {
       if (!map.hasLayer(contourLabelsLayerGroup)) map.addLayer(contourLabelsLayerGroup);
     } else if (map.hasLayer(contourLabelsLayerGroup)) {
       map.removeLayer(contourLabelsLayerGroup);
+    }
+  }
+
+  // Municipality name labels ride along with the zones layer — no zoom gate,
+  // there are only ~19 of them (about as many as the water-quality markers
+  // already shown together on the default view).
+  if (municipalLabelsLayerGroup) {
+    const zonesActive = mapLayers.value.find((l) => l.id === 'municipalWaters')?.active ?? false;
+    if (zonesActive) {
+      if (!map.hasLayer(municipalLabelsLayerGroup)) map.addLayer(municipalLabelsLayerGroup);
+    } else if (map.hasLayer(municipalLabelsLayerGroup)) {
+      map.removeLayer(municipalLabelsLayerGroup);
     }
   }
 }
