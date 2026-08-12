@@ -456,34 +456,6 @@
                     </q-item-section>
                   </q-item>
                 </q-list>
-
-                <q-separator class="q-my-md" />
-
-                <div class="text-subtitle2 text-teal-8 text-weight-bold q-mb-xs">
-                  <q-icon name="location_city" class="q-mr-xs" /> Municipalities
-                </div>
-                <div class="text-grey-6 text-caption q-mb-sm">
-                  Click a municipality to zoom the map to it.
-                </div>
-                <q-list class="municipality-list" separator>
-                  <q-item
-                    v-for="m in LAKE_MUNICIPALITIES"
-                    :key="m.id"
-                    clickable
-                    v-ripple
-                    dense
-                    class="rounded-borders"
-                    :class="{ 'municipality-item--active': selectedMunicipality?.id === m.id }"
-                    @click="selectMunicipality(m)"
-                  >
-                    <q-item-section avatar>
-                      <q-icon name="place" color="teal-7" size="18px" />
-                    </q-item-section>
-                    <q-item-section>
-                      <q-item-label class="text-grey-9" style="font-size: 0.82rem">{{ m.name }}</q-item-label>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
               </q-tab-panel>
             </q-tab-panels>
           </q-card-section>
@@ -498,166 +470,6 @@
               </div>
             </div>
           </q-card-section>
-        </q-card>
-      </div>
-    </transition>
-
-    <!-- ═══ MUNICIPAL PANEL (Right Side — BRIGHT THEME) ═══ -->
-    <transition name="slide-detail">
-      <div v-if="showMunicipalPanel && selectedMunicipality" class="detail-panel">
-        <q-card class="bright-panel full-height column no-wrap">
-
-          <!-- Panel Header -->
-          <q-card-section class="q-pb-sm col-auto">
-            <div class="row items-center justify-between no-wrap">
-              <div class="row items-center no-wrap" style="gap:10px;">
-                <q-avatar size="36px" style="background:linear-gradient(135deg,#1B5E20,#43A047);flex-shrink:0;">
-                  <q-icon name="location_city" size="20px" color="white" />
-                </q-avatar>
-                <div>
-                  <div class="text-subtitle1 text-grey-9 text-weight-bold" style="line-height:1.2;">
-                    {{ selectedMunicipality.name }}
-                  </div>
-                  <div class="text-caption text-grey-6">Lake Territory Zone</div>
-                </div>
-              </div>
-              <q-btn flat dense round icon="close" color="grey-6" size="sm" @click="closeMunicipalPanel" />
-            </div>
-
-            <!-- Coordinates + counts summary -->
-            <div class="muni-meta-row q-mt-sm">
-              <q-icon name="my_location" size="12px" color="grey-5" />
-              <span class="text-caption text-grey-6 q-ml-xs">
-                {{ selectedMunicipality.hallLat.toFixed(4) }}, {{ selectedMunicipality.hallLng.toFixed(4) }}
-              </span>
-              <q-space />
-              <q-badge
-                color="blue-7"
-                :label="species.filter(f => f.type === 'endemic' && f.municipal && f.municipal.toLowerCase().includes(selectedMunicipality!.name.toLowerCase())).length + ' Endemic'"
-                class="q-mr-xs muni-count-badge"
-              />
-              <q-badge
-                color="red-7"
-                :label="species.filter(f => f.type === 'invasive' && f.municipal && f.municipal.toLowerCase().includes(selectedMunicipality!.name.toLowerCase())).length + ' Invasive'"
-                class="muni-count-badge"
-              />
-            </div>
-          </q-card-section>
-
-          <q-separator />
-
-          <!-- Scrollable species sections -->
-          <q-card-section class="col scroll q-pa-none">
-            <div class="q-pa-md">
-
-              <!-- ── NO DATA STATE ── -->
-              <template v-if="species.filter(f => f.municipal && f.municipal.toLowerCase().includes(selectedMunicipality!.name.toLowerCase())).length === 0">
-                <div class="column items-center q-pa-xl text-grey-5">
-                  <q-icon name="search_off" size="36px" class="q-mb-sm" />
-                  <div class="text-caption text-center">No species observations recorded for this municipality.</div>
-                </div>
-              </template>
-
-              <template v-else>
-                <!-- ── ENDEMIC SECTION ── -->
-                <div
-                  v-if="species.filter(f => f.type === 'endemic' && f.municipal && f.municipal.toLowerCase().includes(selectedMunicipality!.name.toLowerCase())).length > 0"
-                  class="muni-species-section q-mb-lg"
-                >
-                  <div class="muni-section-header muni-section-header--endemic">
-                    <q-icon name="crisis_alert" size="14px" />
-                    <span>Endemic Species</span>
-                    <q-badge
-                      color="blue-8"
-                      :label="species.filter(f => f.type === 'endemic' && f.municipal && f.municipal.toLowerCase().includes(selectedMunicipality!.name.toLowerCase())).length"
-                      class="q-ml-xs"
-                    />
-                  </div>
-
-                  <q-list class="q-gutter-y-xs q-mt-sm">
-                    <q-item
-                      v-for="fish in species.filter(f => f.type === 'endemic' && f.municipal && f.municipal.toLowerCase().includes(selectedMunicipality!.name.toLowerCase()))"
-                      :key="fish.id"
-                      clickable
-                      class="muni-fish-item muni-fish-item--endemic rounded-borders"
-                      @click="selectFish(fish)"
-                    >
-                      <q-item-section avatar>
-                        <q-avatar size="32px" style="background:rgba(21,101,192,0.12);border-radius:10px;">
-                          <q-icon name="set_meal" size="16px" color="blue-8" />
-                        </q-avatar>
-                      </q-item-section>
-                      <q-item-section>
-                        <q-item-label class="text-weight-bold" style="font-size:0.82rem;color:#1a237e;">{{ fish.commonName }}</q-item-label>
-                        <q-item-label caption class="text-italic" style="font-size:0.7rem;color:#7986cb;">{{ fish.scientificName }}</q-item-label>
-                      </q-item-section>
-                      <q-item-section side>
-                        <q-badge
-                          :color="getStatusColor(fish.status)"
-                          :label="fish.statusShort"
-                          style="font-size:0.58rem;font-weight:700;"
-                        />
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
-                </div>
-
-                <!-- ── INVASIVE SECTION ── -->
-                <div
-                  v-if="species.filter(f => f.type === 'invasive' && f.municipal && f.municipal.toLowerCase().includes(selectedMunicipality!.name.toLowerCase())).length > 0"
-                  class="muni-species-section"
-                >
-                  <div class="muni-section-header muni-section-header--invasive">
-                    <q-icon name="warning" size="14px" />
-                    <span>Invasive Species</span>
-                    <q-badge
-                      color="red-8"
-                      :label="species.filter(f => f.type === 'invasive' && f.municipal && f.municipal.toLowerCase().includes(selectedMunicipality!.name.toLowerCase())).length"
-                      class="q-ml-xs"
-                    />
-                  </div>
-
-                  <q-list class="q-gutter-y-xs q-mt-sm">
-                    <q-item
-                      v-for="fish in species.filter(f => f.type === 'invasive' && f.municipal && f.municipal.toLowerCase().includes(selectedMunicipality!.name.toLowerCase()))"
-                      :key="fish.id"
-                      clickable
-                      class="muni-fish-item muni-fish-item--invasive rounded-borders"
-                      @click="selectFish(fish)"
-                    >
-                      <q-item-section avatar>
-                        <q-avatar size="32px" style="background:rgba(198,40,40,0.10);border-radius:10px;">
-                          <q-icon name="warning" size="16px" color="red-8" />
-                        </q-avatar>
-                      </q-item-section>
-                      <q-item-section>
-                        <q-item-label class="text-weight-bold" style="font-size:0.82rem;color:#7f0000;">{{ fish.commonName }}</q-item-label>
-                        <q-item-label caption class="text-italic" style="font-size:0.7rem;color:#ef9a9a;">{{ fish.scientificName }}</q-item-label>
-                      </q-item-section>
-                      <q-item-section side>
-                        <q-badge
-                          color="red-4"
-                          :label="fish.statusShort"
-                          style="font-size:0.58rem;font-weight:700;"
-                        />
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
-                </div>
-              </template>
-
-            </div>
-          </q-card-section>
-
-          <!-- Footer hint -->
-          <q-card-section class="q-pt-none q-pb-sm col-auto">
-            <q-separator class="q-mb-sm" />
-            <div class="text-caption text-grey-5 text-center">
-              <q-icon name="touch_app" size="xs" class="q-mr-xs" />
-              Tap a species to view its full profile
-            </div>
-          </q-card-section>
-
         </q-card>
       </div>
     </transition>
@@ -720,28 +532,7 @@
                   </q-item-section>
                   <q-item-section>
                     <q-item-label caption class="text-grey-6">{{ d.label }}</q-item-label>
-                    <template v-if="d.label === 'Municipal' && d.value !== '-'">
-                      <q-btn-dropdown
-                        auto-close
-                        unelevated
-                        dense
-                        no-caps
-                        color="teal-1"
-                        text-color="teal-9"
-                        :label="d.value.split(',').length + ' Municipalities'"
-                        class="text-weight-medium q-px-sm q-mt-xs"
-                        style="max-width: max-content; font-size: 13px;"
-                      >
-                        <q-list dense>
-                          <q-item v-for="m in d.value.split(',')" :key="m" clickable @click="zoomToMunicipality(m)">
-                            <q-item-section>
-                              <q-item-label>{{ m.trim() }}</q-item-label>
-                            </q-item-section>
-                          </q-item>
-                        </q-list>
-                      </q-btn-dropdown>
-                    </template>
-                    <q-item-label v-else class="text-grey-9 text-weight-medium">{{
+                    <q-item-label class="text-grey-9 text-weight-medium">{{
                       d.value
                     }}</q-item-label>
                   </q-item-section>
@@ -959,7 +750,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useQuasar } from 'quasar';
-import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 import { TRIBUTARY_RIVER_SITES, TRIBUTARY_RIVER_SITE_IDS } from 'src/composables/useWaterQualityModel';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
@@ -977,13 +767,13 @@ const STATUS_PIN_COLORS: Record<string, string> = {
 // ═══ INLINE SVG MAP-PIN BUILDERS ═══
 // Fish marker: circle with a small fish inside
 function fishPinSvg(color: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 36 36">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
     <filter id="fs" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
     </filter>
-    <circle cx="18" cy="18" r="16"
+    <circle cx="20" cy="20" r="18"
             fill="${color}" stroke="#fff" stroke-width="2" filter="url(#fs)"/>
-    <g transform="translate(18,18)" fill="#fff">
+    <g transform="translate(20,20)" fill="#fff">
       <ellipse rx="7" ry="4" />
       <polygon points="7,-1 11,-4 11,4 7,1" />
       <circle cx="-3" cy="-1" r="1" fill="${color}"/>
@@ -996,27 +786,10 @@ function makeFishIcon(statusShort: string): L.DivIcon {
   return L.divIcon({
     className: '',
     html: fishPinSvg(color),
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -12],
-    tooltipAnchor: [0, -12],
-  });
-}
-
-function makeMunicipalHallIcon(): L.DivIcon {
-  return L.divIcon({
-    className: '',
-    html: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 36 36">
-      <filter id="mhs" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
-      </filter>
-      <circle cx="18" cy="18" r="16" fill="#4CAF50" stroke="#fff" stroke-width="2" filter="url(#mhs)"/>
-      <path d="M11 23 v-10 l7 -5 l7 5 v10 h-4 v-5 h-6 v5 h-4 z" fill="#FFFFFF"/>
-    </svg>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -12],
-    tooltipAnchor: [0, -12],
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+    popupAnchor: [0, -13],
+    tooltipAnchor: [0, -13],
   });
 }
 
@@ -1100,12 +873,11 @@ let riverSitesLayerGroup: L.LayerGroup | null = null;
 
 const authStore = useAuthStore();
 const $q = useQuasar();
-const route = useRoute();
-const router = useRouter();
 const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 
 // ═══ STATE ═══
 const activeTab = ref('fish');
+const fishSearch = ref('');
 const activeFilter = ref('all');
 const showPanel = ref(false);
 const mapContainer = ref<HTMLElement | null>(null);
@@ -1131,57 +903,6 @@ let municipalLabelsLayerGroup: L.LayerGroup | null = null;
 // Lake Lanao boundary rings ([lat, lng][]) — populated once the boundary GeoJSON
 // loads, used to detect "click anywhere inside the lake" for the reading popup.
 let lakePolygonRings: [number, number][][] = [];
-
-// ═══ MUNICIPALITY DATA & STATE ═══
-interface Municipality {
-  id: string;
-  name: string;
-  hallLat: number;
-  hallLng: number;
-  shoreLat?: number;
-  shoreLng?: number;
-}
-
-// ── Lake Lanao lakeshore municipalities ─────────────────────────────────
-// Verified against Lake Lanao's known settlement/watershed lists (Wikipedia
-// "Lake Lanao" infobox, SunStar's "Saving lake 'Ranao'" report, and the
-// Lake Lanao Watershed Reservation proclamation) so only municipalities that
-// actually front the lake get a territory zone. Lumbaca-Unayan was removed
-// — it's inland/landlocked and doesn't touch the shoreline — while
-// Ditsaan-Ramain, Buadiposo-Buntong, and Bubong were added since they're
-// consistently listed as lakeshore towns on the lake's eastern side.
-// Hall coordinates verified against Google Places listings for each
-// municipal/city hall (Aug 2026).
-const LAKE_MUNICIPALITIES: Municipality[] = [
-  { id: 'marawi', name: 'Marawi City', hallLat: 8.0012, hallLng: 124.2845 },
-  { id: 'saguiaran', name: 'Saguiaran', hallLat: 8.0348, hallLng: 124.2692 },
-  { id: 'marantao', name: 'Marantao', hallLat: 7.9663, hallLng: 124.2255 },
-  { id: 'ditsaan-ramain', name: 'Ditsaan-Ramain', hallLat: 7.9787, hallLng: 124.3551 },
-  { id: 'buadiposo-buntong', name: 'Buadiposo-Buntong', hallLat: 7.9496, hallLng: 124.3788 },
-  { id: 'bubong', name: 'Bubong', hallLat: 7.9831, hallLng: 124.3856 },
-  { id: 'mulondo', name: 'Mulondo', hallLat: 7.9168, hallLng: 124.3616 },
-  { id: 'taraka', name: 'Taraka', hallLat: 7.9000, hallLng: 124.3345 },
-  { id: 'masiu', name: 'Masiu', hallLat: 7.8183, hallLng: 124.3321 },
-  { id: 'lumbatan', name: 'Lumbatan', hallLat: 7.7769, hallLng: 124.2234 },
-  { id: 'poona-bayabao', name: 'Poona Bayabao', hallLat: 7.8422, hallLng: 124.3429 },
-  { id: 'bayang', name: 'Bayang', hallLat: 7.7993, hallLng: 124.1974 },
-  { id: 'binidayan', name: 'Binidayan', hallLat: 7.7968, hallLng: 124.1724 },
-  { id: 'madalum', name: 'Madalum', hallLat: 7.8547, hallLng: 124.1130 },
-  { id: 'madamba', name: 'Madamba', hallLat: 7.8584, hallLng: 124.0493 },
-  { id: 'ganassi', name: 'Ganassi', hallLat: 7.8265, hallLng: 124.1038 },
-  { id: 'bacolod-kalawi', name: 'Bacolod-Kalawi', hallLat: 7.8600, hallLng: 124.1441 },
-  { id: 'balindong', name: 'Balindong', hallLat: 7.9156, hallLng: 124.2053 },
-  { id: 'tamparan', name: 'Tamparan', hallLat: 7.8769, hallLng: 124.3257 },
-  { id: 'tugaya', name: 'Tugaya', hallLat: 7.8818, hallLng: 124.1768 }
-];
-
-const selectedMunicipality = ref<Municipality | null>(null);
-const showMunicipalPanel = ref(false);
-
-let municipalHallLayerGroup: L.LayerGroup | null = null;
-let territoryLayerGroup: L.LayerGroup | null = null;
-let freeZoneLayerGroup: L.LayerGroup | null = null;
-let activeFishLayerGroup: L.LayerGroup | null = null;
 
 // ═══ FISH DATA ═══
 interface Fish {
@@ -1748,581 +1469,6 @@ const species: Fish[] = [
     number: '20',
     size: 'Medium',
   },
-
-  // ═══ ADDITIONAL DUMMY DATA — fills coverage for municipalities that
-  // previously had zero recorded observations (Mulondo, Poona Bayabao,
-  // Bayang, Lumbaca-Unayan, Madalum, Madamba, Bacolod-Kalawi, Tamparan)
-  // plus extra records for existing hotspots. ═══
-
-  // — Mulondo —
-  {
-    id: 31,
-    commonName: 'Tarong',
-    scientificName: 'Puntius tras',
-    type: 'endemic',
-    status: 'Endangered',
-    statusShort: 'EN',
-    length: '10.5 cm',
-    bodyDepth: '2.9 cm',
-    weight: '34 g',
-    photos: 'Lateral, Dorsal',
-    location: 'Mulondo Shoreline',
-    municipal: 'Mulondo',
-    barangay: 'Poblacion',
-    date: '2026-03-18',
-    lat: 7.921,
-    lng: 124.355,
-  },
-  {
-    id: 32,
-    commonName: 'Nile Tilapia',
-    scientificName: 'Oreochromis niloticus',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '24 cm',
-    bodyDepth: '7.8 cm',
-    weight: '390 g',
-    photos: 'Lateral',
-    location: 'Mulondo Fish Cages',
-    municipal: 'Mulondo',
-    barangay: 'Tangkal',
-    date: '2026-05-27',
-    lat: 7.913,
-    lng: 124.368,
-  },
-  {
-    id: 33,
-    commonName: 'Other Species',
-    scientificName: 'Mixed Catch',
-    type: 'general',
-    status: 'Not Evaluated',
-    statusShort: 'NE',
-    length: '-',
-    weight: '9 kg',
-    location: 'Mulondo Deep Basin',
-    date: '2026-06-02',
-    lat: 7.916,
-    lng: 124.359,
-    depth: '18 m',
-    number: '60',
-    size: 'Mixed',
-    municipal: 'Mulondo',
-    barangay: 'Poblacion',
-  },
-
-  // — Poona Bayabao —
-  {
-    id: 34,
-    commonName: 'Katolo',
-    scientificName: 'Puntius katolo',
-    type: 'endemic',
-    status: 'Vulnerable',
-    statusShort: 'VU',
-    length: '13 cm',
-    bodyDepth: '3.6 cm',
-    weight: '52 g',
-    photos: 'All 5 angles',
-    location: 'Poona Bayabao Wetlands',
-    municipal: 'Poona Bayabao',
-    barangay: 'Poblacion',
-    date: '2026-04-09',
-    lat: 7.853,
-    lng: 124.347,
-  },
-  {
-    id: 35,
-    commonName: 'Common Carp',
-    scientificName: 'Cyprinus carpio',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '40 cm',
-    bodyDepth: '11 cm',
-    weight: '1.3 kg',
-    photos: 'Lateral, Ventral',
-    location: 'Poona Bayabao Inlet',
-    municipal: 'Poona Bayabao',
-    barangay: 'Bubong',
-    date: '2026-06-11',
-    lat: 7.847,
-    lng: 124.353,
-  },
-
-  // — Bayang —
-  {
-    id: 36,
-    commonName: 'Baolan',
-    scientificName: 'Puntius baoulan',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '12.2 cm',
-    bodyDepth: '3.7 cm',
-    weight: '47 g',
-    photos: 'Lateral',
-    location: 'Bayang Shoreline',
-    municipal: 'Bayang',
-    barangay: 'Poblacion',
-    date: '2026-02-20',
-    lat: 7.79,
-    lng: 124.198,
-  },
-  {
-    id: 37,
-    commonName: 'Snakehead (Dalag)',
-    scientificName: 'Channa striata',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '36 cm',
-    bodyDepth: '6.3 cm',
-    weight: '1.05 kg',
-    photos: 'Lateral, Dorsal',
-    location: 'Bayang Marshes',
-    municipal: 'Bayang',
-    barangay: 'Bualan',
-    date: '2026-05-14',
-    lat: 7.797,
-    lng: 124.186,
-  },
-  {
-    id: 38,
-    commonName: 'Other Species',
-    scientificName: 'Mixed Catch',
-    type: 'general',
-    status: 'Not Evaluated',
-    statusShort: 'NE',
-    length: '-',
-    weight: '6 kg',
-    location: 'Bayang Littoral Zone',
-    date: '2026-06-28',
-    lat: 7.789,
-    lng: 124.195,
-    depth: '4 m',
-    number: '35',
-    size: 'Small',
-    municipal: 'Bayang',
-    barangay: 'Poblacion',
-  },
-
-  // — Bayang (reassigned from the removed inland municipality of
-  // Lumbaca-Unayan, which doesn't actually reach the lakeshore) —
-  {
-    id: 39,
-    commonName: 'Katapa-tapa',
-    scientificName: 'Puntius flavifuscus',
-    type: 'endemic',
-    status: 'Endangered',
-    statusShort: 'EN',
-    length: '9.6 cm',
-    bodyDepth: '2.7 cm',
-    weight: '31 g',
-    photos: 'None',
-    location: 'Bayang Southern Cove',
-    municipal: 'Bayang',
-    barangay: 'Lumbac',
-    date: '2026-03-25',
-    lat: 7.784,
-    lng: 124.199,
-  },
-  {
-    id: 40,
-    commonName: 'Walking Catfish',
-    scientificName: 'Clarias batrachus',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '32 cm',
-    bodyDepth: '5.6 cm',
-    weight: '880 g',
-    photos: 'Lateral',
-    location: 'Bayang River Delta',
-    municipal: 'Bayang',
-    barangay: 'Cadayonan',
-    date: '2026-06-08',
-    lat: 7.781,
-    lng: 124.191,
-  },
-
-  // — Ditsaan-Ramain —
-  {
-    id: 55,
-    commonName: 'Baolan',
-    scientificName: 'Puntius baoulan',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '11.8 cm',
-    bodyDepth: '3.5 cm',
-    weight: '44 g',
-    photos: 'Lateral, Dorsal',
-    location: 'Ditsaan-Ramain Shoreline',
-    municipal: 'Ditsaan-Ramain',
-    barangay: 'Buadi Ompig',
-    date: '2026-04-11',
-    lat: 7.972,
-    lng: 124.298,
-  },
-  {
-    id: 56,
-    commonName: 'White Goby',
-    scientificName: 'Glossogobius giuris',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '21 cm',
-    bodyDepth: '4.6 cm',
-    weight: '190 g',
-    photos: 'Lateral',
-    location: 'Ditsaan-Ramain Inlet',
-    municipal: 'Ditsaan-Ramain',
-    barangay: 'Barimbingan',
-    date: '2026-06-19',
-    lat: 7.968,
-    lng: 124.302,
-  },
-
-  // — Buadiposo-Buntong —
-  {
-    id: 57,
-    commonName: 'Katolo',
-    scientificName: 'Puntius katolo',
-    type: 'endemic',
-    status: 'Vulnerable',
-    statusShort: 'VU',
-    length: '12.8 cm',
-    bodyDepth: '3.6 cm',
-    weight: '51 g',
-    photos: 'All 5 angles',
-    location: 'Buadiposo-Buntong Shoreline',
-    municipal: 'Buadiposo-Buntong',
-    barangay: 'Poblacion',
-    date: '2026-05-07',
-    lat: 7.963,
-    lng: 124.308,
-  },
-  {
-    id: 58,
-    commonName: 'Common Carp',
-    scientificName: 'Cyprinus carpio',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '43 cm',
-    bodyDepth: '12 cm',
-    weight: '1.6 kg',
-    photos: 'None',
-    location: 'Buadiposo-Buntong Fish Cages',
-    municipal: 'Buadiposo-Buntong',
-    barangay: 'Poblacion',
-    date: '2026-07-01',
-    lat: 7.966,
-    lng: 124.312,
-  },
-
-  // — Bubong —
-  {
-    id: 59,
-    commonName: 'Igat',
-    scientificName: 'Anguilla marmorata',
-    type: 'endemic',
-    status: 'Endangered',
-    statusShort: 'EN',
-    length: '61 cm',
-    bodyDepth: '5.3 cm',
-    weight: '1.15 kg',
-    photos: 'Lateral',
-    location: 'Bubong Shoreline',
-    municipal: 'Bubong',
-    barangay: 'Poblacion',
-    date: '2026-03-19',
-    lat: 7.928,
-    lng: 124.297,
-  },
-  {
-    id: 60,
-    commonName: 'Snakehead (Dalag)',
-    scientificName: 'Channa striata',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '37 cm',
-    bodyDepth: '6.4 cm',
-    weight: '1.08 kg',
-    photos: 'Lateral, Dorsal',
-    location: 'Bubong Marshes',
-    municipal: 'Bubong',
-    barangay: 'Poblacion',
-    date: '2026-06-14',
-    lat: 7.925,
-    lng: 124.301,
-  },
-
-  // — Madalum —
-  {
-    id: 41,
-    commonName: 'Manalak',
-    scientificName: 'Puntius manalak',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '15 cm',
-    bodyDepth: '4.1 cm',
-    weight: '61 g',
-    photos: 'All 5 angles',
-    location: 'Madalum Shoreline',
-    municipal: 'Madalum',
-    barangay: 'Poblacion',
-    date: '2026-04-02',
-    lat: 7.856,
-    lng: 124.122,
-  },
-  {
-    id: 42,
-    commonName: 'Guppy',
-    scientificName: 'Poecilia reticulata',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '3.8 cm',
-    bodyDepth: '0.9 cm',
-    weight: '3.5 g',
-    photos: 'None',
-    location: 'Madalum Creek Mouth',
-    municipal: 'Madalum',
-    barangay: 'Cabasaran',
-    date: '2026-05-30',
-    lat: 7.85,
-    lng: 124.116,
-  },
-  {
-    id: 43,
-    commonName: 'Other Species',
-    scientificName: 'Mixed Catch',
-    type: 'general',
-    status: 'Not Evaluated',
-    statusShort: 'NE',
-    length: '-',
-    weight: '14 kg',
-    location: 'Madalum Open Water',
-    date: '2026-07-03',
-    lat: 7.854,
-    lng: 124.121,
-    depth: '10 m',
-    number: '95',
-    size: 'Mixed',
-    municipal: 'Madalum',
-    barangay: 'Poblacion',
-  },
-
-  // — Madamba —
-  {
-    id: 44,
-    commonName: 'Diza',
-    scientificName: 'Puntius diza',
-    type: 'endemic',
-    status: 'Endangered',
-    statusShort: 'EN',
-    length: '8.2 cm',
-    bodyDepth: '2.2 cm',
-    weight: '24 g',
-    photos: 'Lateral',
-    location: 'Madamba Shoreline',
-    municipal: 'Madamba',
-    barangay: 'Poblacion',
-    date: '2026-03-14',
-    lat: 7.861,
-    lng: 124.052,
-  },
-  {
-    id: 45,
-    commonName: 'White Goby',
-    scientificName: 'Glossogobius giuris',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '19 cm',
-    bodyDepth: '4.3 cm',
-    weight: '165 g',
-    photos: 'Lateral, Dorsal',
-    location: 'Madamba Inlet',
-    municipal: 'Madamba',
-    barangay: 'Rakutan',
-    date: '2026-06-22',
-    lat: 7.857,
-    lng: 124.046,
-  },
-
-  // — Bacolod-Kalawi —
-  {
-    id: 46,
-    commonName: 'Pait',
-    scientificName: 'Puntius sirang',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '9.8 cm',
-    bodyDepth: '2.4 cm',
-    weight: '28 g',
-    photos: 'Lateral, Ventral',
-    location: 'Bacolod-Kalawi Shoreline',
-    municipal: 'Bacolod-Kalawi',
-    barangay: 'Poblacion',
-    date: '2026-04-25',
-    lat: 7.858,
-    lng: 124.142,
-  },
-  {
-    id: 47,
-    commonName: 'Common Carp',
-    scientificName: 'Cyprinus carpio',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '47 cm',
-    bodyDepth: '13 cm',
-    weight: '1.9 kg',
-    photos: 'None',
-    location: 'Bacolod-Kalawi Fish Cages',
-    municipal: 'Bacolod-Kalawi',
-    barangay: 'Kalawi',
-    date: '2026-05-19',
-    lat: 7.852,
-    lng: 124.136,
-  },
-  {
-    id: 48,
-    commonName: 'Other Species',
-    scientificName: 'Mixed Catch',
-    type: 'general',
-    status: 'Not Evaluated',
-    statusShort: 'NE',
-    length: '-',
-    weight: '11 kg',
-    location: 'Bacolod-Kalawi Littoral Zone',
-    date: '2026-06-16',
-    lat: 7.859,
-    lng: 124.139,
-    depth: '6 m',
-    number: '55',
-    size: 'Medium',
-    municipal: 'Bacolod-Kalawi',
-    barangay: 'Poblacion',
-  },
-
-  // — Tamparan —
-  {
-    id: 49,
-    commonName: 'Banak',
-    scientificName: 'Puntius lanaoensis',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '11.6 cm',
-    bodyDepth: '3.2 cm',
-    weight: '41 g',
-    photos: 'All 5 angles',
-    location: 'Tamparan Shoreline',
-    municipal: 'Tamparan',
-    barangay: 'Poblacion',
-    date: '2026-03-08',
-    lat: 7.88,
-    lng: 124.328,
-  },
-  {
-    id: 50,
-    commonName: 'Snakehead (Dalag)',
-    scientificName: 'Channa striata',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '40 cm',
-    bodyDepth: '6.9 cm',
-    weight: '1.25 kg',
-    photos: 'Lateral',
-    location: 'Tamparan Marshes',
-    municipal: 'Tamparan',
-    barangay: 'New Lumbaca',
-    date: '2026-06-04',
-    lat: 7.874,
-    lng: 124.321,
-  },
-
-  // — Extra records for existing hotspots —
-  {
-    id: 51,
-    commonName: 'Igat',
-    scientificName: 'Anguilla marmorata',
-    type: 'endemic',
-    status: 'Endangered',
-    statusShort: 'EN',
-    length: '58 cm',
-    bodyDepth: '5.0 cm',
-    weight: '1.0 kg',
-    photos: 'Lateral',
-    location: 'Ganassi River Mouth',
-    municipal: 'Ganassi',
-    barangay: 'Sugod',
-    date: '2026-07-20',
-    lat: 7.833,
-    lng: 124.135,
-  },
-  {
-    id: 52,
-    commonName: 'Bagangan',
-    scientificName: 'Puntius clemensi',
-    type: 'endemic',
-    status: 'Vulnerable',
-    statusShort: 'VU',
-    length: '16 cm',
-    bodyDepth: '4.4 cm',
-    weight: '70 g',
-    photos: 'Lateral, Dorsal',
-    location: 'Saguiaran Shoreline',
-    municipal: 'Saguiaran',
-    barangay: 'Poblacion',
-    date: '2026-07-22',
-    lat: 8.03,
-    lng: 124.272,
-  },
-  {
-    id: 53,
-    commonName: 'Walking Catfish',
-    scientificName: 'Clarias batrachus',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '28 cm',
-    bodyDepth: '5.0 cm',
-    weight: '760 g',
-    photos: 'None',
-    location: 'Marantao Wetlands',
-    municipal: 'Marantao',
-    barangay: 'Inudaran',
-    date: '2026-07-25',
-    lat: 7.952,
-    lng: 124.238,
-  },
-  {
-    id: 54,
-    commonName: 'Other Species',
-    scientificName: 'Mixed Catch',
-    type: 'general',
-    status: 'Not Evaluated',
-    statusShort: 'NE',
-    length: '-',
-    weight: '17 kg',
-    location: 'Marawi City Harbor',
-    date: '2026-07-28',
-    lat: 8.005,
-    lng: 124.29,
-    depth: '8 m',
-    number: '110',
-    size: 'Mixed',
-    municipal: 'Marawi City',
-    barangay: 'Banggolo',
-  },
 ];
 
 const selectedSpeciesFilter = ref<string[]>([]);
@@ -2374,27 +1520,12 @@ const selectedFishDetails = computed(() => {
       { label: 'Date', value: f.date, icon: 'calendar_today' },
     ];
   }
-
-  // Endemic/invasive species can be recorded across several municipalities.
-  // Gather every municipality this exact species (same scientific name + type)
-  // has been observed in, so the dropdown shows the full spread rather than
-  // just this one record's municipality.
-  const allMunicipalitiesForSpecies = Array.from(
-    new Set(
-      species
-        .filter(s => s.scientificName === f.scientificName && s.type === f.type && s.municipal)
-        .map(s => s.municipal as string),
-    ),
-  );
-  const municipalValue =
-    allMunicipalitiesForSpecies.length > 0 ? allMunicipalitiesForSpecies.join(', ') : '-';
-
   return [
     { label: 'True Length (TL)', value: f.length, icon: 'straighten' },
     { label: 'Body Depth (BD)', value: f.bodyDepth || '-', icon: 'height' },
     { label: 'Weight (W)', value: f.weight, icon: 'scale' },
     { label: 'Photos', value: f.photos || 'None', icon: 'photo_camera' },
-    { label: 'Municipal', value: municipalValue, icon: 'location_city' },
+    { label: 'Municipal', value: f.municipal || '-', icon: 'location_city' },
     { label: 'Barangay', value: f.barangay || '-', icon: 'holiday_village' },
     { label: 'Date Recorded', value: f.date, icon: 'calendar_today' },
   ];
@@ -3884,8 +3015,7 @@ const mapLayers = ref<MapLayer[]>([
     id: 'fish',
     name: 'Fish Observations',
     description: 'Endemic & invasive species markers',
-    // Hidden on initial load — revealed per-municipality on marker/sector click
-    active: false,
+    active: true,
   },
   {
     id: 'lakeBoundary',
@@ -4023,6 +3153,9 @@ function getConservationValue(status: string): number {
 function selectFish(fish: Fish) {
   selectedFish.value = fish;
   selectedWaterSite.value = null;
+  if (map) {
+    map.flyTo([fish.lat, fish.lng], 13, { duration: 1.2 });
+  }
 }
 
 function closeDetailPanel() {
@@ -4037,332 +3170,6 @@ const DEFAULT_ZOOM = 12;
 // Jumps the map back to Lake Lanao — an easy way back after panning/zooming away.
 function resetMapView() {
   map?.flyTo(LAKE_LANAO_CENTER, DEFAULT_ZOOM, { duration: 1 });
-}
-
-function getBearing(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const y = Math.sin(dLng) * Math.cos(lat2 * Math.PI / 180);
-  const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
-            Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLng);
-  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-}
-
-function getDestination(lat: number, lng: number, distanceKm: number, bearing: number) {
-  const R = 6371; // Earth radius in km
-  const lat1 = lat * Math.PI / 180;
-  const lng1 = lng * Math.PI / 180;
-  const brng = bearing * Math.PI / 180;
-
-  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(distanceKm / R) +
-               Math.cos(lat1) * Math.sin(distanceKm / R) * Math.cos(brng));
-  const lng2 = lng1 + Math.atan2(Math.sin(brng) * Math.sin(distanceKm / R) * Math.cos(lat1),
-               Math.cos(distanceKm / R) - Math.sin(lat1) * Math.sin(lat2));
-
-  return [lat2 * 180 / Math.PI, lng2 * 180 / Math.PI];
-}
-
-// ── Shoreline Buffer Sectors + Central Free Zone ────────────────────────────
-// Each municipality bordering Lake Lanao receives a lake territory sector
-// that follows the shoreline's actual shape rather than converging on a
-// single centroid point (the old approach, which produced the "pizza slice"
-// look — every sector's outer tip collapsed onto the exact same coordinate
-// wherever the lake was narrower than 30km, which is most of it).
-//
-// Geometry:
-//   • Inner edge — the actual lake shoreline segment within the municipality's
-//                  angular range (derived from lakePolygonRings).
-//   • Side edges — bisectors between adjacent municipality bearings from the
-//                  centroid, same as before.
-//   • Outer edge — the matching arc of a single shared "core ring": every
-//                  shoreline point moved 15km toward the centroid, but never
-//                  closer than CORE_FLOOR_RATIO of its original distance.
-//                  Because every sector borrows its outer edge from this one
-//                  precomputed ring (instead of recalculating a fresh line to
-//                  the centroid each time), neighbouring sectors always meet
-//                  edge-to-edge and never spike into a single point. The
-//                  untouched interior bounded by the core ring is Lake
-//                  Lanao's open/neutral water — no municipality claims it.
-function computeShoreBufferSectors() {
-  const LAKE_CENTROID: [number, number] = [7.893111, 124.272778];
-  const MAX_DEPTH_KM = 15;
-  const CORE_FLOOR_RATIO = 0.3;
-
-  // Sort municipalities by bearing from centroid so bisectors are meaningful.
-  const munisWithBearing = LAKE_MUNICIPALITIES.map(m => ({
-    ...m,
-    bearing: getBearing(LAKE_CENTROID[0], LAKE_CENTROID[1], m.hallLat, m.hallLng)
-  })).sort((a, b) => a.bearing - b.bearing);
-
-  const sectors = new Map<string, L.Polygon>();
-
-  // Sector colors — rotate through a harmonious palette so adjacent sectors
-  // are visually distinct while remaining semi-transparent and GIS-clean.
-  const SECTOR_PALETTE = [
-    { fill: '#1B5E20', stroke: '#2E7D32' },
-    { fill: '#1A237E', stroke: '#283593' },
-    { fill: '#4A148C', stroke: '#6A1B9A' },
-    { fill: '#004D40', stroke: '#00695C' },
-    { fill: '#0D47A1', stroke: '#1565C0' },
-    { fill: '#B71C1C', stroke: '#C62828' },
-    { fill: '#F57F17', stroke: '#F9A825' },
-    { fill: '#006064', stroke: '#00838F' },
-    { fill: '#37474F', stroke: '#455A64' },
-  ];
-
-  // Outer ring of the lake boundary — used to find shoreline anchor points.
-  const outerRing: [number, number][] = lakePolygonRings.length > 0 ? lakePolygonRings[0]! : [];
-
-  // ── Precompute the shared "core ring" once for the whole lake ──────────
-  // Each shoreline vertex is pulled 15km toward the centroid, floored at
-  // CORE_FLOOR_RATIO of its original distance so it never fully collapses
-  // onto the centroid point — that floor is what keeps the free zone an
-  // actual shape (roughly following the lake's own outline, just smaller)
-  // instead of a single pinch point.
-  const coreRing: [number, number][] = outerRing.map(([lat, lng]) => {
-    const distToCenterKm =
-      L.latLng(lat, lng).distanceTo(L.latLng(LAKE_CENTROID[0], LAKE_CENTROID[1])) / 1000;
-    const bearingToCenter = getBearing(lat, lng, LAKE_CENTROID[0], LAKE_CENTROID[1]);
-    const floor = distToCenterKm * CORE_FLOOR_RATIO;
-    const distanceToUse = Math.max(distToCenterKm - MAX_DEPTH_KM, floor);
-    return getDestination(lat, lng, distanceToUse, bearingToCenter) as [number, number];
-  });
-
-  for (let i = 0; i < munisWithBearing.length; i++) {
-    const m = munisWithBearing[i]!;
-    const prev = munisWithBearing[(i - 1 + munisWithBearing.length) % munisWithBearing.length]!;
-    const next = munisWithBearing[(i + 1) % munisWithBearing.length]!;
-
-    // Angular bisectors between neighbouring municipalities give clean,
-    // non-overlapping sector edges.
-    const rawStart = prev.bearing + ((m.bearing - prev.bearing + 360) % 360) / 2;
-    const angleStart = ((rawStart % 360) + 360) % 360;
-    const rawEnd = m.bearing + ((next.bearing - m.bearing + 360) % 360) / 2;
-    let angleEnd = ((rawEnd % 360) + 360) % 360;
-    if (angleEnd <= angleStart) angleEnd += 360;
-
-    // ── 1. Collect shoreline points within this sector's angular span ──────
-    // We measure each ring vertex's bearing from the centroid; if it falls
-    // within [angleStart, angleEnd] it belongs to this municipality's shore.
-    // The matching core-ring point (same index) is collected alongside it so
-    // the outer edge is a direct slice of the shared core ring.
-    //
-    // Where the shoreline has a peninsula, inlet, or other non-convex bend,
-    // its bearing from the centroid can briefly swing OUT of this range and
-    // back in — e.g. Ganassi's shore near Balut Maito. If we only kept the
-    // strictly-matching points, the two matching runs on either side of that
-    // dip would get stitched together with a straight line, cutting a
-    // wedge-shaped hole out of the sector right where the detour was
-    // skipped. So instead: find every matching index, locate the single
-    // LARGEST circular gap between them (that gap is the genuine "rest of
-    // the lake" outside this sector), and then walk the ring continuously
-    // across the *other* side — bridging any smaller interior dips — so the
-    // sector always gets the municipality's full, unbroken stretch of shore.
-    const shorePoints: [number, number][] = [];
-    const coreArc: [number, number][] = [];
-    const N = outerRing.length;
-    const matchIdxs: number[] = [];
-    for (let idx = 0; idx < N; idx++) {
-      const [lat, lng] = outerRing[idx]!;
-      const b = getBearing(LAKE_CENTROID[0], LAKE_CENTROID[1], lat, lng);
-      // Normalise so comparison is in [0, 360) relative to angleStart.
-      const rel = ((b - angleStart) + 720) % 360;
-      const span = angleEnd - angleStart; // always > 0 after the normalisation above
-      if (rel <= span) matchIdxs.push(idx);
-    }
-
-    if (matchIdxs.length >= 2) {
-      let maxGap = -1;
-      let maxGapAt = 0; // position within matchIdxs where the largest gap starts
-      for (let k = 0; k < matchIdxs.length; k++) {
-        const cur = matchIdxs[k]!;
-        const nxt = matchIdxs[(k + 1) % matchIdxs.length]!;
-        const gap = ((nxt - cur) % N + N) % N || N;
-        if (gap > maxGap) { maxGap = gap; maxGapAt = k; }
-      }
-      const spanStartIdx = matchIdxs[(maxGapAt + 1) % matchIdxs.length]!;
-      const spanEndIdx = matchIdxs[maxGapAt]!;
-
-      let idx = spanStartIdx;
-      for (let steps = 0; steps <= N; steps++) {
-        shorePoints.push(outerRing[idx]!);
-        coreArc.push(coreRing[idx]!);
-        if (idx === spanEndIdx) break;
-        idx = (idx + 1) % N;
-      }
-    } else if (matchIdxs.length === 1) {
-      shorePoints.push(outerRing[matchIdxs[0]!]!);
-      coreArc.push(coreRing[matchIdxs[0]!]!);
-    }
-
-    const polygonPoints: [number, number][] = [];
-
-    if (shorePoints.length >= 2) {
-      // ── 2. Inner edge — actual shoreline segment ───────────────────────
-      // Shore points are already in ring order; push them as the inner boundary.
-      polygonPoints.push(...shorePoints);
-
-      // ── 3. Outer edge — the same-index slice of the shared core ring,
-      // reversed so the polygon winds correctly (inner one way, outer the
-      // other).
-      polygonPoints.push(...[...coreArc].reverse());
-    } else {
-      // ── Fallback: centroid-apex pie slice (no ring data yet) ───────────
-      // This branch only fires during an initial render before the GeoJSON
-      // loads; once lakePolygonRings is populated initMunicipalLayers() is
-      // called again and overwrites these sectors.
-      polygonPoints.push([LAKE_CENTROID[0], LAKE_CENTROID[1]]);
-      const ARC_STEPS = 12;
-      const angleStep = (angleEnd - angleStart) / ARC_STEPS;
-      for (let j = 0; j <= ARC_STEPS; j++) {
-        polygonPoints.push(
-          getDestination(LAKE_CENTROID[0], LAKE_CENTROID[1], MAX_DEPTH_KM,
-            (angleStart + j * angleStep) % 360) as [number, number]
-        );
-      }
-    }
-
-    const palette = SECTOR_PALETTE[i % SECTOR_PALETTE.length]!;
-
-    const polygon = L.polygon(polygonPoints, {
-      color: palette.stroke,
-      weight: 1.8,
-      dashArray: '6, 4',
-      fillColor: palette.fill,
-      fillOpacity: 0.13,
-      className: 'territory-sector',
-    });
-
-    polygon.bindTooltip(
-      `<div style="font-family:Roboto,sans-serif;min-width:140px;">
-         <strong style="color:#1B5E20;">${m.name}</strong><br>
-         <span style="color:#666;font-size:11px;">Lake Territory Zone · 15 km</span>
-       </div>`,
-      { sticky: true, direction: 'center' },
-    );
-
-    polygon.on('click', () => {
-      const muni = LAKE_MUNICIPALITIES.find(mu => mu.id === m.id);
-      if (muni) selectMunicipality(muni);
-    });
-
-    sectors.set(m.id, polygon);
-  }
-
-  // ── Free / neutral zone — the area inside the core ring ─────────────────
-  // Farther than 15km from every shoreline, so no municipality claims it.
-  let freeZonePolygon: L.Polygon | null = null;
-  if (coreRing.length >= 3) {
-    freeZonePolygon = L.polygon(coreRing, {
-      color: '#455A64',
-      weight: 1.5,
-      dashArray: '3, 5',
-      fillColor: '#90A4AE',
-      fillOpacity: 0.16,
-      className: 'free-zone',
-    });
-    freeZonePolygon.bindTooltip(
-      `<div style="font-family:Roboto,sans-serif;min-width:150px;">
-         <strong style="color:#455A64;">Open Lake</strong><br>
-         <span style="color:#666;font-size:11px;">Neutral zone — beyond 15km of any shore</span>
-       </div>`,
-      { sticky: true, direction: 'center' },
-    );
-  }
-
-  return { sectors, freeZonePolygon };
-}
-
-
-function initMunicipalLayers() {
-  if (!municipalHallLayerGroup) municipalHallLayerGroup = L.layerGroup();
-  if (!territoryLayerGroup) territoryLayerGroup = L.layerGroup();
-  if (!freeZoneLayerGroup) freeZoneLayerGroup = L.layerGroup();
-  if (!activeFishLayerGroup) activeFishLayerGroup = L.layerGroup();
-
-  // Clear any previously added layers (in case this is called again after
-  // lakePolygonRings becomes available).
-  municipalHallLayerGroup.clearLayers();
-  territoryLayerGroup.clearLayers();
-  freeZoneLayerGroup.clearLayers();
-
-  const { sectors, freeZonePolygon } = computeShoreBufferSectors();
-  if (freeZonePolygon) freeZoneLayerGroup.addLayer(freeZonePolygon);
-
-  LAKE_MUNICIPALITIES.forEach(m => {
-    const icon = makeMunicipalHallIcon();
-    const marker = L.marker([m.hallLat, m.hallLng], { icon, zIndexOffset: 200 });
-    marker.bindTooltip(
-      `<div style="font-family:Roboto,sans-serif;"><strong>${m.name}</strong><br><span style="color:#666;font-size:11px;">Municipal Hall</span></div>`,
-      { direction: 'top', offset: [0, -12] },
-    );
-    marker.on('click', () => selectMunicipality(m));
-    municipalHallLayerGroup!.addLayer(marker);
-
-    const polygon = sectors.get(m.id);
-    if (polygon) territoryLayerGroup!.addLayer(polygon);
-  });
-
-  // Municipal layers are always visible — add directly to map, independent
-  // of the mapLayers toggle system used by water-quality layers.
-  if (map) {
-    if (!map.hasLayer(municipalHallLayerGroup)) map.addLayer(municipalHallLayerGroup);
-    syncLayerVisibility(); // Sync visibility to respect mapLayers toggles for territories
-  }
-}
-
-function zoomToMunicipality(name: string) {
-  const m = LAKE_MUNICIPALITIES.find(
-    (mu) => mu.name.toLowerCase() === name.trim().toLowerCase()
-  );
-  if (m) selectMunicipality(m);
-}
-
-function selectMunicipality(m: Municipality) {
-  selectedMunicipality.value = m;
-  showMunicipalPanel.value = true;
-  selectedFish.value = null;
-  selectedWaterSite.value = null;
-
-  if (map) {
-    map.flyTo([m.hallLat, m.hallLng], 13, { duration: 1 });
-  }
-
-  if (activeFishLayerGroup) {
-    activeFishLayerGroup.clearLayers();
-    const mFish = species.filter(
-      f => f.municipal && f.municipal.toLowerCase().includes(m.name.toLowerCase()),
-    );
-
-    mFish.forEach(fish => {
-      const icon = makeFishIcon(fish.statusShort);
-      const marker = L.marker([fish.lat, fish.lng], { icon });
-      const typeColor = fish.type === 'endemic' ? '#1565C0' : fish.type === 'invasive' ? '#C62828' : '#E65100';
-      marker.bindPopup(
-        `<div style="font-family:Roboto,sans-serif;min-width:160px;">
-          <strong>${fish.commonName}</strong><br>
-          <em style="color:#888;">${fish.scientificName}</em><br>
-          <span style="color:${typeColor};font-weight:700;font-size:11px;text-transform:uppercase;">${fish.type}</span>
-          <span style="color:#666;font-size:11px;"> · ${fish.statusShort}</span>
-        </div>`,
-      );
-      activeFishLayerGroup!.addLayer(marker);
-    });
-
-    if (!map!.hasLayer(activeFishLayerGroup)) {
-      map!.addLayer(activeFishLayerGroup);
-    }
-  }
-}
-
-function closeMunicipalPanel() {
-  selectedMunicipality.value = null;
-  showMunicipalPanel.value = false;
-  if (activeFishLayerGroup) {
-    activeFishLayerGroup.clearLayers();
-    if (map && map.hasLayer(activeFishLayerGroup)) {
-      map.removeLayer(activeFishLayerGroup);
-    }
-  }
 }
 
 function initMap() {
@@ -4402,18 +3209,11 @@ function initMap() {
         style: {
           color: '#0288D1',
           weight: 2.5,
-          fillColor: '#81D4FA',
+          fillColor: '#4FC3F7',
           fillOpacity: 0.15,
         },
-        interactive: true,
+        interactive: false,
       });
-      boundaryLayer.bindTooltip(
-        `<div style="font-family:Roboto,sans-serif;min-width:140px;text-align:center;">
-           <strong style="color:#01579B;">Free Area</strong><br>
-           <span style="color:#666;font-size:11px;">Unterritoried Zone</span>
-         </div>`,
-        { sticky: true, direction: 'center' }
-      );
       lakeBoundaryLayerGroup!.addLayer(boundaryLayer);
       lakePolygonRings = extractPolygonRings(geojson);
       buildContourLayers();
@@ -4629,9 +3429,6 @@ function renderFishMarkers() {
   fishLayerGroup.clearLayers();
 
   filteredSpecies.value.forEach((fish) => {
-    // Only plot 'general' fish on the map
-    if (fish.type !== 'general') return;
-
     const icon = makeFishIcon(fish.statusShort);
 
     const marker = L.marker([fish.lat, fish.lng], { icon });
@@ -4657,18 +3454,10 @@ watch(filteredSpecies, () => {
 });
 
 onMounted(() => {
-  void nextTick(() => {
+  nextTick(() => {
     initMap();
-    if (route.query.municipality) {
-      setTimeout(() => {
-        zoomToMunicipality(route.query.municipality as string);
-        router.replace({ query: {} }); // Clear query after zooming
-      }, 500); // Give map time to init
-    }
     setTimeout(() => {
-      if (map) {
-        map.invalidateSize();
-      }
+      map?.invalidateSize();
     }, 400);
   });
 });
@@ -5229,126 +4018,4 @@ function goToWaterQuality() {
 .add-data-btn--shifted {
   left: 408px;
 }
-/* ═══ TERRITORY SECTORS ═══ */
-.territory-sector {
-  transition:
-    fill-opacity 0.22s ease,
-    stroke-width 0.22s ease;
-}
-.territory-sector:hover {
-  fill-opacity: 0.28 !important;
-  stroke-width: 2.5px !important;
-  cursor: pointer;
-}
-
-/* ═══ FREE / NEUTRAL ZONE (center of the lake, unclaimed) ═══ */
-.free-zone {
-  transition: fill-opacity 0.22s ease;
-}
-
-/* ═══ MUNICIPAL PANEL — meta row ═══ */
-.muni-meta-row {
-  display: flex;
-  align-items: center;
-  margin-top: 6px;
-}
-
-.muni-count-badge {
-  font-size: 0.62rem !important;
-  font-weight: 700 !important;
-  border-radius: 10px !important;
-  padding: 2px 7px !important;
-  letter-spacing: 0.02em;
-}
-
-/* ═══ MUNICIPAL PANEL — section headers ═══ */
-.muni-section-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 6px 10px;
-  border-radius: 10px;
-  margin-bottom: 4px;
-}
-
-.muni-section-header--endemic {
-  background: rgba(21, 101, 192, 0.09);
-  color: #1565C0;
-  border-left: 3px solid #1565C0;
-}
-
-.muni-section-header--invasive {
-  background: rgba(198, 40, 40, 0.09);
-  color: #C62828;
-  border-left: 3px solid #C62828;
-}
-
-/* ═══ MUNICIPAL PANEL — fish items ═══ */
-.muni-fish-item {
-  border-radius: 12px !important;
-  padding: 4px 8px;
-  min-height: 50px;
-  transition:
-    background 0.18s ease,
-    transform 0.18s ease,
-    box-shadow 0.18s ease;
-  border: 1px solid transparent;
-  cursor: pointer;
-}
-
-.muni-fish-item--endemic {
-  background: rgba(227, 242, 253, 0.6);
-}
-.muni-fish-item--endemic:hover {
-  background: rgba(187, 222, 251, 0.75);
-  border-color: rgba(21, 101, 192, 0.18);
-  transform: translateX(2px);
-  box-shadow: 0 2px 8px rgba(21, 101, 192, 0.08);
-}
-
-.muni-fish-item--invasive {
-  background: rgba(255, 235, 238, 0.6);
-}
-.muni-fish-item--invasive:hover {
-  background: rgba(255, 205, 210, 0.75);
-  border-color: rgba(198, 40, 40, 0.18);
-  transform: translateX(2px);
-  box-shadow: 0 2px 8px rgba(198, 40, 40, 0.08);
-}
-
-/* ═══ MUNICIPALITY LIST (Layers tab) ═══ */
-.municipality-list .q-item {
-  transition: background 0.15s ease, transform 0.15s ease;
-}
-.municipality-list .q-item:hover {
-  background: rgba(0, 137, 123, 0.08);
-  transform: translateX(2px);
-}
-.municipality-item--active {
-  background: rgba(0, 137, 123, 0.14) !important;
-}
-
-/* Legacy badge styles — kept for backwards compat with fish tab list */
-.species-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-.species-badge--endemic {
-  background: rgba(33, 150, 243, 0.1);
-  color: #1976D2;
-  border: 1px solid rgba(33, 150, 243, 0.3);
-}
-.species-badge--invasive {
-  background: rgba(244, 67, 54, 0.1);
-  color: #D32F2F;
-  border: 1px solid rgba(244, 67, 54, 0.3);
-}
-
 </style>

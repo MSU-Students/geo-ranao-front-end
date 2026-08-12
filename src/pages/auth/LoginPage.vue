@@ -170,7 +170,7 @@ function handleLogin() {
     authStore.login(username.value, password.value);
     adminStore.logActivity(authStore.displayName, 'Logged In', 'Signed in to Ranao FishNet');
     loading.value = false;
-    void router.push(authStore.user?.role === 'Admin' ? '/admin' : '/map');
+    router.push(authStore.user?.role === 'Admin' ? '/admin' : '/map');
   }, 800);
 }
 

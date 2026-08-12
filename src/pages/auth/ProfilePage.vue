@@ -415,7 +415,6 @@ const activeProfileTab = ref(route.query.tab === 'contributions' ? 'contribution
 const editDialog = ref(false);
 const avatarFile = ref<File | null>(null);
 const avatarPreview = ref<string>('');
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const fileInputRef = ref<any>(null);
 const passwordForm = ref({ current: '', new: '', confirm: '' });
 

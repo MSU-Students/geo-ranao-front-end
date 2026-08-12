@@ -585,7 +585,7 @@ if (!authStore.isLoggedIn) {
     icon: 'lock',
     position: 'top',
   });
-  void router.replace('/auth/login');
+  router.replace('/auth/login');
 }
 
 // ─── Form State ───
