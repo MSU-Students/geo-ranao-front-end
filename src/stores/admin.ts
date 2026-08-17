@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { WaterQualityUploadRow } from 'src/composables/useWaterQualityUpload';
+import { useAuthStore } from './auth';
 
 export type AccountStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
 
@@ -49,6 +50,12 @@ let nextLogId = 1000;
 let nextUploadId = 1000;
 
 export const useAdminStore = defineStore('admin', () => {
+  const authStore = useAuthStore();
+  // Whoever is logged in when an admin action runs — today that's always the
+  // single "admin" mock account, but this keeps the activity log correct
+  // without changes once real multi-admin accounts exist.
+  const currentActor = () => authStore.displayName;
+
   const researcherAccounts = ref<ResearcherAccount[]>([
     {
       id: 1,
@@ -254,7 +261,7 @@ export const useAdminStore = defineStore('admin', () => {
     acc.status = 'verified';
     acc.reviewedDate = new Date().toISOString().slice(0, 10);
     acc.reviewNote = undefined;
-    logActivity('Admin', 'Account Approved', `Approved ${acc.fullName} (${acc.email})`, 'positive');
+    logActivity(currentActor(), 'Account Approved', `Approved ${acc.fullName} (${acc.email})`, 'positive');
   }
 
   function rejectAccount(id: number, reason?: string) {
@@ -264,7 +271,7 @@ export const useAdminStore = defineStore('admin', () => {
     acc.reviewedDate = new Date().toISOString().slice(0, 10);
     acc.reviewNote = reason || undefined;
     logActivity(
-      'Admin',
+      currentActor(),
       'Account Rejected',
       `Rejected ${acc.fullName}${reason ? ` — ${reason}` : ''}`,
       'negative',
@@ -278,18 +285,34 @@ export const useAdminStore = defineStore('admin', () => {
     acc.reviewedDate = new Date().toISOString().slice(0, 10);
     acc.reviewNote = reason || undefined;
     logActivity(
-      'Admin',
+      currentActor(),
       'Account Revoked',
       `Revoked ${acc.fullName}${reason ? ` — ${reason}` : ''}`,
       'warning',
     );
   }
 
-  function deleteAccount(id: number) {
+  // Brings a suspended account back to verified — the counterpart to
+  // revokeAccount, so a revoke isn't a permanent dead end short of deletion.
+  function reinstateAccount(id: number) {
+    const acc = researcherAccounts.value.find((a) => a.id === id);
+    if (!acc) return;
+    acc.status = 'verified';
+    acc.reviewedDate = new Date().toISOString().slice(0, 10);
+    acc.reviewNote = undefined;
+    logActivity(currentActor(), 'Account Reinstated', `Reinstated ${acc.fullName} (${acc.email})`, 'positive');
+  }
+
+  function deleteAccount(id: number, reason?: string) {
     const acc = researcherAccounts.value.find((a) => a.id === id);
     if (!acc) return;
     researcherAccounts.value = researcherAccounts.value.filter((a) => a.id !== id);
-    logActivity('Admin', 'Account Deleted', `Deleted account for ${acc.fullName} (${acc.email})`, 'negative');
+    logActivity(
+      currentActor(),
+      'Account Deleted',
+      `Deleted account for ${acc.fullName} (${acc.email})${reason ? ` — ${reason}` : ''}`,
+      'negative',
+    );
   }
 
   function recordUpload(researcher: string, category: UploadCategory, title: string, location: string) {
@@ -337,7 +360,7 @@ export const useAdminStore = defineStore('admin', () => {
     item.status = status;
     item.reviewNote = note || undefined;
     logActivity(
-      'Admin',
+      currentActor(),
       status === 'approved' ? 'Upload Approved' : 'Upload Rejected',
       `${item.title}${note ? ` — ${note}` : ''}`,
       status === 'approved' ? 'positive' : 'negative',
@@ -361,6 +384,7 @@ export const useAdminStore = defineStore('admin', () => {
     approveAccount,
     rejectAccount,
     revokeAccount,
+    reinstateAccount,
     deleteAccount,
     recordUpload,
     recordWaterQualityBatchUpload,

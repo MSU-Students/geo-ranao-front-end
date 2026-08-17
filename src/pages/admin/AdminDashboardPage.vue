@@ -78,18 +78,60 @@
         <q-tab-panel name="pending" class="q-px-none">
           <q-card class="glass-morph">
             <q-card-section>
+              <q-input
+                v-model="pendingSearch"
+                dark
+                outlined
+                dense
+                clearable
+                placeholder="Search by name, email, affiliation, or purpose..."
+                class="form-field q-mb-md"
+                style="max-width: 420px"
+              >
+                <template #prepend><q-icon name="search" color="grey-5" /></template>
+              </q-input>
+
               <q-table
-                :rows="pendingAccounts"
+                :rows="filteredPendingAccounts"
                 :columns="pendingColumns"
                 row-key="id"
+                selection="multiple"
+                v-model:selected="selectedPending"
                 dark
                 flat
                 :rows-per-page-options="[10, 20, 50]"
                 class="submissions-table"
               >
+                <template #top-left>
+                  <div v-if="selectedPending.length" class="row items-center q-gutter-sm">
+                    <span class="text-grey-3 text-caption">{{ selectedPending.length }} selected</span>
+                    <q-btn
+                      unelevated dense rounded size="sm" color="positive"
+                      :label="`Approve Selected (${selectedPending.length})`"
+                      @click="handleBulkApprovePending"
+                    />
+                    <q-btn
+                      flat dense rounded size="sm" color="negative"
+                      :label="`Reject Selected (${selectedPending.length})`"
+                      @click="handleBulkRejectPending"
+                    />
+                  </div>
+                </template>
                 <template #body-cell-purposeOfRequest="props">
                   <q-td :props="props">
                     <span class="ellipsis-2-lines">{{ props.row.purposeOfRequest }}</span>
+                  </q-td>
+                </template>
+                <template #body-cell-submittedDate="props">
+                  <q-td :props="props">
+                    {{ props.row.submittedDate }}
+                    <q-badge
+                      :color="waitingColor(daysSince(props.row.submittedDate))"
+                      :label="`${daysSince(props.row.submittedDate)}d`"
+                      class="q-ml-xs"
+                    >
+                      <q-tooltip>Days since submitted</q-tooltip>
+                    </q-badge>
                   </q-td>
                 </template>
                 <template #body-cell-actions="props">
@@ -143,6 +185,19 @@
                 />
               </div>
 
+              <q-input
+                v-model="accountSearch"
+                dark
+                outlined
+                dense
+                clearable
+                placeholder="Search by name, email, or affiliation..."
+                class="form-field q-mb-md"
+                style="max-width: 420px"
+              >
+                <template #prepend><q-icon name="search" color="grey-5" /></template>
+              </q-input>
+
               <q-table
                 :rows="filteredAccounts"
                 :columns="accountColumns"
@@ -168,6 +223,13 @@
                       @click="handleRevoke(props.row)"
                     >
                       <q-tooltip>Revoke Access</q-tooltip>
+                    </q-btn>
+                    <q-btn
+                      v-if="props.row.status === 'suspended'"
+                      flat round dense icon="restart_alt" color="positive" size="sm"
+                      @click="handleReinstate(props.row)"
+                    >
+                      <q-tooltip>Reinstate</q-tooltip>
                     </q-btn>
                     <q-btn
                       flat round dense icon="delete_forever" color="negative" size="sm"
@@ -208,11 +270,30 @@
                 :rows="filteredUploads"
                 :columns="uploadColumns"
                 row-key="id"
+                selection="multiple"
+                v-model:selected="selectedUploads"
                 dark
                 flat
                 :rows-per-page-options="[10, 20, 50]"
                 class="submissions-table"
               >
+                <template #top-left>
+                  <div v-if="selectedPendingUploadsCount" class="row items-center q-gutter-sm">
+                    <span class="text-grey-3 text-caption">
+                      {{ selectedPendingUploadsCount }} pending selected
+                    </span>
+                    <q-btn
+                      unelevated dense rounded size="sm" color="positive"
+                      :label="`Approve Selected (${selectedPendingUploadsCount})`"
+                      @click="handleBulkApproveUploads"
+                    />
+                    <q-btn
+                      flat dense rounded size="sm" color="negative"
+                      :label="`Reject Selected (${selectedPendingUploadsCount})`"
+                      @click="handleBulkRejectUploads"
+                    />
+                  </div>
+                </template>
                 <template #body-cell-category="props">
                   <q-td :props="props">
                     <q-badge
@@ -626,6 +707,18 @@ function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString();
 }
 
+// How long a submission has sat unactioned — surfaced as a small badge so a
+// backlog doesn't just read as an undifferentiated list of dates.
+function daysSince(dateStr: string): number {
+  const submitted = new Date(dateStr).getTime();
+  return Math.max(0, Math.floor((Date.now() - submitted) / (1000 * 60 * 60 * 24)));
+}
+function waitingColor(days: number): string {
+  if (days >= 14) return 'negative';
+  if (days >= 7) return 'warning';
+  return 'grey-6';
+}
+
 // ─── Table Columns ───
 const pendingColumns = [
   { name: 'fullName', label: 'Applicant', field: 'fullName', align: 'left' as const, sortable: true },
@@ -663,6 +756,21 @@ const logColumns = [
   { name: 'detail', label: 'Detail', field: 'detail', align: 'left' as const },
 ];
 
+// ─── Pending Accounts Search + Bulk Selection ───
+const pendingSearch = ref('');
+const filteredPendingAccounts = computed(() => {
+  const needle = pendingSearch.value.trim().toLowerCase();
+  if (!needle) return pendingAccounts.value;
+  return pendingAccounts.value.filter(
+    (a) =>
+      a.fullName.toLowerCase().includes(needle) ||
+      a.email.toLowerCase().includes(needle) ||
+      a.affiliation.toLowerCase().includes(needle) ||
+      a.purposeOfRequest.toLowerCase().includes(needle),
+  );
+});
+const selectedPending = ref<ResearcherAccount[]>([]);
+
 // ─── Researcher Accounts Filter ───
 const accountFilter = ref<'all' | AccountStatus>('all');
 const accountFilterOptions: { label: string; value: 'all' | AccountStatus }[] = [
@@ -671,14 +779,22 @@ const accountFilterOptions: { label: string; value: 'all' | AccountStatus }[] = 
   { label: 'Suspended', value: 'suspended' },
   { label: 'Rejected', value: 'rejected' },
 ];
-const filteredAccounts = computed(() =>
-  adminStore.researcherAccounts.filter((a) => {
+const accountSearch = ref('');
+const filteredAccounts = computed(() => {
+  const needle = accountSearch.value.trim().toLowerCase();
+  return adminStore.researcherAccounts.filter((a) => {
     if (a.status === 'pending') return false;
-    return accountFilter.value === 'all' || a.status === accountFilter.value;
-  }),
-);
+    if (accountFilter.value !== 'all' && a.status !== accountFilter.value) return false;
+    if (!needle) return true;
+    return (
+      a.fullName.toLowerCase().includes(needle) ||
+      a.email.toLowerCase().includes(needle) ||
+      a.affiliation.toLowerCase().includes(needle)
+    );
+  });
+});
 
-// ─── Review History Filter ───
+// ─── Review History Filter + Bulk Selection ───
 const uploadFilter = ref<'all' | UploadReviewStatus>('all');
 const uploadFilterOptions: { label: string; value: 'all' | UploadReviewStatus }[] = [
   { label: 'All', value: 'all' },
@@ -690,6 +806,10 @@ const filteredUploads = computed(() =>
   adminStore.uploadReviews.filter(
     (u) => uploadFilter.value === 'all' || u.status === uploadFilter.value,
   ),
+);
+const selectedUploads = ref<UploadReviewItem[]>([]);
+const selectedPendingUploadsCount = computed(
+  () => selectedUploads.value.filter((u) => u.status === 'pending').length,
 );
 
 // ─── Activity Logs Search ───
@@ -801,17 +921,51 @@ function handleRevoke(account: ResearcherAccount) {
   );
 }
 
+function handleReinstate(account: ResearcherAccount) {
+  adminStore.reinstateAccount(account.id);
+  $q.notify({ type: 'positive', message: `${account.fullName} reinstated.`, position: 'top' });
+}
+
 function handleDelete(account: ResearcherAccount) {
-  $q.dialog({
-    title: 'Delete Account',
-    message: `Permanently delete ${account.fullName}'s account? This cannot be undone.`,
-    cancel: true,
-    persistent: true,
-    ok: { label: 'Delete', color: 'negative', flat: true },
-  }).onOk(() => {
-    adminStore.deleteAccount(account.id);
-    $q.notify({ type: 'negative', message: `${account.fullName}'s account deleted.`, position: 'top' });
+  openReasonDialog(
+    `Permanently delete ${account.fullName}'s account? This cannot be undone.`,
+    'Delete',
+    'negative',
+    (reason) => {
+      adminStore.deleteAccount(account.id, reason);
+      $q.notify({ type: 'negative', message: `${account.fullName}'s account deleted.`, position: 'top' });
+    },
+  );
+}
+
+// ─── Bulk Account Actions (Pending Accounts tab) ───
+function handleBulkApprovePending() {
+  const targets = [...selectedPending.value];
+  targets.forEach((a) => adminStore.approveAccount(a.id));
+  selectedPending.value = [];
+  $q.notify({
+    type: 'positive',
+    message: `${targets.length} application${targets.length === 1 ? '' : 's'} approved.`,
+    position: 'top',
   });
+}
+
+function handleBulkRejectPending() {
+  const targets = [...selectedPending.value];
+  openReasonDialog(
+    `Reject ${targets.length} selected application${targets.length === 1 ? '' : 's'}?`,
+    'Reject',
+    'negative',
+    (reason) => {
+      targets.forEach((a) => adminStore.rejectAccount(a.id, reason));
+      selectedPending.value = [];
+      $q.notify({
+        type: 'negative',
+        message: `${targets.length} application${targets.length === 1 ? '' : 's'} rejected.`,
+        position: 'top',
+      });
+    },
+  );
 }
 
 // ─── Upload Review Actions ───
@@ -825,6 +979,36 @@ function handleRejectUpload(item: UploadReviewItem) {
     adminStore.reviewUpload(item.id, 'rejected', reason);
     $q.notify({ type: 'negative', message: 'Upload rejected.', position: 'top' });
   });
+}
+
+// ─── Bulk Upload Review Actions (Review History tab) ───
+function handleBulkApproveUploads() {
+  const targets = selectedUploads.value.filter((u) => u.status === 'pending');
+  targets.forEach((u) => adminStore.reviewUpload(u.id, 'approved'));
+  selectedUploads.value = [];
+  $q.notify({
+    type: 'positive',
+    message: `${targets.length} upload${targets.length === 1 ? '' : 's'} approved.`,
+    position: 'top',
+  });
+}
+
+function handleBulkRejectUploads() {
+  const targets = selectedUploads.value.filter((u) => u.status === 'pending');
+  openReasonDialog(
+    `Reject ${targets.length} selected upload${targets.length === 1 ? '' : 's'}?`,
+    'Reject',
+    'negative',
+    (reason) => {
+      targets.forEach((u) => adminStore.reviewUpload(u.id, 'rejected', reason));
+      selectedUploads.value = [];
+      $q.notify({
+        type: 'negative',
+        message: `${targets.length} upload${targets.length === 1 ? '' : 's'} rejected.`,
+        position: 'top',
+      });
+    },
+  );
 }
 
 // ─── File Download Helper ───
@@ -871,7 +1055,7 @@ function downloadUploadGeoJson(item: UploadReviewItem) {
       `${item.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.geojson`,
       'application/geo+json',
     );
-    adminStore.recordMapDownload('Admin', `${item.title} (map data)`);
+    adminStore.recordMapDownload(authStore.displayName, `${item.title} (map data)`);
     $q.notify({ type: 'positive', message: 'Map data downloaded.', position: 'top' });
     return;
   }
@@ -898,7 +1082,7 @@ function downloadUploadGeoJson(item: UploadReviewItem) {
     `${item.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.geojson`,
     'application/geo+json',
   );
-  adminStore.recordMapDownload('Admin', `${item.title} (map data)`);
+  adminStore.recordMapDownload(authStore.displayName, `${item.title} (map data)`);
   $q.notify({ type: 'positive', message: 'Map data downloaded.', position: 'top' });
 }
 
@@ -908,6 +1092,29 @@ const dateRange = ref('All Time');
 
 const reportTypeOptions = ['Account Activity Summary', 'Researcher Roster', 'Upload Review Summary'];
 const dateRangeOptions = ['Last 30 Days', 'Last 6 Months', 'Year 2025', 'All Time'];
+
+// Actually filters export rows by the selected Date Range — the selector
+// used to be decorative (every option exported the same full dataset).
+function withinDateRange(dateStr: string | undefined): boolean {
+  if (!dateStr) return dateRange.value === 'All Time';
+  const d = new Date(dateStr);
+  switch (dateRange.value) {
+    case 'Last 30 Days': {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      return d >= cutoff;
+    }
+    case 'Last 6 Months': {
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - 6);
+      return d >= cutoff;
+    }
+    case 'Year 2025':
+      return d.getFullYear() === 2025;
+    default:
+      return true; // All Time
+  }
+}
 
 function toCsv(rows: Record<string, unknown>[], headers: { label: string; field: string }[]): string {
   const escape = (v: unknown) => {
@@ -928,7 +1135,7 @@ function handleExportCsv() {
   let label: string;
 
   if (reportType.value === 'Researcher Roster') {
-    rows = adminStore.researcherAccounts;
+    rows = adminStore.researcherAccounts.filter((a) => withinDateRange(a.submittedDate));
     headers = [
       { label: 'Full Name', field: 'fullName' },
       { label: 'Email', field: 'email' },
@@ -940,7 +1147,7 @@ function handleExportCsv() {
     filename = 'researcher-roster.csv';
     label = 'Researcher Roster (CSV)';
   } else if (reportType.value === 'Upload Review Summary') {
-    rows = adminStore.uploadReviews;
+    rows = adminStore.uploadReviews.filter((u) => withinDateRange(u.submittedDate));
     headers = [
       { label: 'Researcher', field: 'researcher' },
       { label: 'Category', field: 'category' },
@@ -951,7 +1158,7 @@ function handleExportCsv() {
     filename = 'upload-review-summary.csv';
     label = 'Upload Review Summary (CSV)';
   } else {
-    rows = adminStore.activityLogs;
+    rows = adminStore.activityLogs.filter((l) => withinDateRange(l.timestamp));
     headers = [
       { label: 'Timestamp', field: 'timestamp' },
       { label: 'Actor', field: 'actor' },
@@ -962,14 +1169,23 @@ function handleExportCsv() {
     label = 'Account Activity Summary (CSV)';
   }
 
+  if (rows.length === 0) {
+    $q.notify({
+      type: 'warning',
+      message: `No records in "${dateRange.value}" for this report.`,
+      position: 'top',
+    });
+    return;
+  }
+
   triggerDownload(toCsv(rows, headers), filename, 'text/csv');
-  adminStore.recordReportGenerated('Admin', label);
+  adminStore.recordReportGenerated(authStore.displayName, `${label} — ${dateRange.value}`);
   $q.notify({ type: 'positive', message: `${label} downloaded.`, position: 'top' });
 }
 
 function handleGeneratePdf() {
-  const label = `${reportType.value} (PDF)`;
-  adminStore.recordReportGenerated('Admin', label);
+  const label = `${reportType.value} (PDF) — ${dateRange.value}`;
+  adminStore.recordReportGenerated(authStore.displayName, label);
   $q.notify({
     type: 'info',
     message: 'PDF report generation is not connected to a backend yet.',
@@ -996,7 +1212,7 @@ function handleDownloadReviewedMap() {
   });
   const geojson = { type: 'FeatureCollection', features };
   triggerDownload(JSON.stringify(geojson, null, 2), 'reviewed-uploads-map.geojson', 'application/geo+json');
-  adminStore.recordMapDownload('Admin', 'All Reviewed Uploads (GeoJSON)');
+  adminStore.recordMapDownload(authStore.displayName, 'All Reviewed Uploads (GeoJSON)');
   $q.notify({ type: 'positive', message: 'Map data downloaded.', position: 'top' });
 }
 
@@ -1005,7 +1221,7 @@ async function handleDownloadLakeBoundary() {
     const res = await fetch('/geo/lake-lanao.geojson');
     const text = await res.text();
     triggerDownload(text, 'lake-lanao.geojson', 'application/geo+json');
-    adminStore.recordMapDownload('Admin', 'Lake Lanao Boundary (GeoJSON)');
+    adminStore.recordMapDownload(authStore.displayName, 'Lake Lanao Boundary (GeoJSON)');
     $q.notify({ type: 'positive', message: 'Lake boundary map downloaded.', position: 'top' });
   } catch (err) {
     console.error('Failed to download lake boundary:', err);

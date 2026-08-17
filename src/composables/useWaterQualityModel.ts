@@ -190,10 +190,20 @@ export const TRIBUTARY_RIVER_SITES: TributaryRiverSite[] = [
 
 export const TRIBUTARY_RIVER_SITE_IDS = new Set(TRIBUTARY_RIVER_SITES.map((r) => r.siteId));
 
-export const months = [
-  'Jan 2025', 'Feb 2025', 'Mar 2025', 'Apr 2025', 'May 2025', 'Jun 2025',
-  'Jul 2025', 'Aug 2025', 'Sep 2025', 'Oct 2025', 'Nov 2025', 'Dec 2025', 'Jan 2026',
+export const MONTH_NAMES = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
+
+// Reading Period now picks a year, then a month within that year (Jan–Dec) —
+// the year list starts at 2025, runs through at least 2030, and keeps
+// extending one year past whatever year it currently is after that.
+export const READING_START_YEAR = 2025;
+const READING_END_YEAR = Math.max(2030, new Date().getFullYear() + 1);
+export const READING_YEARS: number[] = [];
+for (let y = READING_START_YEAR; y <= READING_END_YEAR; y++) READING_YEARS.push(y);
+
+// Flat Jan-2025..Dec-<latest> timeline — index = (year - READING_START_YEAR) * 12 + monthInYear.
+export const months = READING_YEARS.flatMap((year) => MONTH_NAMES.map((m) => `${m} ${year}`));
 
 // Deterministic pseudo-random in [0, 1), seeded by string so the same
 // site + month + parameter always yields the same simulated reading.
