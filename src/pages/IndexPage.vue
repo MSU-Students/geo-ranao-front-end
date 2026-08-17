@@ -217,10 +217,22 @@
                   <span class="text-weight-bold text-teal-8">{{ selectedMonthLabel }}</span>
                 </div>
                 <div class="q-px-sm q-mb-lg">
+                  <q-btn-toggle
+                    v-model="selectedYear"
+                    spread
+                    dense
+                    no-caps
+                    unelevated
+                    toggle-color="teal"
+                    color="white"
+                    text-color="grey-8"
+                    class="year-toggle q-mb-md"
+                    :options="READING_YEARS.map((y) => ({ label: String(y), value: y }))"
+                  />
                   <q-slider
-                    v-model="selectedMonthIndex"
+                    v-model="selectedMonthInYear"
                     :min="0"
-                    :max="months.length - 1"
+                    :max="11"
                     :step="1"
                     snap
                     markers
@@ -228,9 +240,8 @@
                     track-size="4px"
                     thumb-size="16px"
                   />
-                  <div class="row justify-between text-caption text-grey-5">
-                    <span>{{ months[0] }}</span>
-                    <span>{{ months[months.length - 1] }}</span>
+                  <div class="row justify-between text-caption text-grey-5 month-tick-row">
+                    <span v-for="(label, i) in MONTH_NAMES" :key="i">{{ label }}</span>
                   </div>
                 </div>
 
@@ -751,7 +762,13 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
-import { TRIBUTARY_RIVER_SITES, TRIBUTARY_RIVER_SITE_IDS } from 'src/composables/useWaterQualityModel';
+import {
+  TRIBUTARY_RIVER_SITES,
+  TRIBUTARY_RIVER_SITE_IDS,
+  MONTH_NAMES,
+  READING_YEARS,
+  READING_START_YEAR,
+} from 'src/composables/useWaterQualityModel';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -1824,22 +1841,20 @@ const waterQualityParameterGroups: {
 ];
 
 // ── Monthly Time Slider (simulated readings — no real monthly dataset exists yet) ──
-const months = [
-  'Jan 2025',
-  'Feb 2025',
-  'Mar 2025',
-  'Apr 2025',
-  'May 2025',
-  'Jun 2025',
-  'Jul 2025',
-  'Aug 2025',
-  'Sep 2025',
-  'Oct 2025',
-  'Nov 2025',
-  'Dec 2025',
-  'Jan 2026',
-];
-const selectedMonthIndex = ref(months.length - 1);
+// Reading Period picks a year (2025 onward, same range as the Water Quality
+// Dashboard), then a month within that year.
+const months = READING_YEARS.flatMap((year) => MONTH_NAMES.map((m) => `${m} ${year}`));
+const nowForReadingPeriod = new Date();
+const defaultReadingYear = READING_YEARS.includes(nowForReadingPeriod.getFullYear())
+  ? nowForReadingPeriod.getFullYear()
+  : READING_YEARS[READING_YEARS.length - 1]!;
+const selectedYear = ref(defaultReadingYear);
+const selectedMonthInYear = ref(
+  defaultReadingYear === nowForReadingPeriod.getFullYear() ? nowForReadingPeriod.getMonth() : 0,
+);
+const selectedMonthIndex = computed(
+  () => (selectedYear.value - READING_START_YEAR) * 12 + selectedMonthInYear.value,
+);
 const selectedMonthLabel = computed(() => months[selectedMonthIndex.value]);
 
 // Deterministic pseudo-random in [0, 1), seeded by string so the same
@@ -3573,6 +3588,30 @@ function goToWaterQuality() {
   font-size: 11px;
   line-height: 1.2;
   letter-spacing: 0.01em;
+}
+
+.year-toggle {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.year-toggle :deep(.q-btn) {
+  font-size: 11px;
+  font-weight: 600;
+  min-height: 26px;
+  padding: 0 2px;
+}
+
+.month-tick-row span {
+  font-size: 0.56rem;
+  flex: 1;
+  text-align: center;
+}
+.month-tick-row span:first-child {
+  text-align: left;
+}
+.month-tick-row span:last-child {
+  text-align: right;
 }
 
 .bright-panel {

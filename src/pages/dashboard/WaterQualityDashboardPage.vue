@@ -20,14 +20,29 @@
 
       <!-- Reading Period -->
       <q-card class="glass-morph q-pa-md q-mb-md">
-        <div class="row items-center justify-between q-mb-xs">
+        <div class="row items-center justify-between q-mb-sm">
           <span class="text-grey-3 text-caption">Reading Period</span>
-          <span class="text-white text-weight-bold">{{ months[selectedMonthIndex] }}</span>
+          <span class="text-white text-weight-bold">
+            {{ MONTH_NAMES[selectedMonthInYear] }} {{ selectedYear }}
+          </span>
         </div>
+
+        <q-btn-toggle
+          v-model="selectedYear"
+          spread
+          dense
+          no-caps
+          unelevated
+          toggle-color="teal"
+          text-color="grey-3"
+          class="year-toggle q-mb-md"
+          :options="READING_YEARS.map((y) => ({ label: String(y), value: y }))"
+        />
+
         <q-slider
-          v-model="selectedMonthIndex"
+          v-model="selectedMonthInYear"
           :min="0"
-          :max="months.length - 1"
+          :max="11"
           :step="1"
           snap
           markers
@@ -36,9 +51,8 @@
           thumb-size="16px"
           dark
         />
-        <div class="row justify-between text-caption text-grey-5">
-          <span>{{ months[0] }}</span>
-          <span>{{ months[months.length - 1] }}</span>
+        <div class="row justify-between text-caption text-grey-5 month-tick-row">
+          <span v-for="(label, i) in MONTH_NAMES" :key="i">{{ label }}</span>
         </div>
         <div class="text-caption text-grey-5 q-mt-sm q-mb-md">
           <q-icon name="info" size="14px" class="q-mr-xs" />
@@ -262,7 +276,7 @@
                 </span>
               </div>
               <ParameterTrendChart
-                :months="months"
+                :months="trendWindowMonths"
                 :values="sparklineValues(selectedParam)"
                 :unit="selectedParam.unit"
                 :decimals="selectedParam.decimals"
@@ -343,7 +357,7 @@
                     <span class="text-white text-body2 text-weight-medium">{{ compareParamA.label }}</span>
                   </div>
                   <ParameterTrendChart
-                    :months="months"
+                    :months="trendWindowMonths"
                     :values="seriesFor(compareParamA)"
                     :unit="compareParamA.unit"
                     :decimals="compareParamA.decimals"
@@ -357,7 +371,7 @@
                     <span class="text-white text-body2 text-weight-medium">{{ compareParamB.label }}</span>
                   </div>
                   <ParameterTrendChart
-                    :months="months"
+                    :months="trendWindowMonths"
                     :values="seriesFor(compareParamB)"
                     :unit="compareParamB.unit"
                     :decimals="compareParamB.decimals"
@@ -497,6 +511,9 @@ import {
   waterQualityParameterGroups,
   allWaterQualityParams,
   months,
+  MONTH_NAMES,
+  READING_YEARS,
+  READING_START_YEAR,
   generateReading,
   generateDepthProfile,
   formatReading,
@@ -521,7 +538,18 @@ interface Site {
 const sites = ref<Site[]>([]);
 const siteCount = computed(() => sites.value.length);
 const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
-const selectedMonthIndex = ref(months.length - 1);
+
+// Reading Period: pick a year (2025 onward), then a month within that year.
+const now = new Date();
+const defaultReadingYear = READING_YEARS.includes(now.getFullYear())
+  ? now.getFullYear()
+  : READING_YEARS[READING_YEARS.length - 1]!;
+const selectedYear = ref(defaultReadingYear);
+const selectedMonthInYear = ref(defaultReadingYear === now.getFullYear() ? now.getMonth() : 0);
+const selectedMonthIndex = computed(
+  () => (selectedYear.value - READING_START_YEAR) * 12 + selectedMonthInYear.value,
+);
+
 const selectedParamKey = ref(allWaterQualityParams[0]!.key);
 const selectedStationId = ref<string | null>(null);
 const selectedDepthM = ref(0);
@@ -620,8 +648,19 @@ function lakeAverage(param: WaterQualityParam, monthIndex: number): number {
   return total / sites.value.length;
 }
 
+// The trend charts show a trailing 13-month window ending at the selected
+// Reading Period, not the whole (now multi-year) timeline.
+const trendIndices = computed(() => {
+  const end = selectedMonthIndex.value;
+  const start = Math.max(0, end - 12);
+  const indices: number[] = [];
+  for (let i = start; i <= end; i++) indices.push(i);
+  return indices;
+});
+const trendWindowMonths = computed(() => trendIndices.value.map((i) => months[i]!));
+
 function sparklineValues(param: WaterQualityParam): number[] {
-  return months.map((_, i) => lakeAverage(param, i));
+  return trendIndices.value.map((i) => lakeAverage(param, i));
 }
 
 function paramStatus(param: WaterQualityParam): StatusLevel {
@@ -742,7 +781,7 @@ const compareParamB = computed(
 function seriesFor(param: WaterQualityParam): number[] {
   if (selectedStation.value) {
     const siteId = selectedStation.value.siteId;
-    return months.map((_, i) => generateReading(siteId, i, param, selectedDepthM.value));
+    return trendIndices.value.map((i) => generateReading(siteId, i, param, selectedDepthM.value));
   }
   return sparklineValues(param);
 }
@@ -803,6 +842,28 @@ const stationComparisonEntries = computed(() => {
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 16px;
+}
+
+.year-toggle {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.year-toggle :deep(.q-btn) {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.month-tick-row span {
+  font-size: 0.62rem;
+  flex: 1;
+  text-align: center;
+}
+.month-tick-row span:first-child {
+  text-align: left;
+}
+.month-tick-row span:last-child {
+  text-align: right;
 }
 
 .param-tile {
