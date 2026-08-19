@@ -640,7 +640,7 @@
                 Reading period: <strong>{{ selectedMonthLabel }}</strong> at
                 <strong>{{ isRiverSite(selectedWaterSite.siteId) ? 'Surface' : depthLabel(selectedDepthM) }}</strong>
                 <div class="text-caption text-grey-7">
-                  Simulated values — real monthly readings are not connected yet.
+                  Showing approved field readings — "No data" means this station wasn't sampled for that parameter this month.
                   <template v-if="isRiverSite(selectedWaterSite.siteId)">
                     Tributary rivers are sampled at the surface only.
                   </template>
@@ -657,7 +657,13 @@
                       <q-item-label caption class="text-grey-6">
                         {{ p.label }}{{ p.unit ? ` (${p.unit})` : '' }}
                       </q-item-label>
-                      <q-item-label class="text-grey-9 text-weight-medium">
+                      <q-item-label
+                        :class="
+                          generateReading(selectedWaterSite.siteId, selectedMonthIndex, p, effectiveDepthFor(selectedWaterSite.siteId)) !== null
+                            ? 'text-grey-9 text-weight-medium'
+                            : 'text-grey-5 text-italic'
+                        "
+                      >
                         {{ mockReading(selectedWaterSite.siteId, selectedMonthIndex, p, effectiveDepthFor(selectedWaterSite.siteId)) }}
                       </q-item-label>
                     </q-item-section>
@@ -768,7 +774,25 @@ import {
   MONTH_NAMES,
   READING_YEARS,
   READING_START_YEAR,
+  STATUS_COLORS,
+  STATUS_LABELS,
+  STATUS_LEVELS,
+  waterQualityParameterGroups,
+  allWaterQualityParams,
+  type WaterQualityParam,
 } from 'src/composables/useWaterQualityModel';
+import {
+  fetchWaterQualityReadings,
+  buildReadingLookup,
+  getReading,
+  type ReadingLookup,
+} from 'src/composables/useWaterQualityReadings';
+import {
+  fetchFishObservations,
+  CONSERVATION_STATUS_LABELS,
+  CONSERVATION_STATUS_SHORT,
+  type FishObservation,
+} from 'src/composables/useFishObservations';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -946,562 +970,71 @@ interface Fish {
 
 const selectedFish = ref<Fish | null>(null);
 
-const species: Fish[] = [
-  // ENDEMIC
-  {
-    id: 1,
-    commonName: 'Pait',
-    scientificName: 'Puntius sirang',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '8.5 cm',
-    bodyDepth: '2.1 cm',
-    weight: '25 g',
-    photos: 'Lateral, Dorsal',
-    location: 'Lake Lanao, Lanao del Sur',
-    municipal: 'Marawi City',
-    barangay: 'Sagonsongan',
-    date: '2026-05-12',
-    lat: 7.872,
-    lng: 124.145,
-  },
-  {
-    id: 2,
-    commonName: 'Igat',
-    scientificName: 'Anguilla marmorata',
-    type: 'endemic',
-    status: 'Endangered',
-    statusShort: 'EN',
-    length: '65 cm',
-    bodyDepth: '5.5 cm',
-    weight: '1.2 kg',
-    photos: 'All 5 angles',
-    location: 'Ramain River Mouth',
-    municipal: 'Ditsaan-Ramain',
-    barangay: 'Buadi Ompig',
-    date: '2026-04-20',
-    lat: 7.963,
-    lng: 124.275,
-  },
-  {
-    id: 3,
-    commonName: 'Banak',
-    scientificName: 'Puntius lanaoensis',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '12 cm',
-    bodyDepth: '3.4 cm',
-    weight: '45 g',
-    photos: 'Lateral only',
-    location: 'Balindong, Lanao del Sur',
-    municipal: 'Balindong',
-    barangay: 'Lumbac',
-    date: '2026-06-05',
-    lat: 7.837,
-    lng: 124.21,
-  },
-  {
-    id: 4,
-    commonName: 'Ludong',
-    scientificName: 'Puntius tumba',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '9.2 cm',
-    bodyDepth: '2.5 cm',
-    weight: '30 g',
-    photos: 'None',
-    location: 'Taraka, Lanao del Sur',
-    municipal: 'Taraka',
-    barangay: 'Pitakus',
-    date: '2026-07-01',
-    lat: 7.908,
-    lng: 124.23,
-  },
-  {
-    id: 5,
-    commonName: 'Tarong',
-    scientificName: 'Puntius tras',
-    type: 'endemic',
-    status: 'Endangered',
-    statusShort: 'EN',
-    length: '11 cm',
-    bodyDepth: '3.1 cm',
-    weight: '38 g',
-    photos: 'All 5 angles',
-    location: 'Masiu, Lanao del Sur',
-    municipal: 'Masiu',
-    barangay: 'Binuang',
-    date: '2026-06-15',
-    lat: 7.855,
-    lng: 124.188,
-  },
-  {
-    id: 6,
-    commonName: 'Baolan',
-    scientificName: 'Puntius baoulan',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '13 cm',
-    bodyDepth: '3.8 cm',
-    weight: '50 g',
-    photos: 'Lateral, Ventral',
-    location: 'Binidayan',
-    municipal: 'Binidayan',
-    barangay: 'Picalilangan',
-    date: '2026-03-10',
-    lat: 7.82,
-    lng: 124.16,
-  },
-  {
-    id: 7,
-    commonName: 'Bagangan',
-    scientificName: 'Puntius clemensi',
-    type: 'endemic',
-    status: 'Vulnerable',
-    statusShort: 'VU',
-    length: '15 cm',
-    bodyDepth: '4.2 cm',
-    weight: '65 g',
-    photos: 'All 5 angles',
-    location: 'Marawi City Shoreline',
-    municipal: 'Marawi City',
-    barangay: 'Banggolo',
-    date: '2026-02-28',
-    lat: 7.995,
-    lng: 124.285,
-  },
-  {
-    id: 8,
-    commonName: 'Diza',
-    scientificName: 'Puntius diza',
-    type: 'endemic',
-    status: 'Endangered',
-    statusShort: 'EN',
-    length: '7.8 cm',
-    bodyDepth: '2.0 cm',
-    weight: '22 g',
-    photos: 'Lateral',
-    location: 'Tugaya',
-    municipal: 'Tugaya',
-    barangay: 'Sugod',
-    date: '2026-05-22',
-    lat: 7.88,
-    lng: 124.15,
-  },
-  {
-    id: 9,
-    commonName: 'Katapa-tapa',
-    scientificName: 'Puntius flavifuscus',
-    type: 'endemic',
-    status: 'Endangered',
-    statusShort: 'EN',
-    length: '10 cm',
-    bodyDepth: '2.9 cm',
-    weight: '35 g',
-    photos: 'None',
-    location: 'Ganassi',
-    municipal: 'Ganassi',
-    barangay: 'Poblacion',
-    date: '2026-04-15',
-    lat: 7.83,
-    lng: 124.14,
-  },
-  {
-    id: 10,
-    commonName: 'Manalak',
-    scientificName: 'Puntius manalak',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '14.5 cm',
-    bodyDepth: '4.0 cm',
-    weight: '58 g',
-    photos: 'All 5 angles',
-    location: 'Pualas',
-    municipal: 'Pualas',
-    barangay: 'Danugan',
-    date: '2026-06-18',
-    lat: 7.845,
-    lng: 124.145,
-  },
-  {
-    id: 11,
-    commonName: 'Katolo',
-    scientificName: 'Puntius katolo',
-    type: 'endemic',
-    status: 'Vulnerable',
-    statusShort: 'VU',
-    length: '12.5 cm',
-    bodyDepth: '3.5 cm',
-    weight: '48 g',
-    photos: 'Lateral, Dorsal',
-    location: 'Ditsaan-Ramain',
-    municipal: 'Ditsaan-Ramain',
-    barangay: 'Barimbingan',
-    date: '2026-07-05',
-    lat: 7.965,
-    lng: 124.26,
-  },
-  {
-    id: 12,
-    commonName: 'Pait',
-    scientificName: 'Puntius sirang',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    statusShort: 'CR',
-    length: '10.5 cm',
-    bodyDepth: '2.8 cm',
-    weight: '32 g',
-    photos: 'Lateral',
-    location: 'Lumbatan',
-    municipal: 'Lumbatan',
-    barangay: 'Tambac',
-    date: '2026-03-30',
-    lat: 7.805,
-    lng: 124.195,
-  },
+// Real approved fish observations, mapped into this map's Fish shape.
+// Observations without a latitude/longitude can't be placed on a map at all
+// (unlike the two dashboards, which don't need coordinates) — those are
+// skipped here, not fabricated a position.
+const species = ref<Fish[]>([]);
 
-  // INVASIVE
-  {
-    id: 13,
-    commonName: 'Nile Tilapia',
-    scientificName: 'Oreochromis niloticus',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '22 cm',
-    bodyDepth: '7.5 cm',
-    weight: '350 g',
-    photos: 'Lateral, Dorsal',
-    location: 'Marantao',
-    municipal: 'Marantao',
-    barangay: 'Poblacion',
-    date: '2026-06-10',
-    lat: 7.94,
-    lng: 124.252,
-  },
-  {
-    id: 14,
-    commonName: 'Common Carp',
-    scientificName: 'Cyprinus carpio',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '45 cm',
-    bodyDepth: '12 cm',
-    weight: '1.5 kg',
-    photos: 'All 5 angles',
-    location: 'Saguiaran',
-    municipal: 'Saguiaran',
-    barangay: 'Maito Basak',
-    date: '2026-05-05',
-    lat: 7.983,
-    lng: 124.285,
-  },
-  {
-    id: 15,
-    commonName: 'Guppy',
-    scientificName: 'Poecilia reticulata',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '3.5 cm',
-    bodyDepth: '0.8 cm',
-    weight: '3 g',
-    photos: 'None',
-    location: 'Balindong River inlet',
-    municipal: 'Balindong',
-    barangay: 'Salipongan',
-    date: '2026-07-10',
-    lat: 7.825,
-    lng: 124.265,
-  },
-  {
-    id: 16,
-    commonName: 'Snakehead (Dalag)',
-    scientificName: 'Channa striata',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '38 cm',
-    bodyDepth: '6.5 cm',
-    weight: '1.1 kg',
-    photos: 'Lateral',
-    location: 'Masiu Marshes',
-    municipal: 'Masiu',
-    barangay: 'Poblacion',
-    date: '2026-06-25',
-    lat: 7.86,
-    lng: 124.2,
-  },
-  {
-    id: 17,
-    commonName: 'Walking Catfish',
-    scientificName: 'Clarias batrachus',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '30 cm',
-    bodyDepth: '5.2 cm',
-    weight: '850 g',
-    photos: 'Lateral, Ventral',
-    location: 'Taraka River Delta',
-    municipal: 'Taraka',
-    barangay: 'Lumbac',
-    date: '2026-04-12',
-    lat: 7.915,
-    lng: 124.24,
-  },
-  {
-    id: 18,
-    commonName: 'White Goby',
-    scientificName: 'Glossogobius giuris',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '20 cm',
-    bodyDepth: '4.5 cm',
-    weight: '180 g',
-    photos: 'All 5 angles',
-    location: 'Marawi Harbor',
-    municipal: 'Marawi City',
-    barangay: 'Datu Saber',
-    date: '2026-03-05',
-    lat: 7.99,
-    lng: 124.28,
-  },
-  {
-    id: 19,
-    commonName: 'Nile Tilapia',
-    scientificName: 'Oreochromis niloticus',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '25 cm',
-    bodyDepth: '8.2 cm',
-    weight: '420 g',
-    photos: 'Lateral',
-    location: 'Binidayan',
-    municipal: 'Binidayan',
-    barangay: 'Poblacion',
-    date: '2026-02-14',
-    lat: 7.81,
-    lng: 124.165,
-  },
-  {
-    id: 20,
-    commonName: 'Common Carp',
-    scientificName: 'Cyprinus carpio',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '50 cm',
-    bodyDepth: '14 cm',
-    weight: '2.1 kg',
-    photos: 'None',
-    location: 'Pualas',
-    municipal: 'Pualas',
-    barangay: 'Badak',
-    date: '2026-05-18',
-    lat: 7.84,
-    lng: 124.15,
-  },
-  {
-    id: 21,
-    commonName: 'Snakehead (Dalag)',
-    scientificName: 'Channa striata',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '42 cm',
-    bodyDepth: '7.1 cm',
-    weight: '1.3 kg',
-    photos: 'Lateral, Dorsal',
-    location: 'Lumbatan',
-    municipal: 'Lumbatan',
-    barangay: 'Penal',
-    date: '2026-07-08',
-    lat: 7.795,
-    lng: 124.185,
-  },
-  {
-    id: 22,
-    commonName: 'Nile Tilapia',
-    scientificName: 'Oreochromis niloticus',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '18 cm',
-    bodyDepth: '6.0 cm',
-    weight: '250 g',
-    photos: 'All 5 angles',
-    location: 'Tugaya',
-    municipal: 'Tugaya',
-    barangay: 'Maibarom',
-    date: '2026-06-30',
-    lat: 7.885,
-    lng: 124.155,
-  },
-  {
-    id: 23,
-    commonName: 'Guppy',
-    scientificName: 'Poecilia reticulata',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '4 cm',
-    bodyDepth: '1.0 cm',
-    weight: '4 g',
-    photos: 'Lateral',
-    location: 'Marantao',
-    municipal: 'Marantao',
-    barangay: 'Inudaran',
-    date: '2026-04-28',
-    lat: 7.945,
-    lng: 124.245,
-  },
-  {
-    id: 24,
-    commonName: 'Walking Catfish',
-    scientificName: 'Clarias batrachus',
-    type: 'invasive',
-    status: 'Least Concern',
-    statusShort: 'LC',
-    length: '35 cm',
-    bodyDepth: '6.1 cm',
-    weight: '950 g',
-    photos: 'Lateral, Anterior',
-    location: 'Ditsaan-Ramain',
-    municipal: 'Ditsaan-Ramain',
-    barangay: 'Poblacion',
-    date: '2026-05-02',
-    lat: 7.97,
-    lng: 124.265,
-  },
+function toMapFish(obs: FishObservation): Fish | null {
+  if (obs.latitude == null || obs.longitude == null) return null;
+  const type: Fish['type'] =
+    obs.category === 'ENDEMIC' ? 'endemic' : obs.category === 'INVASIVE' ? 'invasive' : 'general';
+  const fish: Fish = {
+    id: obs.id,
+    commonName:
+      obs.speciesCommon || obs.speciesScientific || (type === 'general' ? 'Unidentified catch' : 'Unnamed species'),
+    scientificName: obs.speciesScientific || '—',
+    type,
+    status: CONSERVATION_STATUS_LABELS[obs.conservationStatus],
+    statusShort: CONSERVATION_STATUS_SHORT[obs.conservationStatus],
+    length: obs.trueLengthCm != null ? `${obs.trueLengthCm} cm` : '-',
+    weight: obs.weightG != null ? `${obs.weightG} g` : '-',
+    location: [obs.municipal, obs.barangay].filter(Boolean).join(', ') || 'Lake Lanao',
+    date: obs.dateObserved,
+    lat: obs.latitude,
+    lng: obs.longitude,
+  };
+  if (type === 'general') {
+    if (obs.depthM != null) fish.depth = `${obs.depthM} m`;
+    if (obs.count != null) fish.number = String(obs.count);
+    if (obs.sizeCategory) fish.size = obs.sizeCategory;
+  } else {
+    if (obs.bodyDepthCm != null) fish.bodyDepth = `${obs.bodyDepthCm} cm`;
+    if (obs.municipal) fish.municipal = obs.municipal;
+    if (obs.barangay) fish.barangay = obs.barangay;
+  }
+  return fish;
+}
 
-  // GENERAL / OTHERS
-  {
-    id: 25,
-    commonName: 'Other Species',
-    scientificName: 'Mixed Catch',
-    type: 'general',
-    status: 'Not Evaluated',
-    statusShort: 'NE',
-    length: '-',
-    weight: '20 kg',
-    location: 'Open Pelagic Zone',
-    date: '2026-07-12',
-    lat: 7.92,
-    lng: 124.22,
-    depth: '15 m',
-    number: '150',
-    size: 'Small',
-  },
-  {
-    id: 26,
-    commonName: 'Other Species',
-    scientificName: 'Mixed Catch',
-    type: 'general',
-    status: 'Not Evaluated',
-    statusShort: 'NE',
-    length: '-',
-    weight: '5 kg',
-    location: 'Littoral Zone (South)',
-    date: '2026-07-05',
-    lat: 7.815,
-    lng: 124.19,
-    depth: '2 m',
-    number: '30',
-    size: 'Medium',
-  },
-  {
-    id: 27,
-    commonName: 'Other Species',
-    scientificName: 'Mixed Catch',
-    type: 'general',
-    status: 'Not Evaluated',
-    statusShort: 'NE',
-    length: '-',
-    weight: '12 kg',
-    location: 'Eastern Shoreline',
-    date: '2026-06-20',
-    lat: 7.89,
-    lng: 124.27,
-    depth: '5 m',
-    number: '80',
-    size: 'Mixed',
-  },
-  {
-    id: 28,
-    commonName: 'Other Species',
-    scientificName: 'Mixed Catch',
-    type: 'general',
-    status: 'Not Evaluated',
-    statusShort: 'NE',
-    length: '-',
-    weight: '8 kg',
-    location: 'Northwestern Inlet',
-    date: '2026-05-30',
-    lat: 7.98,
-    lng: 124.225,
-    depth: '3 m',
-    number: '45',
-    size: 'Large',
-  },
-  {
-    id: 29,
-    commonName: 'Other Species',
-    scientificName: 'Mixed Catch',
-    type: 'general',
-    status: 'Not Evaluated',
-    statusShort: 'NE',
-    length: '-',
-    weight: '25 kg',
-    location: 'Central Basin (Deep)',
-    date: '2026-07-15',
-    lat: 7.87,
-    lng: 124.21,
-    depth: '25 m',
-    number: '200',
-    size: 'Small',
-  },
-  {
-    id: 30,
-    commonName: 'Other Species',
-    scientificName: 'Mixed Catch',
-    type: 'general',
-    status: 'Not Evaluated',
-    statusShort: 'NE',
-    length: '-',
-    weight: '3.5 kg',
-    location: 'Ramain Tributary',
-    date: '2026-04-18',
-    lat: 7.95,
-    lng: 124.28,
-    depth: '1.5 m',
-    number: '20',
-    size: 'Medium',
-  },
-];
+onMounted(async () => {
+  try {
+    const observations = await fetchFishObservations({ status: 'APPROVED' });
+    species.value = observations
+      .map(toMapFish)
+      .filter((f): f is Fish => f !== null);
+  } catch (err) {
+    console.error('Failed to load fish observations:', err);
+  }
+});
 
 const selectedSpeciesFilter = ref<string[]>([]);
-const allSpeciesNames = species.map((s) => s.commonName);
-const speciesOptionsFiltered = ref<string[]>(allSpeciesNames);
+const allSpeciesNames = computed(() => [...new Set(species.value.map((s) => s.commonName))]);
+const speciesOptionsFiltered = ref<string[]>(allSpeciesNames.value);
+watch(allSpeciesNames, (names) => {
+  speciesOptionsFiltered.value = names;
+});
 
 function filterFn(val: string, update: (callback: () => void) => void) {
   if (val === '') {
     update(() => {
-      speciesOptionsFiltered.value = allSpeciesNames;
+      speciesOptionsFiltered.value = allSpeciesNames.value;
     });
     return;
   }
   update(() => {
     const needle = val.toLowerCase();
-    speciesOptionsFiltered.value = allSpeciesNames.filter(
+    speciesOptionsFiltered.value = allSpeciesNames.value.filter(
       (v) => v.toLowerCase().indexOf(needle) > -1,
     );
   });
@@ -1515,7 +1048,7 @@ const fishFilters = [
 ];
 
 const filteredSpecies = computed(() =>
-  species.filter((f) => {
+  species.value.filter((f) => {
     const matchFilter = activeFilter.value === 'all' || f.type === activeFilter.value;
     const matchSpecific =
       selectedSpeciesFilter.value.length === 0 ||
@@ -1626,221 +1159,7 @@ const selectedWaterZone = computed(() =>
 
 // Reserved status palette — never reused for categorical series, always paired
 // with an icon/label (never color alone).
-type StatusLevel = 'good' | 'warning' | 'serious' | 'critical';
-
-const STATUS_COLORS: Record<StatusLevel, string> = {
-  good: '#0ca30c',
-  warning: '#fab219',
-  serious: '#ec835a',
-  critical: '#d03b3b',
-};
-const STATUS_LABELS: Record<StatusLevel, string> = {
-  good: 'Good',
-  warning: 'Warning',
-  serious: 'Serious',
-  critical: 'Critical',
-};
-const STATUS_LEVELS: StatusLevel[] = ['good', 'warning', 'serious', 'critical'];
-
-// For parameters where higher = worse (pollutant/nutrient loading).
-function ascendingStatus(
-  value: number,
-  goodMax: number,
-  warningMax: number,
-  seriousMax: number,
-): StatusLevel {
-  if (value <= goodMax) return 'good';
-  if (value <= warningMax) return 'warning';
-  if (value <= seriousMax) return 'serious';
-  return 'critical';
-}
-
-// For parameters with an ideal middle band (both extremes are bad).
-function centeredStatus(
-  value: number,
-  goodLo: number,
-  goodHi: number,
-  warningLo: number,
-  warningHi: number,
-  seriousLo: number,
-  seriousHi: number,
-): StatusLevel {
-  if (value >= goodLo && value <= goodHi) return 'good';
-  if (value >= warningLo && value <= warningHi) return 'warning';
-  if (value >= seriousLo && value <= seriousHi) return 'serious';
-  return 'critical';
-}
-
-// For parameters where lower = worse (depletion is the danger — e.g. dissolved oxygen).
-function descendingStatus(
-  value: number,
-  goodMin: number,
-  warningMin: number,
-  seriousMin: number,
-): StatusLevel {
-  if (value >= goodMin) return 'good';
-  if (value >= warningMin) return 'warning';
-  if (value >= seriousMin) return 'serious';
-  return 'critical';
-}
-
-interface WaterQualityParam {
-  key: string;
-  label: string;
-  unit: string;
-  min: number;
-  max: number;
-  decimals: number;
-  getStatus: (value: number) => StatusLevel;
-}
-
-const waterQualityParameterGroups: {
-  title: string;
-  icon: string;
-  color: string;
-  params: WaterQualityParam[];
-}[] = [
-  {
-    title: 'Physico-Chemical',
-    icon: 'science',
-    color: 'teal-8',
-    params: [
-      {
-        key: 'temperature',
-        label: 'Temperature',
-        unit: '°C',
-        min: 24,
-        max: 30,
-        decimals: 1,
-        getStatus: (v) => centeredStatus(v, 25.5, 27.5, 24.5, 28.5, 24, 29.5),
-      },
-      {
-        key: 'ph',
-        label: 'pH',
-        unit: '',
-        min: 6.5,
-        max: 8.5,
-        decimals: 1,
-        getStatus: (v) => centeredStatus(v, 7.0, 7.6, 6.8, 7.9, 6.6, 8.2),
-      },
-      {
-        key: 'turbidity',
-        label: 'Turbidity',
-        unit: 'NTU',
-        min: 2,
-        max: 25,
-        decimals: 1,
-        getStatus: (v) => ascendingStatus(v, 6, 11, 17),
-      },
-      {
-        key: 'dissolvedOxygen',
-        label: 'Dissolved Oxygen',
-        unit: 'ppm',
-        min: 1,
-        max: 10,
-        decimals: 1,
-        getStatus: (v) => descendingStatus(v, 6, 5, 3),
-      },
-      {
-        key: 'conductivity',
-        label: 'Conductivity',
-        unit: 'µS/cm',
-        min: 100,
-        max: 400,
-        decimals: 0,
-        getStatus: (v) => ascendingStatus(v, 175, 250, 325),
-      },
-      {
-        key: 'tds',
-        label: 'TDS',
-        unit: 'mg/L',
-        min: 50,
-        max: 250,
-        decimals: 0,
-        getStatus: (v) => ascendingStatus(v, 100, 150, 200),
-      },
-      {
-        key: 'tss',
-        label: 'TSS',
-        unit: 'mg/L',
-        min: 5,
-        max: 40,
-        decimals: 1,
-        getStatus: (v) => ascendingStatus(v, 12, 20, 30),
-      },
-    ],
-  },
-  {
-    title: 'Nutrients',
-    icon: 'grain',
-    color: 'blue-8',
-    params: [
-      {
-        key: 'phosphate',
-        label: 'Phosphate',
-        unit: 'mg/L',
-        min: 0.01,
-        max: 0.5,
-        decimals: 2,
-        getStatus: (v) => ascendingStatus(v, 0.08, 0.18, 0.32),
-      },
-      {
-        key: 'ammonia',
-        label: 'Ammonia',
-        unit: 'mg/L',
-        min: 0.01,
-        max: 0.3,
-        decimals: 2,
-        getStatus: (v) => ascendingStatus(v, 0.04, 0.1, 0.18),
-      },
-      {
-        key: 'nitrate',
-        label: 'Nitrate',
-        unit: 'mg/L',
-        min: 0.1,
-        max: 2,
-        decimals: 2,
-        getStatus: (v) => ascendingStatus(v, 0.4, 0.9, 1.4),
-      },
-      {
-        key: 'nitrite',
-        label: 'Nitrite',
-        unit: 'mg/L',
-        min: 0.01,
-        max: 0.1,
-        decimals: 3,
-        getStatus: (v) => ascendingStatus(v, 0.025, 0.045, 0.07),
-      },
-      {
-        key: 'sulfate',
-        label: 'Sulfate',
-        unit: 'mg/L',
-        min: 5,
-        max: 50,
-        decimals: 1,
-        getStatus: (v) => ascendingStatus(v, 15, 27, 38),
-      },
-    ],
-  },
-  {
-    title: 'Photosynthetic Pigment',
-    icon: 'eco',
-    color: 'green-8',
-    params: [
-      {
-        key: 'chlorophyll',
-        label: 'Chlorophyll-a',
-        unit: 'µg/L',
-        min: 1,
-        max: 15,
-        decimals: 2,
-        getStatus: (v) => ascendingStatus(v, 4, 8, 11),
-      },
-    ],
-  },
-];
-
-// ── Monthly Time Slider (simulated readings — no real monthly dataset exists yet) ──
+// ── Monthly Time Slider (real approved readings; coverage varies by month) ──
 // Reading Period picks a year (2025 onward, same range as the Water Quality
 // Dashboard), then a month within that year.
 const months = READING_YEARS.flatMap((year) => MONTH_NAMES.map((m) => `${m} ${year}`));
@@ -1857,17 +1176,6 @@ const selectedMonthIndex = computed(
 );
 const selectedMonthLabel = computed(() => months[selectedMonthIndex.value]);
 
-// Deterministic pseudo-random in [0, 1), seeded by string so the same
-// site + month + parameter always yields the same simulated reading.
-function seededRandom(seed: string): number {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash << 5) - hash + seed.charCodeAt(i);
-    hash |= 0;
-  }
-  return (Math.abs(hash) % 10000) / 10000;
-}
-
 // ─── DEPTH MODEL (mirrors src/composables/useWaterQualityModel.ts) ───
 // The client's real field sampling uses these fixed depths, not a continuous
 // profile — matches the "SURFACE / 5m / 10m / .../ 100m" convention in the
@@ -1879,52 +1187,34 @@ function depthLabel(depthM: number): string {
 const DEPTH_OPTIONS = DEPTHS.map((d) => ({ label: depthLabel(d), value: d }));
 const selectedDepthM = ref(0);
 
-// Direction + how much of a parameter's full min–max range it plausibly
-// drifts between the surface and deep water, based on typical lake
-// stratification behavior.
-const DEPTH_TREND: Record<string, { direction: 1 | -1; sensitivity: number }> = {
-  temperature: { direction: -1, sensitivity: 0.55 },
-  ph: { direction: -1, sensitivity: 0.15 },
-  turbidity: { direction: -1, sensitivity: 0.35 },
-  dissolvedOxygen: { direction: -1, sensitivity: 0.75 },
-  conductivity: { direction: 1, sensitivity: 0.25 },
-  tds: { direction: 1, sensitivity: 0.25 },
-  tss: { direction: 1, sensitivity: 0.2 },
-  phosphate: { direction: 1, sensitivity: 0.6 },
-  ammonia: { direction: 1, sensitivity: 0.65 },
-  nitrate: { direction: -1, sensitivity: 0.4 },
-  nitrite: { direction: 1, sensitivity: 0.3 },
-  sulfate: { direction: 1, sensitivity: 0.2 },
-  chlorophyll: { direction: -1, sensitivity: 0.8 },
-};
+// Sites/params/months with zero approved readings show as this neutral grey
+// rather than a fabricated "good" status — "no data" is a distinct state.
+const NO_DATA_COLOR = '#78909c';
 
-function applyDepthEffect(
-  surfaceValue: number,
-  depthM: number,
-  param: WaterQualityParam,
-  siteId: string,
-): number {
-  if (depthM <= 0) return surfaceValue;
-  const trend = DEPTH_TREND[param.key];
-  if (!trend) return surfaceValue;
-  const thermoclineDepth = 8 + seededRandom(`${siteId}|thermocline`) * 8; // 8–16m
-  const curve = 1 / (1 + Math.exp(-(depthM - thermoclineDepth) / 6));
-  const range = param.max - param.min;
-  const shift = trend.direction * trend.sensitivity * range * curve;
-  const jitter = (seededRandom(`${siteId}|${depthM}|${param.key}|jitter`) * 2 - 1) * range * 0.03;
-  return surfaceValue + shift + jitter;
-}
+// Real approved readings, fetched once and looked up by the same
+// (siteId, monthIndex, param, depthM) signature every existing call site on
+// this page already uses — so nothing downstream (markers, tooltips, the
+// weighted interpolation surface) needed to change signatures, only how a
+// missing reading is handled. A site/month/depth with no real reading
+// returns null — every consumer below shows/colors that as "No Data" rather
+// than inventing a value.
+const readingsLookup = ref<ReadingLookup>(new Map());
+onMounted(async () => {
+  try {
+    const readings = await fetchWaterQualityReadings({ status: 'APPROVED' });
+    readingsLookup.value = buildReadingLookup(readings);
+  } catch (err) {
+    console.error('Failed to load water quality readings:', err);
+  }
+});
 
 function generateReading(
   siteId: string,
   monthIndex: number,
   param: WaterQualityParam,
   depthM = 0,
-): number {
-  const r = seededRandom(`${siteId}|${monthIndex}|${param.key}`);
-  const surfaceValue = param.min + r * (param.max - param.min);
-  const value = applyDepthEffect(surfaceValue, depthM, param, siteId);
-  return Math.min(Math.max(value, param.min), param.max);
+): number | null {
+  return getReading(readingsLookup.value, siteId, monthIndex, param, depthM);
 }
 
 function formatReading(value: number, param: WaterQualityParam): string {
@@ -1932,11 +1222,12 @@ function formatReading(value: number, param: WaterQualityParam): string {
 }
 
 function mockReading(siteId: string, monthIndex: number, param: WaterQualityParam, depthM = 0): string {
-  return formatReading(generateReading(siteId, monthIndex, param, depthM), param);
+  const value = generateReading(siteId, monthIndex, param, depthM);
+  return value !== null ? formatReading(value, param) : 'No data';
 }
 
 // ── Color-by-parameter map overlay (dropdown in the Water tab) ──
-const allWaterParams = computed(() => waterQualityParameterGroups.flatMap((g) => g.params));
+const allWaterParams = computed(() => allWaterQualityParams);
 const colorParamOptions = computed(() => [
   { label: 'None (default colors)', value: null as string | null },
   ...allWaterParams.value.map((p) => ({
@@ -1966,6 +1257,7 @@ function siteStatusBadge(siteId: string): { label: string; background: string } 
   const param = selectedColorParam.value;
   if (!param) return { label: 'No data yet', background: '#9e9e9e' };
   const value = generateReading(siteId, selectedMonthIndex.value, param, effectiveDepthFor(siteId));
+  if (value === null) return { label: 'No Data', background: NO_DATA_COLOR };
   const status = param.getStatus(value);
   return {
     label: `${formatReading(value, param)} · ${STATUS_LABELS[status]}`,
@@ -1977,7 +1269,7 @@ function getMarkerColor(siteId: string, defaultColor: string): string {
   const param = selectedColorParam.value;
   if (!param) return defaultColor;
   const value = generateReading(siteId, selectedMonthIndex.value, param, effectiveDepthFor(siteId));
-  return STATUS_COLORS[param.getStatus(value)];
+  return value !== null ? STATUS_COLORS[param.getStatus(value)] : NO_DATA_COLOR;
 }
 
 function recolorWaterLayers() {
@@ -2002,8 +1294,12 @@ function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
   let paramLine = '';
   if (param) {
     const value = generateReading(props.SITE_ID, selectedMonthIndex.value, param, selectedDepthM.value);
-    const status = param.getStatus(value);
-    paramLine = `<br><span style="color:${STATUS_COLORS[status]}; font-weight:bold;">${param.label} @ ${depthLabel(selectedDepthM.value)}: ${formatReading(value, param)} (${STATUS_LABELS[status]})</span>`;
+    if (value !== null) {
+      const status = param.getStatus(value);
+      paramLine = `<br><span style="color:${STATUS_COLORS[status]}; font-weight:bold;">${param.label} @ ${depthLabel(selectedDepthM.value)}: ${formatReading(value, param)} (${STATUS_LABELS[status]})</span>`;
+    } else {
+      paramLine = `<br><span style="color:${NO_DATA_COLOR}; font-weight:bold;">${param.label} @ ${depthLabel(selectedDepthM.value)}: No Data</span>`;
+    }
   }
   return `
     <div style="font-family: Roboto, sans-serif; min-width: 170px;">
@@ -2091,26 +1387,30 @@ function extractPolygonRings(geojson: GeoJSON.FeatureCollection): [number, numbe
 }
 
 // Inverse-distance-weighted estimate of a parameter's value at any clicked
-// point, from the real sampling sites' simulated readings — at the currently
-// selected sampling depth, same as everywhere else on the map.
+// point, from real readings at nearby sampling sites only — at the currently
+// selected sampling depth, same as everywhere else on the map. Sites with no
+// real reading for this month/depth simply don't contribute a weight; null
+// comes back only when literally no nearby site has any data at all.
 function interpolateValueAt(
   lat: number,
   lng: number,
   param: WaterQualityParam,
   monthIndex: number,
   depthM: number,
-): number {
+): number | null {
   const sites = waterQualitySites.value;
-  if (sites.length === 0) return (param.min + param.max) / 2;
   let weightedSum = 0;
   let weightTotal = 0;
   for (const site of sites) {
+    const value = generateReading(site.siteId, monthIndex, param, depthM);
+    if (value === null) continue;
     const dLat = site.lat - lat;
     const dLng = site.lng - lng;
     const weight = 1 / (dLat * dLat + dLng * dLng + 0.0001);
-    weightedSum += generateReading(site.siteId, monthIndex, param, depthM) * weight;
+    weightedSum += value * weight;
     weightTotal += weight;
   }
+  if (weightTotal === 0) return null;
   return weightedSum / weightTotal;
 }
 
@@ -2144,6 +1444,19 @@ function handleMapClick(e: L.LeafletMouseEvent) {
   }
 
   const value = interpolateValueAt(lat, lng, param, selectedMonthIndex.value, selectedDepthM.value);
+  if (value === null) {
+    parameterModalData.value = {
+      paramLabel: param.label,
+      valueText: 'No Data',
+      statusLabel: 'No Data',
+      color: NO_DATA_COLOR,
+      lat,
+      lng,
+      depthLabel: depthLabel(selectedDepthM.value),
+    };
+    showParameterModal.value = true;
+    return;
+  }
   const status = param.getStatus(value);
   parameterModalData.value = {
     paramLabel: param.label,
@@ -2288,6 +1601,7 @@ function renderHeatmapOverlay() {
       if (coverage <= 0.02) continue; // leave fully transparent — a coverage gap
 
       const value = interpolateValueAt(lat, lng, param, monthIndex, depthM);
+      if (value === null) continue; // no real data near this point — leave transparent
       const status = param.getStatus(value);
       const hex = STATUS_COLORS[status];
       const idx = (py * width + px) * 4;

@@ -47,11 +47,12 @@
           <q-form @submit="handleLogin" class="q-gutter-y-md">
             <q-input
               outlined
-              v-model="username"
-              label="Username"
+              v-model="email"
+              type="email"
+              label="Email"
               color="primary"
               lazy-rules
-              :rules="[(val) => !!val || 'Username is required']"
+              :rules="[(val) => !!val || 'Email is required']"
             >
               <template v-slot:prepend>
                 <q-icon name="person" class="text-grey-7" />
@@ -123,12 +124,6 @@
             />
           </div>
 
-          <!-- Temp note -->
-          <div class="text-center q-mt-md">
-            <span class="text-grey-4 text-caption"
-              >Use any username and password to continue — sign in as "admin" for admin access</span
-            >
-          </div>
         </div>
       </div>
     </q-card>
@@ -140,38 +135,37 @@ import { ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
-import { useAdminStore } from 'src/stores/admin';
 import BackButton from 'src/components/BackButton.vue';
 
 const $q = useQuasar();
 const router = useRouter();
 const authStore = useAuthStore();
-const adminStore = useAdminStore();
 
-const username = ref('');
+const email = ref('');
 const password = ref('');
 const remember = ref(false);
 const loading = ref(false);
 const errorMsg = ref('');
 
-function handleLogin() {
+async function handleLogin() {
   errorMsg.value = '';
 
-  // Temporary bypass — accepts any username and password
-  if (!username.value || !password.value) {
-    errorMsg.value = 'Please enter your username and password.';
+  if (!email.value || !password.value) {
+    errorMsg.value = 'Please enter your email and password.';
     return;
   }
 
   loading.value = true;
-
-  // Simulate a short loading delay then log in and go to home
-  setTimeout(() => {
-    authStore.login(username.value, password.value);
-    adminStore.logActivity(authStore.displayName, 'Logged In', 'Signed in to Ranao FishNet');
+  try {
+    await authStore.login(email.value, password.value);
+    router.push(authStore.user?.role === 'Admin' ? '/admin' : '/map').catch((err) => {
+      console.error('Navigation error:', err);
+    });
+  } catch (err) {
+    errorMsg.value = err instanceof Error ? err.message : 'Invalid email or password.';
+  } finally {
     loading.value = false;
-    router.push(authStore.user?.role === 'Admin' ? '/admin' : '/map');
-  }, 800);
+  }
 }
 
 const loginWithGoogle = () => {

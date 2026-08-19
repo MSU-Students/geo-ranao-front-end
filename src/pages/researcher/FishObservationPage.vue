@@ -427,6 +427,63 @@
 
             <q-separator dark class="q-mb-lg section-sep" />
 
+            <!-- Observation Details (shared) -->
+            <div class="section-label q-mb-md">
+              <q-icon name="event" color="blue-3" class="q-mr-xs" />
+              <span class="text-blue-3 text-weight-bold text-subtitle2 text-uppercase letter-spacing">
+                Observation Details
+              </span>
+            </div>
+            <div class="row q-col-gutter-md q-mb-lg">
+              <div class="col-12 col-md-6">
+                <q-input
+                  v-model="form.dateObserved"
+                  label="Date Observed *"
+                  type="date"
+                  dark outlined class="form-field"
+                  :rules="[(val) => !!val || 'Date Observed is required']"
+                  lazy-rules
+                >
+                  <template #prepend><q-icon name="event" color="blue-4" /></template>
+                </q-input>
+              </div>
+              <div class="col-12 col-md-6" v-if="selectedCategory !== 'others'">
+                <q-select
+                  v-model="form.conservationStatus"
+                  :options="conservationStatusOptions"
+                  label="Conservation Status"
+                  dark outlined emit-value map-options class="form-field"
+                  hint="Optional"
+                >
+                  <template #prepend><q-icon name="shield" color="blue-4" /></template>
+                </q-select>
+              </div>
+              <div class="col-12 col-md-6" v-if="selectedCategory !== 'others'">
+                <q-input
+                  v-model.number="form.latitude"
+                  label="Latitude"
+                  type="number" step="0.000001"
+                  dark outlined class="form-field"
+                  hint="Optional — needed to show this observation on the map"
+                >
+                  <template #prepend><q-icon name="my_location" color="blue-4" /></template>
+                </q-input>
+              </div>
+              <div class="col-12 col-md-6" v-if="selectedCategory !== 'others'">
+                <q-input
+                  v-model.number="form.longitude"
+                  label="Longitude"
+                  type="number" step="0.000001"
+                  dark outlined class="form-field"
+                  hint="Optional — needed to show this observation on the map"
+                >
+                  <template #prepend><q-icon name="my_location" color="blue-4" /></template>
+                </q-input>
+              </div>
+            </div>
+
+            <q-separator dark class="q-mb-lg section-sep" />
+
             <!-- Remarks (shared) -->
             <div class="section-label q-mb-md">
               <q-icon name="notes" color="blue-3" class="q-mr-xs" />
@@ -449,7 +506,7 @@
               <div class="col-12">
                 <p class="text-grey-5 text-caption q-mb-md">
                   <q-icon name="info" size="xs" class="q-mr-xs" />
-                  All fields are optional. Fill in what applies to your observation.
+                  Date Observed is required. Everything else is optional — fill in what applies.
                 </p>
               </div>
 
@@ -487,14 +544,21 @@ import { reactive, ref, computed } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
-import { useAdminStore } from 'src/stores/admin';
 import BackButton from 'src/components/BackButton.vue';
+import { submitFishObservation, type ConservationStatus } from 'src/composables/useFishObservations';
 
 const $q = useQuasar();
 const router = useRouter();
 const authStore = useAuthStore();
-const adminStore = useAdminStore();
 const submitting = ref(false);
+
+const conservationStatusOptions: { label: string; value: ConservationStatus }[] = [
+  { label: 'Not Evaluated', value: 'NOT_EVALUATED' },
+  { label: 'Critically Endangered', value: 'CRITICALLY_ENDANGERED' },
+  { label: 'Endangered', value: 'ENDANGERED' },
+  { label: 'Vulnerable', value: 'VULNERABLE' },
+  { label: 'Least Concern', value: 'LEAST_CONCERN' },
+];
 
 // Redirect if not logged in
 if (!authStore.isLoggedIn) {
@@ -561,6 +625,10 @@ const form = reactive({
     number: null as number | null,
     size: '',
   },
+  dateObserved: '',
+  conservationStatus: 'NOT_EVALUATED' as ConservationStatus,
+  latitude: null as number | null,
+  longitude: null as number | null,
   notes: '',
 });
 
@@ -591,10 +659,15 @@ function resetForm() {
     number: null,
     size: '',
   };
+  form.dateObserved = '';
+  form.conservationStatus = 'NOT_EVALUATED';
+  form.latitude = null;
+  form.longitude = null;
   form.notes = '';
 }
 
 function loadSampleData() {
+  form.dateObserved = new Date().toISOString().slice(0, 10);
   if (selectedCategory.value === 'endemic') {
     form.endemic.speciesScientific = 'Puntius lanaoensis';
     form.endemic.speciesLocal = 'Banak / Palongpalungan';
@@ -603,6 +676,7 @@ function loadSampleData() {
     form.endemic.weight = 95.0;
     form.endemic.municipal = 'Lanao del Sur';
     form.endemic.barangay = 'Bubong';
+    form.conservationStatus = 'CRITICALLY_ENDANGERED';
     form.notes = 'Observed in shallow littoral zone near macrophytes. Water was clear, moderate current.';
   } else if (selectedCategory.value === 'invasive') {
     form.invasive.speciesName = 'Oreochromis niloticus (Nile Tilapia)';
@@ -611,6 +685,7 @@ function loadSampleData() {
     form.invasive.weight = 310.5;
     form.invasive.municipal = 'Marawi City';
     form.invasive.barangay = 'Rapasun';
+    form.conservationStatus = 'LEAST_CONCERN';
     form.notes = 'Dense aggregation observed near shoreline. Likely displacing endemic cyprinids in this zone.';
   } else if (selectedCategory.value === 'others') {
     form.others.coordinates = '7.9823, 124.2701';
@@ -629,29 +704,77 @@ function loadSampleData() {
   });
 }
 
-function handleSubmit() {
-  submitting.value = true;
+// "7.9823, 124.2701" -> { latitude, longitude } — best-effort, silently
+// leaves both undefined if the free-text field isn't in that shape.
+function parseCoordinates(text: string): { latitude?: number; longitude?: number } {
+  const parts = text.split(',').map((p) => Number(p.trim()));
+  const [lat, lng] = parts;
+  if (parts.length === 2 && lat !== undefined && lng !== undefined && Number.isFinite(lat) && Number.isFinite(lng)) {
+    return { latitude: lat, longitude: lng };
+  }
+  return {};
+}
 
-  let label = '';
-  if (selectedCategory.value === 'endemic') {
-    label = form.endemic.speciesScientific || form.endemic.speciesLocal || 'Unnamed endemic species';
-  } else if (selectedCategory.value === 'invasive') {
-    label = form.invasive.speciesName || 'Unnamed invasive species';
-  } else {
-    label = 'Others / General Species';
+async function handleSubmit() {
+  if (!form.dateObserved) {
+    $q.notify({ type: 'negative', message: 'Date Observed is required.', position: 'top' });
+    return;
   }
 
-  setTimeout(() => {
-    submitting.value = false;
-    adminStore.recordUpload(
-      authStore.displayName,
-      'Fish Observation',
-      label,
-      form.others.coordinates || 'Lake Lanao',
-    );
+  const data = new FormData();
+  data.append('dateObserved', form.dateObserved);
+  if (form.notes) data.append('notes', form.notes);
+
+  let photos: File[] | null = null;
+
+  if (selectedCategory.value === 'endemic') {
+    data.append('category', 'ENDEMIC');
+    data.append('conservationStatus', form.conservationStatus);
+    if (form.endemic.speciesScientific) data.append('speciesScientific', form.endemic.speciesScientific);
+    if (form.endemic.speciesLocal) data.append('speciesCommon', form.endemic.speciesLocal);
+    if (form.endemic.trueLength !== null) data.append('trueLengthCm', String(form.endemic.trueLength));
+    if (form.endemic.bodyDepth !== null) data.append('bodyDepthCm', String(form.endemic.bodyDepth));
+    if (form.endemic.weight !== null) data.append('weightG', String(form.endemic.weight));
+    if (form.endemic.municipal) data.append('municipal', form.endemic.municipal);
+    if (form.endemic.barangay) data.append('barangay', form.endemic.barangay);
+    if (form.latitude !== null) data.append('latitude', String(form.latitude));
+    if (form.longitude !== null) data.append('longitude', String(form.longitude));
+    photos = form.endemic.photos;
+  } else if (selectedCategory.value === 'invasive') {
+    data.append('category', 'INVASIVE');
+    data.append('conservationStatus', form.conservationStatus);
+    if (form.invasive.speciesName) data.append('speciesCommon', form.invasive.speciesName);
+    if (form.invasive.trueLength !== null) data.append('trueLengthCm', String(form.invasive.trueLength));
+    if (form.invasive.bodyDepth !== null) data.append('bodyDepthCm', String(form.invasive.bodyDepth));
+    if (form.invasive.weight !== null) data.append('weightG', String(form.invasive.weight));
+    if (form.invasive.municipal) data.append('municipal', form.invasive.municipal);
+    if (form.invasive.barangay) data.append('barangay', form.invasive.barangay);
+    if (form.latitude !== null) data.append('latitude', String(form.latitude));
+    if (form.longitude !== null) data.append('longitude', String(form.longitude));
+    photos = form.invasive.photos;
+  } else if (selectedCategory.value === 'others') {
+    data.append('category', 'GENERAL');
+    const { latitude, longitude } = parseCoordinates(form.others.coordinates);
+    if (latitude !== undefined) data.append('latitude', String(latitude));
+    if (longitude !== undefined) data.append('longitude', String(longitude));
+    if (form.others.depth !== null) data.append('depthM', String(form.others.depth));
+    if (form.others.weight !== null) data.append('weightG', String(form.others.weight));
+    if (form.others.number !== null) data.append('count', String(form.others.number));
+    if (form.others.size) data.append('sizeCategory', form.others.size);
+  } else {
+    return;
+  }
+
+  if (photos) {
+    for (const file of photos) data.append('photos', file);
+  }
+
+  submitting.value = true;
+  try {
+    await submitFishObservation(data);
     $q.notify({
       type: 'positive',
-      message: 'Fish observation submitted successfully!',
+      message: 'Fish observation submitted for review!',
       color: 'blue-7',
       icon: 'check_circle',
       position: 'top',
@@ -659,7 +782,16 @@ function handleSubmit() {
     });
     resetForm();
     selectedCategory.value = '';
-  }, 1000);
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err instanceof Error ? err.message : 'Failed to submit fish observation.',
+      position: 'top',
+      timeout: 4000,
+    });
+  } finally {
+    submitting.value = false;
+  }
 }
 </script>
 
