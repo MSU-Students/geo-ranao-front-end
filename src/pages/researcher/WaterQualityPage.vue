@@ -61,99 +61,74 @@
               </q-input>
             </div>
 
-            <!-- Station / Location ID (required) -->
+            <!-- Station (required) — fixed sampling sites, coordinates aren't freely editable -->
             <div class="col-12 col-md-4">
-              <q-input
-                v-model="form.stationId"
-                label="Station / Location ID *"
+              <q-select
+                v-model="form.siteId"
+                :options="stationOptionsFiltered"
+                label="Station *"
                 dark
                 outlined
+                emit-value
+                map-options
+                use-input
+                input-debounce="0"
+                @filter="filterStations"
                 class="form-field"
-                hint="e.g. LL-WQ-03"
-                :rules="[(val) => !!val || 'Station ID is required']"
+                hint="Fixed sampling site"
+                :rules="[(val) => !!val || 'Station is required']"
                 lazy-rules
               >
                 <template #prepend>
                   <q-icon name="pin_drop" color="teal-4" />
                 </template>
-              </q-input>
+              </q-select>
             </div>
 
             <!-- Depth -->
             <div class="col-12 col-md-4">
-              <q-input
-                v-model.number="form.depth"
-                label="Depth (meters)"
-                type="number"
-                min="0"
-                step="0.1"
+              <q-select
+                v-model="form.depthM"
+                :options="DEPTH_OPTIONS"
+                label="Depth *"
+                emit-value
+                map-options
                 dark
                 outlined
                 class="form-field"
-                hint="Optional"
+                :rules="[(val) => val !== null || 'Depth is required']"
+                lazy-rules
               >
                 <template #prepend>
                   <q-icon name="vertical_align_bottom" color="teal-4" />
                 </template>
-                <template #append>
-                  <span class="text-grey-5 text-caption">m</span>
-                </template>
-              </q-input>
+              </q-select>
             </div>
 
-            <!-- Latitude (required) -->
-            <div class="col-12 col-md-6">
+            <!-- Date of Observation (required) -->
+            <div class="col-12 col-md-4">
               <q-input
-                v-model.number="form.latitude"
-                label="Latitude *"
-                type="number"
-                step="0.000001"
+                v-model="form.dateObserved"
+                label="Date of Observation *"
+                type="date"
                 dark
                 outlined
                 class="form-field"
-                hint="Decimal degrees — e.g. 7.9900"
-                :rules="[
-                  (val) => (val !== null && val !== '') || 'Latitude is required',
-                  (val) => (val >= -90 && val <= 90) || 'Must be between -90 and 90',
-                ]"
+                :rules="[(val) => !!val || 'Date of Observation is required']"
                 lazy-rules
               >
                 <template #prepend>
-                  <q-icon name="my_location" color="teal-4" />
+                  <q-icon name="event" color="teal-4" />
                 </template>
               </q-input>
             </div>
 
-            <!-- Longitude (required) -->
-            <div class="col-12 col-md-6">
-              <q-input
-                v-model.number="form.longitude"
-                label="Longitude *"
-                type="number"
-                step="0.000001"
-                dark
-                outlined
-                class="form-field"
-                hint="Decimal degrees — e.g. 124.0700"
-                :rules="[
-                  (val) => (val !== null && val !== '') || 'Longitude is required',
-                  (val) => (val >= -180 && val <= 180) || 'Must be between -180 and 180',
-                ]"
-                lazy-rules
-              >
-                <template #prepend>
-                  <q-icon name="my_location" color="teal-4" />
-                </template>
-              </q-input>
-            </div>
-
-            <!-- Coordinate preview pill -->
-            <div class="col-12" v-if="form.latitude && form.longitude">
+            <!-- Coordinate preview pill (derived from the selected station) -->
+            <div class="col-12" v-if="selectedStation">
               <div class="coord-pill row items-center no-wrap q-gutter-xs">
                 <q-icon name="gps_fixed" color="teal-4" size="14px" />
                 <span class="text-teal-3 text-caption text-weight-medium">
-                  GIS Point: {{ Number(form.latitude).toFixed(6) }},
-                  {{ Number(form.longitude).toFixed(6) }}
+                  GIS Point: {{ selectedStation.latitude.toFixed(6) }}, {{ selectedStation.longitude.toFixed(6) }}
                 </span>
               </div>
             </div>
@@ -564,17 +539,18 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
-import { useAdminStore } from 'src/stores/admin';
 import BackButton from 'src/components/BackButton.vue';
+import { fetchStations, useStations } from 'src/composables/useStations';
+import { DEPTH_OPTIONS } from 'src/composables/useWaterQualityModel';
+import { submitWaterQualityReading } from 'src/composables/useWaterQualityReadings';
 
 const $q = useQuasar();
 const router = useRouter();
 const authStore = useAuthStore();
-const adminStore = useAdminStore();
 const submitting = ref(false);
 
 // Redirect if not logged in
@@ -585,17 +561,39 @@ if (!authStore.isLoggedIn) {
     icon: 'lock',
     position: 'top',
   });
-  router.replace('/auth/login');
+  router.replace('/auth/login').catch((err) => {
+    console.error('Navigation error:', err);
+  });
+}
+
+// ─── Stations (fixed sampling sites) ───
+const { stations } = useStations();
+onMounted(() => {
+  fetchStations().catch((err: unknown) => console.error('Failed to load stations:', err));
+});
+
+const stationOptions = computed(() =>
+  stations.value.map((s) => ({ label: s.stationId ? `${s.siteId} (${s.stationId})` : s.siteId, value: s.siteId })),
+);
+const stationOptionsFiltered = ref(stationOptions.value);
+watch(stationOptions, (opts) => {
+  stationOptionsFiltered.value = opts;
+});
+function filterStations(val: string, update: (cb: () => void) => void) {
+  update(() => {
+    const needle = val.toLowerCase();
+    stationOptionsFiltered.value = needle
+      ? stationOptions.value.filter((o) => o.label.toLowerCase().includes(needle))
+      : stationOptions.value;
+  });
 }
 
 // ─── Form State ───
 const form = reactive({
   // Section 1 – Field Data
   dateObserved: '',
-  stationId: '',
-  latitude: null as number | null,
-  longitude: null as number | null,
-  depth: null as number | null,
+  siteId: '',
+  depthM: 0 as number | null,
 
   // Section 2 – Physico-Chemical
   dissolvedOxygen: null as number | null,
@@ -620,12 +618,12 @@ const form = reactive({
   notes: '',
 });
 
+const selectedStation = computed(() => stations.value.find((s) => s.siteId === form.siteId) ?? null);
+
 function resetForm() {
   form.dateObserved = '';
-  form.stationId = '';
-  form.latitude = null;
-  form.longitude = null;
-  form.depth = null;
+  form.siteId = '';
+  form.depthM = 0;
   form.dissolvedOxygen = null;
   form.temperature = null;
   form.ph = null;
@@ -642,49 +640,60 @@ function resetForm() {
   form.notes = '';
 }
 
-function handleSubmit() {
-  // Validate required fields
+async function handleSubmit() {
   if (!form.dateObserved) {
     $q.notify({ type: 'negative', message: 'Date of Observation is required.', position: 'top' });
     return;
   }
-  if (!form.stationId) {
-    $q.notify({ type: 'negative', message: 'Station / Location ID is required.', position: 'top' });
+  if (!form.siteId) {
+    $q.notify({ type: 'negative', message: 'Station is required.', position: 'top' });
     return;
   }
-  if (form.latitude === null || form.latitude === undefined || form.latitude === ('' as unknown)) {
-    $q.notify({ type: 'negative', message: 'Latitude is required.', position: 'top' });
-    return;
-  }
-  if (
-    form.longitude === null ||
-    form.longitude === undefined ||
-    form.longitude === ('' as unknown)
-  ) {
-    $q.notify({ type: 'negative', message: 'Longitude is required.', position: 'top' });
+  if (form.depthM === null) {
+    $q.notify({ type: 'negative', message: 'Depth is required.', position: 'top' });
     return;
   }
 
   submitting.value = true;
-  // Simulate API call
-  setTimeout(() => {
-    submitting.value = false;
-    adminStore.recordUpload(
-      authStore.displayName,
-      'Water Quality',
-      `Station ${form.stationId} — Water Quality Reading`,
-      `${form.latitude}, ${form.longitude}`,
-    );
+  try {
+    await submitWaterQualityReading({
+      siteId: form.siteId,
+      dateObserved: form.dateObserved,
+      depthM: form.depthM,
+      dissolvedOxygen: form.dissolvedOxygen,
+      temperature: form.temperature,
+      ph: form.ph,
+      turbidity: form.turbidity,
+      conductivity: form.conductivity,
+      tds: form.tds,
+      tss: form.tss,
+      phosphate: form.phosphate,
+      ammonia: form.ammonia,
+      nitrate: form.nitrate,
+      nitrite: form.nitrite,
+      sulfate: form.sulfate,
+      chlorophyll: form.chlorophyll,
+      notes: form.notes || undefined,
+    });
     $q.notify({
       type: 'positive',
-      message: 'Water quality data submitted successfully!',
+      message: 'Water quality data submitted for review!',
       color: 'teal',
       icon: 'check_circle',
       position: 'top',
       timeout: 3000,
     });
     resetForm();
-  }, 1000);
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err instanceof Error ? err.message : 'Failed to submit water quality data.',
+      position: 'top',
+      timeout: 4000,
+    });
+  } finally {
+    submitting.value = false;
+  }
 }
 </script>
 

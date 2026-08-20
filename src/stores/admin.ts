@@ -1,7 +1,23 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import axios from 'axios';
+import { api } from 'src/boot/axios';
 import type { WaterQualityUploadRow } from 'src/composables/useWaterQualityUpload';
-import { useAuthStore } from './auth';
+import { allWaterQualityParams } from 'src/composables/useWaterQualityModel';
+import {
+  fetchFishObservations,
+  approveFishObservation,
+  rejectFishObservation,
+  type FishObservation,
+} from 'src/composables/useFishObservations';
+import {
+  fetchWaterQualityReadings,
+  approveWaterQualityReading,
+  rejectWaterQualityReading,
+  approveWaterQualityBatch,
+  rejectWaterQualityBatch,
+  type WaterQualityReading,
+} from 'src/composables/useWaterQualityReadings';
 
 export type AccountStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
 
@@ -33,7 +49,12 @@ export type UploadReviewStatus = 'pending' | 'approved' | 'rejected';
 export type UploadCategory = 'Fish Observation' | 'Water Quality';
 
 export interface UploadReviewItem {
-  id: number;
+  id: string;
+  type: 'fish' | 'water';
+  /** Fish observation id, or single (non-batch) water quality reading id. */
+  refId?: number;
+  /** Present for bulk water-quality uploads — groups many readings reviewed as one unit. */
+  batchId?: string;
   researcher: string;
   category: UploadCategory;
   title: string;
@@ -45,187 +66,216 @@ export interface UploadReviewItem {
   rows?: WaterQualityUploadRow[] | undefined;
 }
 
-let nextAccountId = 1000;
+// ── Backend shapes (from geo-ranao-api) ──
+interface BackendUser {
+  id: number;
+  fullName: string;
+  email: string;
+  role: 'ADMIN' | 'RESEARCHER';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+  affiliation: string;
+  departmentRole?: string;
+  purposeOfRequest: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  reviewNote?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function mapAccountStatus(status: BackendUser['status']): AccountStatus {
+  switch (status) {
+    case 'APPROVED':
+      return 'verified';
+    case 'SUSPENDED':
+      return 'suspended';
+    case 'REJECTED':
+      return 'rejected';
+    default:
+      return 'pending';
+  }
+}
+
+function mapAccount(u: BackendUser): ResearcherAccount {
+  const account: ResearcherAccount = {
+    id: u.id,
+    fullName: u.fullName,
+    email: u.email,
+    affiliation: u.affiliation,
+    departmentRole: u.departmentRole ?? '',
+    purposeOfRequest: u.purposeOfRequest,
+    status: mapAccountStatus(u.status),
+    submittedDate: u.createdAt.slice(0, 10),
+  };
+  if (u.reviewedAt) account.reviewedDate = u.reviewedAt.slice(0, 10);
+  if (u.reviewNote) account.reviewNote = u.reviewNote;
+  return account;
+}
+
+function mapReviewStatus(status: 'PENDING' | 'APPROVED' | 'REJECTED'): UploadReviewStatus {
+  if (status === 'APPROVED') return 'approved';
+  if (status === 'REJECTED') return 'rejected';
+  return 'pending';
+}
+
+function readingToRow(r: WaterQualityReading): WaterQualityUploadRow {
+  const values: Partial<Record<string, number>> = {};
+  for (const param of allWaterQualityParams) {
+    const value = r[param.key as keyof WaterQualityReading];
+    if (typeof value === 'number') values[param.key] = value;
+  }
+  return {
+    siteId: r.siteId,
+    date: r.dateObserved,
+    depthM: r.depthM,
+    values,
+    notes: r.notes ?? undefined,
+    warnings: [],
+  };
+}
+
+function extractErrorMessage(err: unknown, fallback: string): string {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { message?: string | string[] } | undefined;
+    const msg = data?.message;
+    if (Array.isArray(msg)) return msg.join(', ');
+    if (typeof msg === 'string') return msg;
+  }
+  return fallback;
+}
+
 let nextLogId = 1000;
-let nextUploadId = 1000;
 
 export const useAdminStore = defineStore('admin', () => {
-  const authStore = useAuthStore();
-  // Whoever is logged in when an admin action runs — today that's always the
-  // single "admin" mock account, but this keeps the activity log correct
-  // without changes once real multi-admin accounts exist.
-  const currentActor = () => authStore.displayName;
 
-  const researcherAccounts = ref<ResearcherAccount[]>([
-    {
-      id: 1,
-      fullName: 'Jollymar A. Mark',
-      email: 'jollymar.mark@msumain.edu.ph',
-      affiliation: 'Academic Researcher',
-      departmentRole: 'Research Assistant',
-      purposeOfRequest: 'Tracking endemic fish population decline across Lake Lanao sampling sites.',
-      status: 'verified',
-      submittedDate: '2025-02-10',
-      reviewedDate: '2025-02-12',
-    },
-    {
-      id: 2,
-      fullName: 'Dr. Juan Dela Cruz',
-      email: 'juan.delacruz@msumain.edu.ph',
-      affiliation: 'Academic Researcher',
-      departmentRole: 'Associate Professor',
-      purposeOfRequest: 'Long-term water quality monitoring and trend analysis for the lake.',
-      status: 'verified',
-      submittedDate: '2025-01-05',
-      reviewedDate: '2025-01-08',
-    },
-    {
-      id: 3,
-      fullName: 'Maria S. Santos',
-      email: 'maria.santos@lgu-lanao.gov.ph',
-      affiliation: 'LGU Researcher',
-      departmentRole: 'Environmental Officer',
-      purposeOfRequest: 'Monitoring invasive species spread for local fisheries management.',
-      status: 'verified',
-      submittedDate: '2025-03-01',
-      reviewedDate: '2025-03-03',
-    },
-    {
-      id: 4,
-      fullName: 'Angelo R. Bautista',
-      email: 'angelo.bautista@gmail.com',
-      affiliation: 'Student Researcher',
-      departmentRole: '',
-      purposeOfRequest:
-        'Assessing correlation between water turbidity and fish biodiversity for undergraduate thesis research.',
-      status: 'pending',
-      submittedDate: '2026-07-05',
-    },
-    {
-      id: 5,
-      fullName: 'Dr. Amina T. Macarambon',
-      email: 'amina.macarambon@msumain.edu.ph',
-      affiliation: 'Academic Researcher',
-      departmentRole: 'Senior Lecturer',
-      purposeOfRequest: 'Studying climate change impact on Lake Lanao thermal stratification.',
-      status: 'pending',
-      submittedDate: '2026-07-07',
-    },
-    {
-      id: 6,
-      fullName: 'Ricardo D. Villanueva',
-      email: 'ricardo.villanueva@privateresearch.ph',
-      affiliation: 'Private Researcher',
-      departmentRole: 'Independent Consultant',
-      purposeOfRequest: 'Commercial fisheries feasibility study.',
-      status: 'suspended',
-      submittedDate: '2025-04-01',
-      reviewedDate: '2025-04-05',
-      reviewNote: 'Repeated submission of unverifiable data sources.',
-    },
-  ]);
+  const researcherAccounts = ref<ResearcherAccount[]>([]);
+  const accountsLoading = ref(false);
 
-  const uploadReviews = ref<UploadReviewItem[]>([
-    {
-      id: 1,
-      researcher: 'Jollymar A. Mark',
+  const activityLogs = ref<ActivityLogEntry[]>([]);
+  const activityLogsLoading = ref(false);
+
+  const uploadReviews = ref<UploadReviewItem[]>([]);
+  const uploadReviewsLoading = ref(false);
+
+  async function fetchAccounts() {
+    accountsLoading.value = true;
+    try {
+      const { data } = await api.get<BackendUser[]>('/users');
+      researcherAccounts.value = data.map(mapAccount);
+    } finally {
+      accountsLoading.value = false;
+    }
+  }
+
+  async function fetchActivityLogs() {
+    activityLogsLoading.value = true;
+    try {
+      const { data } = await api.get<ActivityLogEntry[]>('/activity-logs');
+      activityLogs.value = data;
+    } finally {
+      activityLogsLoading.value = false;
+    }
+  }
+
+  // researcherAccounts only lists RESEARCHER-role users — falls back to a
+  // placeholder for the rare case an ADMIN account submitted its own data.
+  function researcherName(researcherId: number): string {
+    return researcherAccounts.value.find((a) => a.id === researcherId)?.fullName ?? `Researcher #${researcherId}`;
+  }
+
+  function fishToItem(f: FishObservation): UploadReviewItem {
+    const location =
+      f.latitude != null && f.longitude != null
+        ? `${f.latitude}, ${f.longitude}`
+        : f.municipal || 'Lake Lanao';
+    const item: UploadReviewItem = {
+      id: `fish-${f.id}`,
+      type: 'fish',
+      refId: f.id,
+      researcher: researcherName(f.researcherId),
       category: 'Fish Observation',
-      title: 'Pait (Puntius sirang)',
-      location: '7.9900, 124.0500',
-      submittedDate: '2025-05-12',
-      status: 'approved',
-    },
-    {
-      id: 2,
-      researcher: 'Jollymar A. Mark',
-      category: 'Fish Observation',
-      title: 'Banak (Puntius lanaoensis)',
-      location: '7.9500, 124.0200',
-      submittedDate: '2025-06-01',
-      status: 'pending',
-    },
-    {
-      id: 3,
-      researcher: 'Dr. Juan Dela Cruz',
-      category: 'Fish Observation',
-      title: 'Igat (Anguilla marmorata)',
-      location: '8.0200, 124.0800',
-      submittedDate: '2025-04-28',
-      status: 'approved',
-    },
-    {
-      id: 4,
-      researcher: 'Dr. Juan Dela Cruz',
+      title: f.speciesCommon || f.speciesScientific || `${f.category} observation`,
+      location,
+      submittedDate: f.createdAt.slice(0, 10),
+      status: mapReviewStatus(f.reviewStatus),
+    };
+    if (f.reviewNote) item.reviewNote = f.reviewNote;
+    return item;
+  }
+
+  function waterSingleToItem(r: WaterQualityReading): UploadReviewItem {
+    const item: UploadReviewItem = {
+      id: `water-${r.id}`,
+      type: 'water',
+      refId: r.id,
+      researcher: researcherName(r.researcherId),
       category: 'Water Quality',
-      title: 'Station WQ-07 — Dissolved Oxygen Reading',
-      location: '8.0000, 124.0450',
-      submittedDate: '2025-06-20',
-      status: 'pending',
-    },
-    {
-      id: 5,
-      researcher: 'Maria S. Santos',
-      category: 'Fish Observation',
-      title: 'Nile Tilapia (Oreochromis niloticus)',
-      location: '8.0000, 124.0400',
-      submittedDate: '2025-06-10',
-      status: 'rejected',
-      reviewNote: 'Missing photo evidence for invasive species claim.',
-    },
-    {
-      id: 6,
-      researcher: 'Maria S. Santos',
+      title: `Station ${r.siteId} — Water Quality Reading`,
+      location: r.siteId,
+      submittedDate: r.createdAt.slice(0, 10),
+      status: mapReviewStatus(r.reviewStatus),
+    };
+    if (r.reviewNote) item.reviewNote = r.reviewNote;
+    return item;
+  }
+
+  function waterBatchToItem(batchId: string, rows: WaterQualityReading[]): UploadReviewItem {
+    const uniqueSites = [...new Set(rows.map((r) => r.siteId))];
+    const first = rows[0]!;
+    const item: UploadReviewItem = {
+      id: `water-batch-${batchId}`,
+      type: 'water',
+      batchId,
+      researcher: researcherName(first.researcherId),
       category: 'Water Quality',
-      title: 'Station WQ-12 — Turbidity Reading',
-      location: '8.0100, 124.0900',
-      submittedDate: '2025-06-22',
-      status: 'pending',
-    },
-  ]);
+      title: `Bulk Water Quality Upload — ${rows.length} reading${rows.length === 1 ? '' : 's'} (${uniqueSites.length} site${uniqueSites.length === 1 ? '' : 's'})`,
+      location:
+        uniqueSites.slice(0, 3).join(', ') + (uniqueSites.length > 3 ? ` +${uniqueSites.length - 3} more` : ''),
+      submittedDate: first.createdAt.slice(0, 10),
+      status: mapReviewStatus(first.reviewStatus),
+      rows: rows.map(readingToRow),
+    };
+    if (first.reviewNote) item.reviewNote = first.reviewNote;
+    return item;
+  }
 
-  const activityLogs = ref<ActivityLogEntry[]>([
-    {
-      id: 1,
-      timestamp: '2026-07-07T09:14:00',
-      actor: 'Dr. Amina T. Macarambon',
-      action: 'Submitted Application',
-      detail: 'Applied as Academic Researcher',
-      severity: 'neutral',
-    },
-    {
-      id: 2,
-      timestamp: '2026-07-05T14:02:00',
-      actor: 'Angelo R. Bautista',
-      action: 'Submitted Application',
-      detail: 'Applied as Student Researcher',
-      severity: 'neutral',
-    },
-    {
-      id: 3,
-      timestamp: '2025-06-22T11:40:00',
-      actor: 'Maria S. Santos',
-      action: 'Uploaded Water Quality Data',
-      detail: 'Station WQ-12 — Turbidity Reading',
-      severity: 'neutral',
-    },
-    {
-      id: 4,
-      timestamp: '2025-06-20T08:15:00',
-      actor: 'Dr. Juan Dela Cruz',
-      action: 'Uploaded Water Quality Data',
-      detail: 'Station WQ-07 — Dissolved Oxygen Reading',
-      severity: 'neutral',
-    },
-    {
-      id: 5,
-      timestamp: '2025-04-05T10:30:00',
-      actor: 'Admin',
-      action: 'Account Revoked',
-      detail: 'Revoked Ricardo D. Villanueva — Repeated submission of unverifiable data sources.',
-      severity: 'warning',
-    },
-  ]);
+  // Fish/water submissions are keyed to a researcher's *name*, so account
+  // names must be loaded first — fetchAccounts() is safe to call repeatedly
+  // (cheap) and keeps this self-sufficient regardless of call order.
+  async function fetchUploadReviews() {
+    uploadReviewsLoading.value = true;
+    try {
+      if (researcherAccounts.value.length === 0) await fetchAccounts();
 
+      const [fishRows, waterRows] = await Promise.all([fetchFishObservations(), fetchWaterQualityReadings()]);
+
+      const fishItems = fishRows.map(fishToItem);
+
+      const batches = new Map<string, WaterQualityReading[]>();
+      const singleItems: UploadReviewItem[] = [];
+      for (const r of waterRows) {
+        if (r.batchId) {
+          const bucket = batches.get(r.batchId);
+          if (bucket) bucket.push(r);
+          else batches.set(r.batchId, [r]);
+        } else {
+          singleItems.push(waterSingleToItem(r));
+        }
+      }
+      const batchItems = [...batches.entries()].map(([batchId, rows]) => waterBatchToItem(batchId, rows));
+
+      uploadReviews.value = [...fishItems, ...singleItems, ...batchItems].sort((a, b) =>
+        b.submittedDate.localeCompare(a.submittedDate),
+      );
+    } finally {
+      uploadReviewsLoading.value = false;
+    }
+  }
+
+  // Local-only log entry — used for actions that don't have a backend
+  // endpoint yet (report generation, map downloads). Persisted actions
+  // (approve/reject/revoke/...) get their log entry from the server via
+  // fetchActivityLogs() instead, so it survives a page refresh.
   function logActivity(actor: string, action: string, detail: string, severity: ActivitySeverity = 'neutral') {
     activityLogs.value.unshift({
       id: nextLogId++,
@@ -237,134 +287,69 @@ export const useAdminStore = defineStore('admin', () => {
     });
   }
 
-  function submitApplication(data: {
-    fullName: string;
-    email: string;
-    affiliation: string;
-    departmentRole: string;
-    purposeOfRequest: string;
-  }) {
-    const account: ResearcherAccount = {
-      id: nextAccountId++,
-      ...data,
-      status: 'pending',
-      submittedDate: new Date().toISOString().slice(0, 10),
-    };
-    researcherAccounts.value.unshift(account);
-    logActivity(data.fullName, 'Submitted Application', `Applied as ${data.affiliation}`);
-    return account.id;
+  async function approveAccount(id: number) {
+    try {
+      await api.patch(`/users/${id}/approve`);
+      await Promise.all([fetchAccounts(), fetchActivityLogs()]);
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, 'Failed to approve account.'));
+    }
   }
 
-  function approveAccount(id: number) {
-    const acc = researcherAccounts.value.find((a) => a.id === id);
-    if (!acc) return;
-    acc.status = 'verified';
-    acc.reviewedDate = new Date().toISOString().slice(0, 10);
-    acc.reviewNote = undefined;
-    logActivity(currentActor(), 'Account Approved', `Approved ${acc.fullName} (${acc.email})`, 'positive');
+  async function rejectAccount(id: number, reason?: string) {
+    try {
+      await api.patch(`/users/${id}/reject`, { reason });
+      await Promise.all([fetchAccounts(), fetchActivityLogs()]);
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, 'Failed to reject account.'));
+    }
   }
 
-  function rejectAccount(id: number, reason?: string) {
-    const acc = researcherAccounts.value.find((a) => a.id === id);
-    if (!acc) return;
-    acc.status = 'rejected';
-    acc.reviewedDate = new Date().toISOString().slice(0, 10);
-    acc.reviewNote = reason || undefined;
-    logActivity(
-      currentActor(),
-      'Account Rejected',
-      `Rejected ${acc.fullName}${reason ? ` — ${reason}` : ''}`,
-      'negative',
-    );
-  }
-
-  function revokeAccount(id: number, reason?: string) {
-    const acc = researcherAccounts.value.find((a) => a.id === id);
-    if (!acc) return;
-    acc.status = 'suspended';
-    acc.reviewedDate = new Date().toISOString().slice(0, 10);
-    acc.reviewNote = reason || undefined;
-    logActivity(
-      currentActor(),
-      'Account Revoked',
-      `Revoked ${acc.fullName}${reason ? ` — ${reason}` : ''}`,
-      'warning',
-    );
+  async function revokeAccount(id: number, reason?: string) {
+    try {
+      await api.patch(`/users/${id}/revoke`, { reason });
+      await Promise.all([fetchAccounts(), fetchActivityLogs()]);
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, 'Failed to revoke account.'));
+    }
   }
 
   // Brings a suspended account back to verified — the counterpart to
   // revokeAccount, so a revoke isn't a permanent dead end short of deletion.
-  function reinstateAccount(id: number) {
-    const acc = researcherAccounts.value.find((a) => a.id === id);
-    if (!acc) return;
-    acc.status = 'verified';
-    acc.reviewedDate = new Date().toISOString().slice(0, 10);
-    acc.reviewNote = undefined;
-    logActivity(currentActor(), 'Account Reinstated', `Reinstated ${acc.fullName} (${acc.email})`, 'positive');
+  async function reinstateAccount(id: number) {
+    try {
+      await api.patch(`/users/${id}/reinstate`);
+      await Promise.all([fetchAccounts(), fetchActivityLogs()]);
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, 'Failed to reinstate account.'));
+    }
   }
 
-  function deleteAccount(id: number, reason?: string) {
-    const acc = researcherAccounts.value.find((a) => a.id === id);
-    if (!acc) return;
-    researcherAccounts.value = researcherAccounts.value.filter((a) => a.id !== id);
-    logActivity(
-      currentActor(),
-      'Account Deleted',
-      `Deleted account for ${acc.fullName} (${acc.email})${reason ? ` — ${reason}` : ''}`,
-      'negative',
-    );
+  async function deleteAccount(id: number, reason?: string) {
+    try {
+      await api.delete(`/users/${id}`, { data: { reason } });
+      await Promise.all([fetchAccounts(), fetchActivityLogs()]);
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, 'Failed to delete account.'));
+    }
   }
 
-  function recordUpload(researcher: string, category: UploadCategory, title: string, location: string) {
-    const item: UploadReviewItem = {
-      id: nextUploadId++,
-      researcher,
-      category,
-      title,
-      location,
-      submittedDate: new Date().toISOString().slice(0, 10),
-      status: 'pending',
-    };
-    uploadReviews.value.unshift(item);
-    logActivity(
-      researcher,
-      category === 'Fish Observation' ? 'Uploaded Fish Observation' : 'Uploaded Water Quality Data',
-      title,
-    );
-    return item.id;
-  }
-
-  function recordWaterQualityBatchUpload(researcher: string, rows: WaterQualityUploadRow[]) {
-    const uniqueSites = [...new Set(rows.map((r) => r.siteId))];
-    const title = `Bulk Water Quality Upload — ${rows.length} reading${rows.length === 1 ? '' : 's'} (${uniqueSites.length} site${uniqueSites.length === 1 ? '' : 's'})`;
-    const location =
-      uniqueSites.slice(0, 3).join(', ') + (uniqueSites.length > 3 ? ` +${uniqueSites.length - 3} more` : '');
-    const item: UploadReviewItem = {
-      id: nextUploadId++,
-      researcher,
-      category: 'Water Quality',
-      title,
-      location,
-      submittedDate: new Date().toISOString().slice(0, 10),
-      status: 'pending',
-      rows,
-    };
-    uploadReviews.value.unshift(item);
-    logActivity(researcher, 'Uploaded Water Quality Data', title);
-    return item.id;
-  }
-
-  function reviewUpload(id: number, status: 'approved' | 'rejected', note?: string) {
-    const item = uploadReviews.value.find((u) => u.id === id);
-    if (!item) return;
-    item.status = status;
-    item.reviewNote = note || undefined;
-    logActivity(
-      currentActor(),
-      status === 'approved' ? 'Upload Approved' : 'Upload Rejected',
-      `${item.title}${note ? ` — ${note}` : ''}`,
-      status === 'approved' ? 'positive' : 'negative',
-    );
+  async function reviewUpload(item: UploadReviewItem, status: 'approved' | 'rejected', note?: string) {
+    try {
+      if (item.type === 'fish') {
+        if (status === 'approved') await approveFishObservation(item.refId!);
+        else await rejectFishObservation(item.refId!, note);
+      } else if (item.batchId) {
+        if (status === 'approved') await approveWaterQualityBatch(item.batchId);
+        else await rejectWaterQualityBatch(item.batchId, note);
+      } else {
+        if (status === 'approved') await approveWaterQualityReading(item.refId!);
+        else await rejectWaterQualityReading(item.refId!, note);
+      }
+      await Promise.all([fetchUploadReviews(), fetchActivityLogs()]);
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, `Failed to ${status} upload.`));
+    }
   }
 
   function recordReportGenerated(actor: string, reportLabel: string) {
@@ -377,17 +362,20 @@ export const useAdminStore = defineStore('admin', () => {
 
   return {
     researcherAccounts,
+    accountsLoading,
     uploadReviews,
+    uploadReviewsLoading,
     activityLogs,
+    activityLogsLoading,
+    fetchAccounts,
+    fetchActivityLogs,
+    fetchUploadReviews,
     logActivity,
-    submitApplication,
     approveAccount,
     rejectAccount,
     revokeAccount,
     reinstateAccount,
     deleteAccount,
-    recordUpload,
-    recordWaterQualityBatchUpload,
     reviewUpload,
     recordReportGenerated,
     recordMapDownload,

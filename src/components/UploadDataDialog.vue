@@ -253,6 +253,7 @@
               :label="`Confirm & Submit ${uploadParseResult?.validRows.length ?? 0} Readings`"
               color="teal-9"
               icon="cloud_done"
+              :loading="submittingBatch"
               :disable="!uploadParseResult || uploadParseResult.validRows.length === 0"
               @click="confirmBatchSubmit"
             />
@@ -267,14 +268,12 @@
 import { ref, computed } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
-import { useAuthStore } from 'src/stores/auth';
-import { useAdminStore } from 'src/stores/admin';
 import { parseWaterQualityWorkbook, type WaterQualityUploadParseResult } from 'src/composables/useWaterQualityUpload';
+import { submitWaterQualityBatch } from 'src/composables/useWaterQualityReadings';
 
 const $q = useQuasar();
 const router = useRouter();
-const authStore = useAuthStore();
-const adminStore = useAdminStore();
+const submittingBatch = ref(false);
 
 const show = ref(false);
 const step = ref(1);
@@ -411,23 +410,17 @@ function downloadTemplate() {
   });
 }
 
-// Fish bulk-upload parsing isn't built yet — this stays a stub, matching the
-// app's existing (pre-this-change) behavior for that path.
+// Fish bulk-upload parsing isn't built yet (unlike water quality, there's no
+// column-mapped parser for it) — submit a single record instead via the Fish
+// Observation form, or use bulk upload for Water Quality.
 function submitUpload() {
-  if (!uploadFile.value) {
-    uploadError.value = 'Please upload a file first.';
-    return;
-  }
-
   $q.notify({
-    message: 'File successfully uploaded and sent for processing!',
-    color: 'teal-7',
-    icon: 'check_circle',
+    type: 'warning',
+    message: 'Bulk fish observation upload isn\'t available yet.',
+    caption: 'Use "Manual Input" to submit fish observations one at a time for now.',
     position: 'top',
-    timeout: 2500,
+    timeout: 4000,
   });
-
-  cancelUpload();
 }
 
 async function proceedToReview() {
@@ -449,20 +442,31 @@ async function proceedToReview() {
   }
 }
 
-function confirmBatchSubmit() {
+async function confirmBatchSubmit() {
   const result = uploadParseResult.value;
   if (!result || result.validRows.length === 0) return;
 
-  adminStore.recordWaterQualityBatchUpload(authStore.displayName, result.validRows);
-  $q.notify({
-    message: `${result.validRows.length} water quality readings submitted for review.`,
-    color: 'teal-7',
-    icon: 'check_circle',
-    position: 'top',
-    timeout: 3000,
-  });
-
-  cancelUpload();
+  submittingBatch.value = true;
+  try {
+    await submitWaterQualityBatch(result.validRows);
+    $q.notify({
+      message: `${result.validRows.length} water quality readings submitted for review.`,
+      color: 'teal-7',
+      icon: 'check_circle',
+      position: 'top',
+      timeout: 3000,
+    });
+    cancelUpload();
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err instanceof Error ? err.message : 'Failed to submit batch.',
+      position: 'top',
+      timeout: 4000,
+    });
+  } finally {
+    submittingBatch.value = false;
+  }
 }
 </script>
 

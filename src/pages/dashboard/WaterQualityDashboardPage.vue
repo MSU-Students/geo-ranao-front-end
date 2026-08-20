@@ -56,7 +56,7 @@
         </div>
         <div class="text-caption text-grey-5 q-mt-sm q-mb-md">
           <q-icon name="info" size="14px" class="q-mr-xs" />
-          Simulated monthly readings — real data collection is not connected yet.
+          Showing approved field readings — coverage varies by month and station; averages are computed only from stations that reported.
         </div>
 
         <q-separator dark class="q-mb-md" style="opacity: 0.15" />
@@ -203,8 +203,8 @@
         </div>
         <div class="col-6 col-md-3">
           <q-card class="glass-morph text-center q-pa-sm">
-            <q-icon name="eco" :style="{ color: STATUS_COLORS[overallStatus] }" size="md" />
-            <div class="text-h5 text-white text-weight-bold">{{ STATUS_LABELS[overallStatus] }}</div>
+            <q-icon name="eco" :style="{ color: overallStatus ? STATUS_COLORS[overallStatus] : NO_DATA_COLOR }" size="md" />
+            <div class="text-h5 text-white text-weight-bold">{{ overallStatus ? STATUS_LABELS[overallStatus] : 'No Data' }}</div>
             <div class="text-grey-3 text-caption">Overall Lake Status</div>
           </q-card>
         </div>
@@ -236,22 +236,24 @@
                   <q-card-section class="q-pa-sm">
                     <div class="row items-center justify-between no-wrap">
                       <span class="text-grey-3 text-caption ellipsis">{{ param.label }}</span>
-                      <span class="status-dot" :style="{ background: STATUS_COLORS[paramStatus(param)] }" />
+                      <span class="status-dot" :style="{ background: paramColor(param) }">
+                        <q-tooltip>{{ lakeAverageCoverage(param, selectedMonthIndex) }} of {{ sites.length }} stations reporting</q-tooltip>
+                      </span>
                     </div>
                     <div class="text-white text-subtitle1 text-weight-bold">
-                      {{ formatReading(lakeAverage(param, selectedMonthIndex), param) }}
+                      {{ formatLakeAverage(param, selectedMonthIndex) }}
                     </div>
                     <div class="row items-center justify-between no-wrap">
                       <span
                         class="text-caption"
-                        :class="paramDelta(param) <= 0 ? 'text-positive' : 'text-negative'"
-                        v-if="selectedMonthIndex > 0"
+                        :class="(paramDelta(param) ?? 0) <= 0 ? 'text-positive' : 'text-negative'"
+                        v-if="selectedMonthIndex > 0 && paramDelta(param) !== null"
                       >
                         <q-icon :name="paramDeltaImproved(param) ? 'trending_down' : 'trending_up'" size="12px" />
-                        {{ Math.abs(paramDelta(param)).toFixed(param.decimals) }}
+                        {{ Math.abs(paramDelta(param) ?? 0).toFixed(param.decimals) }}
                       </span>
                       <span v-else class="text-caption text-grey-5">—</span>
-                      <TrendSparkline :values="sparklineValues(param)" :color="STATUS_COLORS[paramStatus(param)]" />
+                      <TrendSparkline :values="sparklineValues(param)" :color="paramColor(param)" />
                     </div>
                   </q-card-section>
                 </q-card>
@@ -271,13 +273,13 @@
                 <span class="text-white text-subtitle1 text-weight-medium">
                   {{ selectedParam.label }} — 13-Month Trend
                 </span>
-                <span class="status-chip" :style="{ background: STATUS_COLORS[paramStatus(selectedParam)] }">
-                  {{ STATUS_LABELS[paramStatus(selectedParam)] }}
+                <span class="status-chip" :style="{ background: paramColor(selectedParam) }">
+                  {{ paramStatusLabel(selectedParam) }}
                 </span>
               </div>
               <ParameterTrendChart
-                :months="trendWindowMonths"
-                :values="sparklineValues(selectedParam)"
+                :months="selectedParamTrend.months"
+                :values="selectedParamTrend.values"
                 :unit="selectedParam.unit"
                 :decimals="selectedParam.decimals"
                 color="#4dd0e1"
@@ -357,8 +359,8 @@
                     <span class="text-white text-body2 text-weight-medium">{{ compareParamA.label }}</span>
                   </div>
                   <ParameterTrendChart
-                    :months="trendWindowMonths"
-                    :values="seriesFor(compareParamA)"
+                    :months="compareASeries.months"
+                    :values="compareASeries.values"
                     :unit="compareParamA.unit"
                     :decimals="compareParamA.decimals"
                     color="#4dd0e1"
@@ -371,8 +373,8 @@
                     <span class="text-white text-body2 text-weight-medium">{{ compareParamB.label }}</span>
                   </div>
                   <ParameterTrendChart
-                    :months="trendWindowMonths"
-                    :values="seriesFor(compareParamB)"
+                    :months="compareBSeries.months"
+                    :values="compareBSeries.values"
                     :unit="compareParamB.unit"
                     :decimals="compareParamB.decimals"
                     color="#ba68c8"
@@ -419,8 +421,8 @@
                 </div>
               </div>
               <p class="text-grey-4 text-caption q-mb-md">
-                Simulated stratification at {{ depthProfileStationId ?? '—' }} for
-                {{ months[selectedMonthIndex] }} across all 9 sampling depths (Surface–100m).
+                Approved readings at {{ depthProfileStationId ?? '—' }} for
+                {{ months[selectedMonthIndex] }} across whichever of the 9 sampling depths (Surface–100m) were recorded.
                 Select a station on the map above to inspect a specific site.
               </p>
               <div class="row q-col-gutter-sm">
@@ -514,18 +516,29 @@ import {
   MONTH_NAMES,
   READING_YEARS,
   READING_START_YEAR,
-  generateReading,
-  generateDepthProfile,
   formatReading,
   STATUS_COLORS,
   STATUS_LABELS,
   STATUS_LEVELS,
   DEPTH_OPTIONS,
+  DEPTHS,
   TRIBUTARY_RIVER_SITES,
   TRIBUTARY_RIVER_SITE_IDS,
   type WaterQualityParam,
   type StatusLevel,
+  type DepthReadingPoint,
 } from 'src/composables/useWaterQualityModel';
+import {
+  fetchWaterQualityReadings,
+  buildReadingLookup,
+  getReading,
+  getReadingCoverage,
+  type ReadingLookup,
+} from 'src/composables/useWaterQualityReadings';
+
+// Sites/months with zero approved readings show as this neutral grey rather
+// than a fabricated status color — "no data" is a distinct state from "good".
+const NO_DATA_COLOR = '#78909c';
 
 interface Site {
   siteId: string;
@@ -538,6 +551,20 @@ interface Site {
 const sites = ref<Site[]>([]);
 const siteCount = computed(() => sites.value.length);
 const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
+
+const readingsLookup = ref<ReadingLookup>(new Map());
+const readingsLoading = ref(false);
+onMounted(async () => {
+  readingsLoading.value = true;
+  try {
+    const readings = await fetchWaterQualityReadings({ status: 'APPROVED' });
+    readingsLookup.value = buildReadingLookup(readings);
+  } catch (err) {
+    console.error('Failed to load water quality readings:', err);
+  } finally {
+    readingsLoading.value = false;
+  }
+});
 
 // Reading Period: pick a year (2025 onward), then a month within that year.
 const now = new Date();
@@ -639,13 +666,27 @@ const selectedParam = computed(() =>
   allWaterQualityParams.find((p) => p.key === selectedParamKey.value) ?? null,
 );
 
-function lakeAverage(param: WaterQualityParam, monthIndex: number): number {
-  if (sites.value.length === 0) return (param.min + param.max) / 2;
-  const total = sites.value.reduce(
-    (sum, site) => sum + generateReading(site.siteId, monthIndex, param, depthForSite(site)),
-    0,
-  );
-  return total / sites.value.length;
+// Real reading, averaged only over sites that actually reported this
+// param/month/depth — null (not a fabricated number) when nobody did.
+// This is deliberate: a month where 5 of 30 stations were sampled still
+// gets a real average of those 5, it just isn't "the whole lake."
+function lakeAverage(param: WaterQualityParam, monthIndex: number): number | null {
+  const values: number[] = [];
+  sites.value.forEach((site) => {
+    const value = getReading(readingsLookup.value, site.siteId, monthIndex, param, depthForSite(site));
+    if (value !== null) values.push(value);
+  });
+  if (values.length === 0) return null;
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+// How many of the monitoring sites contributed to lakeAverage() — the
+// "how complete is this?" companion so a 5-of-30 month doesn't read as if
+// it were a full lake-wide reading.
+function lakeAverageCoverage(param: WaterQualityParam, monthIndex: number): number {
+  return sites.value.filter(
+    (site) => getReadingCoverage(readingsLookup.value, site.siteId, monthIndex, param, depthForSite(site)) > 0,
+  ).length;
 }
 
 // The trend charts show a trailing 13-month window ending at the selected
@@ -657,34 +698,69 @@ const trendIndices = computed(() => {
   for (let i = start; i <= end; i++) indices.push(i);
   return indices;
 });
-const trendWindowMonths = computed(() => trendIndices.value.map((i) => months[i]!));
+
+// Paired {months, values} that drops months with zero lake-wide data —
+// dropping jointly keeps the x-axis labels aligned with the plotted points
+// (a chart with 13 labels but only 8 values would mis-align everything else).
+function trendSeries(param: WaterQualityParam): { months: string[]; values: number[] } {
+  const monthsOut: string[] = [];
+  const valuesOut: number[] = [];
+  for (const i of trendIndices.value) {
+    const value = lakeAverage(param, i);
+    if (value !== null) {
+      monthsOut.push(months[i]!);
+      valuesOut.push(value);
+    }
+  }
+  return { months: monthsOut, values: valuesOut };
+}
 
 function sparklineValues(param: WaterQualityParam): number[] {
-  return trendIndices.value.map((i) => lakeAverage(param, i));
+  return trendSeries(param).values;
 }
 
-function paramStatus(param: WaterQualityParam): StatusLevel {
-  return param.getStatus(lakeAverage(param, selectedMonthIndex.value));
+function paramStatus(param: WaterQualityParam, monthIndex = selectedMonthIndex.value): StatusLevel | null {
+  const value = lakeAverage(param, monthIndex);
+  return value !== null ? param.getStatus(value) : null;
 }
 
-function paramDelta(param: WaterQualityParam): number {
-  return lakeAverage(param, selectedMonthIndex.value) - lakeAverage(param, selectedMonthIndex.value - 1);
+function paramColor(param: WaterQualityParam): string {
+  const status = paramStatus(param);
+  return status ? STATUS_COLORS[status] : NO_DATA_COLOR;
+}
+
+function paramStatusLabel(param: WaterQualityParam): string {
+  const status = paramStatus(param);
+  return status ? STATUS_LABELS[status] : 'No Data';
+}
+
+function formatLakeAverage(param: WaterQualityParam, monthIndex: number): string {
+  const value = lakeAverage(param, monthIndex);
+  return value !== null ? formatReading(value, param) : 'No data';
+}
+
+function paramDelta(param: WaterQualityParam): number | null {
+  const current = lakeAverage(param, selectedMonthIndex.value);
+  const previous = lakeAverage(param, selectedMonthIndex.value - 1);
+  if (current === null || previous === null) return null;
+  return current - previous;
 }
 
 // "Improved" means the status rank moved toward good (lower index), not just
 // a raw numeric decrease — direction of "better" varies per parameter.
 function paramDeltaImproved(param: WaterQualityParam): boolean {
   if (selectedMonthIndex.value === 0) return true;
-  const currentStatus = param.getStatus(lakeAverage(param, selectedMonthIndex.value));
-  const previousStatus = param.getStatus(lakeAverage(param, selectedMonthIndex.value - 1));
+  const currentStatus = paramStatus(param, selectedMonthIndex.value);
+  const previousStatus = paramStatus(param, selectedMonthIndex.value - 1);
+  if (!currentStatus || !previousStatus) return true;
   return STATUS_LEVELS.indexOf(currentStatus) <= STATUS_LEVELS.indexOf(previousStatus);
 }
 
 function statusCounts(param: WaterQualityParam, monthIndex: number): Record<StatusLevel, number> {
   const counts: Record<StatusLevel, number> = { good: 0, warning: 0, serious: 0, critical: 0 };
   sites.value.forEach((site) => {
-    const value = generateReading(site.siteId, monthIndex, param, depthForSite(site));
-    counts[param.getStatus(value)]++;
+    const value = getReading(readingsLookup.value, site.siteId, monthIndex, param, depthForSite(site));
+    if (value !== null) counts[param.getStatus(value)]++;
   });
   return counts;
 }
@@ -693,9 +769,9 @@ const sitesNeedingAttention = computed(() => {
   const flagged = new Set<string>();
   sites.value.forEach((site) => {
     const isFlagged = allWaterQualityParams.some((param) => {
-      const status = param.getStatus(
-        generateReading(site.siteId, selectedMonthIndex.value, param, depthForSite(site)),
-      );
+      const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
+      if (value === null) return false;
+      const status = param.getStatus(value);
       return status === 'serious' || status === 'critical';
     });
     if (isFlagged) flagged.add(site.siteId);
@@ -703,19 +779,19 @@ const sitesNeedingAttention = computed(() => {
   return flagged.size;
 });
 
-const overallStatus = computed<StatusLevel>(() => {
-  if (sites.value.length === 0) return 'good';
+// null when nothing has been sampled yet for the selected period at all.
+const overallStatus = computed<StatusLevel | null>(() => {
   let goodCount = 0;
   let total = 0;
   sites.value.forEach((site) => {
     allWaterQualityParams.forEach((param) => {
+      const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
+      if (value === null) return;
       total++;
-      const status = param.getStatus(
-        generateReading(site.siteId, selectedMonthIndex.value, param, depthForSite(site)),
-      );
-      if (status === 'good') goodCount++;
+      if (param.getStatus(value) === 'good') goodCount++;
     });
   });
+  if (total === 0) return null;
   const ratio = goodCount / total;
   if (ratio >= 0.8) return 'good';
   if (ratio >= 0.6) return 'warning';
@@ -726,12 +802,14 @@ const overallStatus = computed<StatusLevel>(() => {
 const sitesOfConcern = computed(() => {
   const param = selectedParam.value;
   if (!param) return [];
-  return sites.value
-    .map((site) => {
-      const value = generateReading(site.siteId, selectedMonthIndex.value, param, depthForSite(site));
-      return { ...site, status: param.getStatus(value) };
-    })
-    .filter((s) => s.status === 'serious' || s.status === 'critical')
+  const results: (Site & { status: StatusLevel })[] = [];
+  sites.value.forEach((site) => {
+    const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
+    if (value === null) return;
+    const status = param.getStatus(value);
+    if (status === 'serious' || status === 'critical') results.push({ ...site, status });
+  });
+  return results
     .sort((a, b) => STATUS_LEVELS.indexOf(b.status) - STATUS_LEVELS.indexOf(a.status))
     .slice(0, 6);
 });
@@ -762,8 +840,8 @@ const statusColorBySite = computed<Record<string, string>>(() => {
   const result: Record<string, string> = {};
   if (!param) return result;
   sites.value.forEach((site) => {
-    const value = generateReading(site.siteId, selectedMonthIndex.value, param, depthForSite(site));
-    result[site.siteId] = mapStatusColor(param.getStatus(value));
+    const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
+    result[site.siteId] = value !== null ? mapStatusColor(param.getStatus(value)) : NO_DATA_COLOR;
   });
   return result;
 });
@@ -778,17 +856,39 @@ const compareParamB = computed(
 
 // A selected station shows its own readings; otherwise falls back to the
 // lake-wide monthly average, matching the rest of the page's default view.
-function seriesFor(param: WaterQualityParam): number[] {
+// Paired {months, values} for the same reason trendSeries() is — dropping
+// no-data months from both arrays together keeps the chart's x-axis honest.
+function stationOrLakeSeries(param: WaterQualityParam): { months: string[]; values: number[] } {
   if (selectedStation.value) {
     const siteId = selectedStation.value.siteId;
-    return trendIndices.value.map((i) => generateReading(siteId, i, param, selectedDepthM.value));
+    const monthsOut: string[] = [];
+    const valuesOut: number[] = [];
+    for (const i of trendIndices.value) {
+      const value = getReading(readingsLookup.value, siteId, i, param, selectedDepthM.value);
+      if (value !== null) {
+        monthsOut.push(months[i]!);
+        valuesOut.push(value);
+      }
+    }
+    return { months: monthsOut, values: valuesOut };
   }
-  return sparklineValues(param);
+  return trendSeries(param);
 }
+
+const selectedParamTrend = computed(() =>
+  selectedParam.value ? trendSeries(selectedParam.value) : { months: [], values: [] },
+);
+const compareASeries = computed(() =>
+  compareParamA.value ? stationOrLakeSeries(compareParamA.value) : { months: [], values: [] },
+);
+const compareBSeries = computed(() =>
+  compareParamB.value ? stationOrLakeSeries(compareParamB.value) : { months: [], values: [] },
+);
 
 // ═══ VERTICAL DEPTH PROFILE ═══
 // Independent of the page-level depth selector above — this chart's whole
-// purpose is to show every depth at once for a chosen station.
+// purpose is to show every depth at once for a chosen station. Depths with
+// no reading at all are simply omitted rather than interpolated/faked.
 const depthProfileParamA = computed(
   () => allWaterQualityParams.find((p) => p.key === depthProfileParamKeyA.value) ?? null,
 );
@@ -796,25 +896,39 @@ const depthProfileParamB = computed(
   () => allWaterQualityParams.find((p) => p.key === depthProfileParamKeyB.value) ?? null,
 );
 const depthProfileStationId = computed(() => selectedStationId.value ?? sites.value[0]?.siteId ?? null);
+
+function depthProfilePoints(stationId: string, param: WaterQualityParam, monthIndex: number): DepthReadingPoint[] {
+  const points: DepthReadingPoint[] = [];
+  for (const depth of DEPTHS) {
+    const value = getReading(readingsLookup.value, stationId, monthIndex, param, depth);
+    if (value !== null) points.push({ depth, value });
+  }
+  return points;
+}
+
 const depthProfilePointsA = computed(() =>
   depthProfileStationId.value && depthProfileParamA.value
-    ? generateDepthProfile(depthProfileStationId.value, selectedMonthIndex.value, depthProfileParamA.value)
+    ? depthProfilePoints(depthProfileStationId.value, depthProfileParamA.value, selectedMonthIndex.value)
     : [],
 );
 const depthProfilePointsB = computed(() =>
   depthProfileStationId.value && depthProfileParamB.value
-    ? generateDepthProfile(depthProfileStationId.value, selectedMonthIndex.value, depthProfileParamB.value)
+    ? depthProfilePoints(depthProfileStationId.value, depthProfileParamB.value, selectedMonthIndex.value)
     : [],
 );
 
 // ═══ STATION COMPARISON (NEARSHORE VS. OFFSHORE) ═══
+// Only sites with an actual reading appear — a sparsely-sampled month simply
+// shows fewer bars rather than fabricating one for every site.
 const stationComparisonEntries = computed(() => {
   const param = selectedParam.value;
   if (!param) return [];
-  return sites.value.map((site) => {
-    const value = generateReading(site.siteId, selectedMonthIndex.value, param, depthForSite(site));
-    return { siteId: site.siteId, value, status: param.getStatus(value), zone: site.zone };
+  const entries: { siteId: string; value: number; status: StatusLevel; zone: Site['zone'] }[] = [];
+  sites.value.forEach((site) => {
+    const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
+    if (value !== null) entries.push({ siteId: site.siteId, value, status: param.getStatus(value), zone: site.zone });
   });
+  return entries;
 });
 </script>
 

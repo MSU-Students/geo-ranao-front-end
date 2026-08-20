@@ -198,6 +198,7 @@
                 unelevated
                 rounded
                 :disable="!canSubmit"
+                :loading="submitting"
                 @click="handleSignup"
               />
             </q-stepper-navigation>
@@ -248,15 +249,14 @@ import { ref, reactive, computed } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
-import { useAdminStore } from 'src/stores/admin';
 import BackButton from 'src/components/BackButton.vue';
 
 const router = useRouter();
 const $q = useQuasar();
 const authStore = useAuthStore();
-const adminStore = useAdminStore();
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
+const submitting = ref(false);
 
 const step = ref<'identity' | 'institution' | 'context'>('identity');
 
@@ -339,38 +339,42 @@ function filterAffiliation(val: string, update: (callback: () => void) => void) 
   });
 }
 
-function handleSignup() {
-  if (!canSubmit.value) return;
+async function handleSignup() {
+  if (!canSubmit.value || submitting.value) return;
 
-  authStore.signup(
-    formData.fullName,
-    formData.email,
-    formData.password,
-    formData.affiliation,
-    formData.departmentRole,
-    formData.purposeOfRequest,
-  );
+  submitting.value = true;
+  try {
+    await authStore.signup(
+      formData.fullName,
+      formData.email,
+      formData.password,
+      formData.affiliation,
+      formData.departmentRole,
+      formData.purposeOfRequest,
+    );
 
-  adminStore.submitApplication({
-    fullName: formData.fullName,
-    email: formData.email,
-    affiliation: formData.affiliation,
-    departmentRole: formData.departmentRole,
-    purposeOfRequest: formData.purposeOfRequest,
-  });
+    $q.notify({
+      message: 'Application submitted!',
+      caption: 'Your researcher account is pending admin review.',
+      color: 'info',
+      icon: 'hourglass_top',
+      position: 'top',
+      timeout: 6000,
+    });
 
-  $q.notify({
-    message: 'Application submitted!',
-    caption: 'Your researcher account is pending admin review.',
-    color: 'info',
-    icon: 'hourglass_top',
-    position: 'top',
-    timeout: 6000,
-  });
-
-  router.push('/auth/login').catch((err) => {
-    console.error('Navigation error:', err);
-  });
+    router.push('/auth/login').catch((err) => {
+      console.error('Navigation error:', err);
+    });
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err instanceof Error ? err.message : 'Registration failed. Please try again.',
+      position: 'top',
+      timeout: 5000,
+    });
+  } finally {
+    submitting.value = false;
+  }
 }
 
 const loginWithGoogle = () => {

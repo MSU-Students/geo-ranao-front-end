@@ -28,28 +28,28 @@
         <div class="col-6 col-md-3">
           <q-card class="glass-morph text-center q-pa-sm">
             <q-icon name="set_meal" color="teal-3" size="md" />
-            <div class="text-h5 text-white text-weight-bold">24</div>
+            <div class="text-h5 text-white text-weight-bold">{{ species.length }}</div>
             <div class="text-grey-3 text-caption">Total Species</div>
           </q-card>
         </div>
         <div class="col-6 col-md-3">
           <q-card class="glass-morph text-center q-pa-sm">
             <q-icon name="crisis_alert" color="blue-3" size="md" />
-            <div class="text-h5 text-white text-weight-bold">18</div>
+            <div class="text-h5 text-white text-weight-bold">{{ endemicCount }}</div>
             <div class="text-grey-3 text-caption">Endemic Cyprinids</div>
           </q-card>
         </div>
         <div class="col-6 col-md-3">
           <q-card class="glass-morph text-center q-pa-sm">
             <q-icon name="warning" color="orange-3" size="md" />
-            <div class="text-h5 text-white text-weight-bold">6</div>
+            <div class="text-h5 text-white text-weight-bold">{{ invasiveCount }}</div>
             <div class="text-grey-3 text-caption">Invasive Species</div>
           </q-card>
         </div>
         <div class="col-6 col-md-3">
           <q-card class="glass-morph text-center q-pa-sm">
             <q-icon name="dangerous" color="red-3" size="md" />
-            <div class="text-h5 text-white text-weight-bold">12</div>
+            <div class="text-h5 text-white text-weight-bold">{{ criticallyEndangeredCount }}</div>
             <div class="text-grey-3 text-caption">Critically Endangered</div>
           </q-card>
         </div>
@@ -146,10 +146,15 @@
                   />
                 </q-item-section>
               </q-item>
-              <q-item v-if="filteredSpecies.length === 0">
-                <q-item-section class="text-center text-grey-4 q-py-lg"
-                  >No species found.</q-item-section
-                >
+              <q-item v-if="loading">
+                <q-item-section class="text-center text-grey-4 q-py-lg">
+                  <q-spinner color="teal-4" size="24px" />
+                </q-item-section>
+              </q-item>
+              <q-item v-else-if="filteredSpecies.length === 0">
+                <q-item-section class="text-center text-grey-4 q-py-lg">
+                  {{ species.length === 0 ? 'No approved fish observations yet.' : 'No species found.' }}
+                </q-item-section>
               </q-item>
             </q-list>
           </q-card>
@@ -224,7 +229,7 @@
                   <span class="text-white text-caption text-weight-bold">{{ s.count }}</span>
                 </div>
                 <q-linear-progress
-                  :value="s.count / 24"
+                  :value="species.length ? s.count / species.length : 0"
                   :color="s.color"
                   track-color="grey-8"
                   rounded
@@ -252,7 +257,7 @@
                 <q-card-section class="text-center q-pa-md">
                   <q-icon name="crisis_alert" color="blue-3" size="lg" />
                   <div class="text-white text-weight-medium q-mt-sm">Endemic</div>
-                  <div class="text-grey-4 text-caption">18 cyprinid species</div>
+                  <div class="text-grey-4 text-caption">{{ endemicCount }} cyprinid species</div>
                 </q-card-section>
               </q-card>
             </div>
@@ -261,7 +266,7 @@
                 <q-card-section class="text-center q-pa-md">
                   <q-icon name="warning" color="orange-3" size="lg" />
                   <div class="text-white text-weight-medium q-mt-sm">Invasive</div>
-                  <div class="text-grey-4 text-caption">6 recorded species</div>
+                  <div class="text-grey-4 text-caption">{{ invasiveCount }} recorded species</div>
                 </q-card-section>
               </q-card>
             </div>
@@ -273,14 +278,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import BackButton from 'components/BackButton.vue';
+import {
+  fetchFishObservations,
+  CONSERVATION_STATUS_LABELS,
+  type FishObservation,
+  type ConservationStatus,
+} from 'src/composables/useFishObservations';
 
 const search = ref('');
 const activeFilter = ref('all');
+const loading = ref(false);
 
 interface Fish {
-  id: number;
+  id: string;
   commonName: string;
   scientificName: string;
   type: 'endemic' | 'invasive';
@@ -293,99 +305,50 @@ interface Fish {
 
 const selectedFish = ref<Fish | null>(null);
 
-const species: Fish[] = [
-  {
-    id: 1,
-    commonName: 'Pait',
-    scientificName: 'Puntius sirang',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    length: '8–12 cm',
-    weight: '20–50 g',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-  },
-  {
-    id: 2,
-    commonName: 'Igat',
-    scientificName: 'Anguilla marmorata',
-    type: 'endemic',
-    status: 'Endangered',
-    length: '60–100 cm',
-    weight: '1–3 kg',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-  },
-  {
-    id: 3,
-    commonName: 'Banak',
-    scientificName: 'Puntius lanaoensis',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    length: '10–15 cm',
-    weight: '30–80 g',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-  },
-  {
-    id: 4,
-    commonName: 'Ludong',
-    scientificName: 'Puntius tumba',
-    type: 'endemic',
-    status: 'Critically Endangered',
-    length: '7–10 cm',
-    weight: '15–40 g',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-  },
-  {
-    id: 5,
-    commonName: 'Tarong',
-    scientificName: 'Puntius tras',
-    type: 'endemic',
-    status: 'Endangered',
-    length: '8–13 cm',
-    weight: '20–60 g',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-  },
-  {
-    id: 6,
-    commonName: 'Nile Tilapia',
-    scientificName: 'Oreochromis niloticus',
-    type: 'invasive',
-    status: 'Least Concern',
-    length: '20–40 cm',
-    weight: '0.5–2 kg',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-  },
-  {
-    id: 7,
-    commonName: 'Common Carp',
-    scientificName: 'Cyprinus carpio',
-    type: 'invasive',
-    status: 'Least Concern',
-    length: '30–60 cm',
-    weight: '1–4 kg',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-  },
-  {
-    id: 8,
-    commonName: 'Guppy',
-    scientificName: 'Poecilia reticulata',
-    type: 'invasive',
-    status: 'Least Concern',
-    length: '2–5 cm',
-    weight: '< 5 g',
-    location: 'Lake Lanao, Lanao del Sur',
-    date: '2024',
-  },
-];
+// One row per distinct species (not per sighting) — approved observations of
+// the same species are grouped, and the most recently observed one is shown
+// as the representative record.
+function toSpeciesList(observations: FishObservation[]): Fish[] {
+  const bySpecies = new Map<string, FishObservation[]>();
+  for (const obs of observations) {
+    if (obs.category === 'GENERAL') continue; // unidentified catch — not a species profile
+    const key = `${obs.category}|${obs.speciesScientific ?? ''}|${obs.speciesCommon ?? ''}`;
+    const bucket = bySpecies.get(key);
+    if (bucket) bucket.push(obs);
+    else bySpecies.set(key, [obs]);
+  }
+  return [...bySpecies.entries()].map(([key, obs]) => {
+    const rep = obs.reduce((a, b) => (a.dateObserved > b.dateObserved ? a : b));
+    return {
+      id: key,
+      commonName: rep.speciesCommon || rep.speciesScientific || 'Unnamed species',
+      scientificName: rep.speciesScientific || '—',
+      type: rep.category === 'ENDEMIC' ? 'endemic' : 'invasive',
+      status: CONSERVATION_STATUS_LABELS[rep.conservationStatus],
+      length: rep.trueLengthCm != null ? `${rep.trueLengthCm} cm` : '—',
+      weight: rep.weightG != null ? `${rep.weightG} g` : '—',
+      location: [rep.municipal, rep.barangay].filter(Boolean).join(', ') || 'Lake Lanao',
+      date: rep.dateObserved,
+    };
+  });
+}
+
+const species = ref<Fish[]>([]);
+
+onMounted(async () => {
+  loading.value = true;
+  try {
+    const observations = await fetchFishObservations({ status: 'APPROVED' });
+    species.value = toSpeciesList(observations);
+  } catch (err) {
+    console.error('Failed to load fish observations:', err);
+  } finally {
+    loading.value = false;
+  }
+});
 
 const filteredSpecies = computed(() =>
-  species.filter((f) => {
+  species.value.filter((f) => {
     const matchFilter = activeFilter.value === 'all' || f.type === activeFilter.value;
     const matchSearch =
       f.commonName.toLowerCase().includes(search.value.toLowerCase()) ||
@@ -406,12 +369,29 @@ const selectedFishDetails = computed(() =>
     : [],
 );
 
-const conservationStats = [
-  { label: 'Critically Endangered', count: 12, color: 'red' },
-  { label: 'Endangered', count: 5, color: 'orange' },
-  { label: 'Vulnerable', count: 1, color: 'yellow' },
-  { label: 'Least Concern', count: 6, color: 'green' },
-];
+const endemicCount = computed(() => species.value.filter((f) => f.type === 'endemic').length);
+const invasiveCount = computed(() => species.value.filter((f) => f.type === 'invasive').length);
+
+const CONSERVATION_STATUS_COLORS: Record<ConservationStatus, string> = {
+  CRITICALLY_ENDANGERED: 'red',
+  ENDANGERED: 'orange',
+  VULNERABLE: 'yellow',
+  LEAST_CONCERN: 'green',
+  NOT_EVALUATED: 'grey',
+};
+
+const conservationStats = computed(() => {
+  const order: ConservationStatus[] = ['CRITICALLY_ENDANGERED', 'ENDANGERED', 'VULNERABLE', 'LEAST_CONCERN'];
+  return order.map((status) => ({
+    label: CONSERVATION_STATUS_LABELS[status],
+    count: species.value.filter((f) => f.status === CONSERVATION_STATUS_LABELS[status]).length,
+    color: CONSERVATION_STATUS_COLORS[status],
+  }));
+});
+
+const criticallyEndangeredCount = computed(
+  () => species.value.filter((f) => f.status === CONSERVATION_STATUS_LABELS.CRITICALLY_ENDANGERED).length,
+);
 
 function selectFish(fish: Fish) {
   selectedFish.value = fish;

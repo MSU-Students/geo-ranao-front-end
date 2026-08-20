@@ -97,6 +97,7 @@
                 row-key="id"
                 selection="multiple"
                 v-model:selected="selectedPending"
+                :loading="adminStore.accountsLoading"
                 dark
                 flat
                 :rows-per-page-options="[10, 20, 50]"
@@ -202,6 +203,7 @@
                 :rows="filteredAccounts"
                 :columns="accountColumns"
                 row-key="id"
+                :loading="adminStore.accountsLoading"
                 dark
                 flat
                 :rows-per-page-options="[10, 20, 50]"
@@ -272,6 +274,7 @@
                 row-key="id"
                 selection="multiple"
                 v-model:selected="selectedUploads"
+                :loading="adminStore.uploadReviewsLoading"
                 dark
                 flat
                 :rows-per-page-options="[10, 20, 50]"
@@ -663,14 +666,25 @@ const router = useRouter();
 const authStore = useAuthStore();
 const adminStore = useAdminStore();
 
-// ─── Access Guard ───
+// ─── Access Guard + Initial Data Load ───
 onMounted(() => {
   if (authStore.user?.role !== 'Admin') {
     $q.notify({ type: 'negative', message: 'Admin access required.', position: 'top' });
     router.replace('/map').catch((err) => {
       console.error('Navigation error:', err);
     });
+    return;
   }
+
+  // Upload reviews resolve researcher names from researcherAccounts, so
+  // accounts load first, then the rest run together.
+  adminStore
+    .fetchAccounts()
+    .then(() => Promise.all([adminStore.fetchActivityLogs(), adminStore.fetchUploadReviews()]))
+    .catch((err: unknown) => {
+      console.error('Failed to load admin dashboard data:', err);
+      $q.notify({ type: 'negative', message: 'Failed to load dashboard data.', position: 'top' });
+    });
 });
 
 const activeTab = ref('pending');
@@ -897,33 +911,48 @@ onMounted(() => {
 });
 
 // ─── Account Actions ───
-function handleApprove(account: ResearcherAccount) {
-  adminStore.approveAccount(account.id);
-  $q.notify({ type: 'positive', message: `${account.fullName} approved.`, position: 'top' });
+function notifyActionError(err: unknown, fallback: string) {
+  $q.notify({ type: 'negative', message: err instanceof Error ? err.message : fallback, position: 'top' });
+}
+
+async function handleApprove(account: ResearcherAccount) {
+  try {
+    await adminStore.approveAccount(account.id);
+    $q.notify({ type: 'positive', message: `${account.fullName} approved.`, position: 'top' });
+  } catch (err) {
+    notifyActionError(err, 'Failed to approve account.');
+  }
 }
 
 function handleReject(account: ResearcherAccount) {
   openReasonDialog(`Reject ${account.fullName}'s application?`, 'Reject', 'negative', (reason) => {
-    adminStore.rejectAccount(account.id, reason);
-    $q.notify({ type: 'negative', message: `${account.fullName} rejected.`, position: 'top' });
+    adminStore
+      .rejectAccount(account.id, reason)
+      .then(() => {
+        $q.notify({ type: 'negative', message: `${account.fullName} rejected.`, position: 'top' });
+      })
+      .catch((err: unknown) => notifyActionError(err, 'Failed to reject account.'));
   });
 }
 
 function handleRevoke(account: ResearcherAccount) {
-  openReasonDialog(
-    `Revoke ${account.fullName}'s researcher access?`,
-    'Revoke',
-    'warning',
-    (reason) => {
-      adminStore.revokeAccount(account.id, reason);
-      $q.notify({ type: 'warning', message: `${account.fullName}'s access revoked.`, position: 'top' });
-    },
-  );
+  openReasonDialog(`Revoke ${account.fullName}'s researcher access?`, 'Revoke', 'warning', (reason) => {
+    adminStore
+      .revokeAccount(account.id, reason)
+      .then(() => {
+        $q.notify({ type: 'warning', message: `${account.fullName}'s access revoked.`, position: 'top' });
+      })
+      .catch((err: unknown) => notifyActionError(err, 'Failed to revoke account.'));
+  });
 }
 
-function handleReinstate(account: ResearcherAccount) {
-  adminStore.reinstateAccount(account.id);
-  $q.notify({ type: 'positive', message: `${account.fullName} reinstated.`, position: 'top' });
+async function handleReinstate(account: ResearcherAccount) {
+  try {
+    await adminStore.reinstateAccount(account.id);
+    $q.notify({ type: 'positive', message: `${account.fullName} reinstated.`, position: 'top' });
+  } catch (err) {
+    notifyActionError(err, 'Failed to reinstate account.');
+  }
 }
 
 function handleDelete(account: ResearcherAccount) {
@@ -932,22 +961,35 @@ function handleDelete(account: ResearcherAccount) {
     'Delete',
     'negative',
     (reason) => {
-      adminStore.deleteAccount(account.id, reason);
-      $q.notify({ type: 'negative', message: `${account.fullName}'s account deleted.`, position: 'top' });
+      adminStore
+        .deleteAccount(account.id, reason)
+        .then(() => {
+          $q.notify({ type: 'negative', message: `${account.fullName}'s account deleted.`, position: 'top' });
+        })
+        .catch((err: unknown) => notifyActionError(err, 'Failed to delete account.'));
     },
   );
 }
 
 // ─── Bulk Account Actions (Pending Accounts tab) ───
-function handleBulkApprovePending() {
+async function handleBulkApprovePending() {
   const targets = [...selectedPending.value];
-  targets.forEach((a) => adminStore.approveAccount(a.id));
   selectedPending.value = [];
-  $q.notify({
-    type: 'positive',
-    message: `${targets.length} application${targets.length === 1 ? '' : 's'} approved.`,
-    position: 'top',
-  });
+  const results = await Promise.allSettled(targets.map((a) => adminStore.approveAccount(a.id)));
+  const failed = results.filter((r) => r.status === 'rejected').length;
+  if (failed) {
+    $q.notify({
+      type: 'warning',
+      message: `${targets.length - failed} approved, ${failed} failed.`,
+      position: 'top',
+    });
+  } else {
+    $q.notify({
+      type: 'positive',
+      message: `${targets.length} application${targets.length === 1 ? '' : 's'} approved.`,
+      position: 'top',
+    });
+  }
 }
 
 function handleBulkRejectPending() {
@@ -957,40 +999,67 @@ function handleBulkRejectPending() {
     'Reject',
     'negative',
     (reason) => {
-      targets.forEach((a) => adminStore.rejectAccount(a.id, reason));
       selectedPending.value = [];
-      $q.notify({
-        type: 'negative',
-        message: `${targets.length} application${targets.length === 1 ? '' : 's'} rejected.`,
-        position: 'top',
+      void Promise.allSettled(targets.map((a) => adminStore.rejectAccount(a.id, reason))).then((results) => {
+        const failed = results.filter((r) => r.status === 'rejected').length;
+        if (failed) {
+          $q.notify({
+            type: 'warning',
+            message: `${targets.length - failed} rejected, ${failed} failed.`,
+            position: 'top',
+          });
+        } else {
+          $q.notify({
+            type: 'negative',
+            message: `${targets.length} application${targets.length === 1 ? '' : 's'} rejected.`,
+            position: 'top',
+          });
+        }
       });
     },
   );
 }
 
 // ─── Upload Review Actions ───
-function handleApproveUpload(item: UploadReviewItem) {
-  adminStore.reviewUpload(item.id, 'approved');
-  $q.notify({ type: 'positive', message: 'Upload approved.', position: 'top' });
+async function handleApproveUpload(item: UploadReviewItem) {
+  try {
+    await adminStore.reviewUpload(item, 'approved');
+    $q.notify({ type: 'positive', message: 'Upload approved.', position: 'top' });
+  } catch (err) {
+    notifyActionError(err, 'Failed to approve upload.');
+  }
 }
 
 function handleRejectUpload(item: UploadReviewItem) {
   openReasonDialog(`Reject "${item.title}"?`, 'Reject', 'negative', (reason) => {
-    adminStore.reviewUpload(item.id, 'rejected', reason);
-    $q.notify({ type: 'negative', message: 'Upload rejected.', position: 'top' });
+    adminStore
+      .reviewUpload(item, 'rejected', reason)
+      .then(() => {
+        $q.notify({ type: 'negative', message: 'Upload rejected.', position: 'top' });
+      })
+      .catch((err: unknown) => notifyActionError(err, 'Failed to reject upload.'));
   });
 }
 
 // ─── Bulk Upload Review Actions (Review History tab) ───
-function handleBulkApproveUploads() {
+async function handleBulkApproveUploads() {
   const targets = selectedUploads.value.filter((u) => u.status === 'pending');
-  targets.forEach((u) => adminStore.reviewUpload(u.id, 'approved'));
   selectedUploads.value = [];
-  $q.notify({
-    type: 'positive',
-    message: `${targets.length} upload${targets.length === 1 ? '' : 's'} approved.`,
-    position: 'top',
-  });
+  const results = await Promise.allSettled(targets.map((u) => adminStore.reviewUpload(u, 'approved')));
+  const failed = results.filter((r) => r.status === 'rejected').length;
+  if (failed) {
+    $q.notify({
+      type: 'warning',
+      message: `${targets.length - failed} approved, ${failed} failed.`,
+      position: 'top',
+    });
+  } else {
+    $q.notify({
+      type: 'positive',
+      message: `${targets.length} upload${targets.length === 1 ? '' : 's'} approved.`,
+      position: 'top',
+    });
+  }
 }
 
 function handleBulkRejectUploads() {
@@ -1000,12 +1069,22 @@ function handleBulkRejectUploads() {
     'Reject',
     'negative',
     (reason) => {
-      targets.forEach((u) => adminStore.reviewUpload(u.id, 'rejected', reason));
       selectedUploads.value = [];
-      $q.notify({
-        type: 'negative',
-        message: `${targets.length} upload${targets.length === 1 ? '' : 's'} rejected.`,
-        position: 'top',
+      void Promise.allSettled(targets.map((u) => adminStore.reviewUpload(u, 'rejected', reason))).then((results) => {
+        const failed = results.filter((r) => r.status === 'rejected').length;
+        if (failed) {
+          $q.notify({
+            type: 'warning',
+            message: `${targets.length - failed} rejected, ${failed} failed.`,
+            position: 'top',
+          });
+        } else {
+          $q.notify({
+            type: 'negative',
+            message: `${targets.length} upload${targets.length === 1 ? '' : 's'} rejected.`,
+            position: 'top',
+          });
+        }
       });
     },
   );
