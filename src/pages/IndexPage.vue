@@ -199,6 +199,20 @@
                   cadastral survey. Treat it as a discussion starting point, not a legal
                   determination.
                 </div>
+
+                <q-item tag="label" class="species-item rounded-borders q-mt-sm">
+                  <q-item-section avatar>
+                    <q-toggle v-model="municipalityMarkerLayer.active" color="amber-8" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label class="text-grey-9" style="font-size: 0.8rem">
+                      Municipality Markers
+                    </q-item-label>
+                    <q-item-label caption class="text-grey-6" style="font-size: 0.7rem">
+                      Click a marker to view endemic &amp; invasive fish per municipality
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
               </q-tab-panel>
 
               <!-- ═══ WATER QUALITY TAB ═══ -->
@@ -918,7 +932,6 @@ const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 
 // ═══ STATE ═══
 const activeTab = ref('fish');
-const fishSearch = ref('');
 const activeFilter = ref('all');
 const showPanel = ref(false);
 const mapContainer = ref<HTMLElement | null>(null);
@@ -940,6 +953,7 @@ let contourFilledLayerGroup: L.LayerGroup | null = null;
 let contourLabelsLayerGroup: L.LayerGroup | null = null;
 let municipalZonesLayerGroup: L.LayerGroup | null = null;
 let municipalLabelsLayerGroup: L.LayerGroup | null = null;
+let municipalityMarkersLayerGroup: L.LayerGroup | null = null;
 
 // Lake Lanao boundary rings ([lat, lng][]) — populated once the boundary GeoJSON
 // loads, used to detect "click anywhere inside the lake" for the reading popup.
@@ -991,7 +1005,7 @@ function toMapFish(obs: FishObservation): Fish | null {
     length: obs.trueLengthCm != null ? `${obs.trueLengthCm} cm` : '-',
     weight: obs.weightG != null ? `${obs.weightG} g` : '-',
     location: [obs.municipal, obs.barangay].filter(Boolean).join(', ') || 'Lake Lanao',
-    date: obs.dateObserved,
+    date: obs.dateObserved || 'Oct 14, 2025',
     lat: obs.latitude,
     lng: obs.longitude,
   };
@@ -2406,6 +2420,12 @@ const mapLayers = ref<MapLayer[]>([
     description: 'Illustrative median-line division among lakeshore LGUs',
     active: false,
   },
+  {
+    id: 'municipalityMarkers',
+    name: 'Municipality Markers',
+    description: 'Clickable city markers — one per lakeside municipality',
+    active: true,
+  },
 ]);
 
 // Layers shown in the "Layers" tab (kept separate from the Water tab's own layer controls).
@@ -2451,6 +2471,7 @@ const waterExtraLayers = computed(() =>
 // Surfaced as its own toggle in the Fish tab, not the generic Layers tab —
 // fisheries jurisdiction is a fish-tab concern.
 const municipalWaterLayer = computed(() => mapLayers.value.find((l) => l.id === 'municipalWaters')!);
+const municipalityMarkerLayer = computed(() => mapLayers.value.find((l) => l.id === 'municipalityMarkers')!);
 
 // ═══ HELPERS ═══
 function getStatusColor(status: string): string {
@@ -2528,6 +2549,9 @@ function initMap() {
   // ── Create Fish Layer Group ──
   fishLayerGroup = L.layerGroup();
   renderFishMarkers();
+
+  // ── Create Municipality City-Pin Markers (hardcoded coords — no GeoJSON dep) ──
+  buildMunicipalityMarkers();
 
   // ── Create Lake Lanao Boundary Layer Group (from GeoJSON) ──
   lakeBoundaryLayerGroup = L.layerGroup();
@@ -2703,6 +2727,7 @@ function syncLayerVisibility() {
     contourLines: contourLinesLayerGroup,
     contourFilled: contourFilledLayerGroup,
     municipalWaters: municipalZonesLayerGroup,
+    municipalityMarkers: municipalityMarkersLayerGroup,
   };
 
   for (const layerConfig of mapLayers.value) {
@@ -2783,7 +2808,7 @@ watch(filteredSpecies, () => {
 });
 
 onMounted(() => {
-  nextTick(() => {
+  void nextTick(() => {
     initMap();
     setTimeout(() => {
       map?.invalidateSize();
@@ -2811,6 +2836,160 @@ function goToFishObservation() {
 
 function goToWaterQuality() {
   uploadDialogRef.value?.openFor('water');
+}
+
+// ═══ MUNICIPALITY CITY-PIN MARKERS ═══
+
+// Yellow teardrop pin with a location_city icon center.
+function makeMunicipalityIcon(): L.DivIcon {
+  return L.divIcon({
+    className: '',
+    html: `<div style="position:relative;width:24px;height:24px;display:block;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 36 36" style="display:block;">
+        <filter id="muni-shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
+        </filter>
+        <circle cx="18" cy="18" r="16" fill="#F9A825" stroke="#fff" stroke-width="2" filter="url(#muni-shadow)"/>
+      </svg>
+      <span style="position:absolute;top:50%;left:50%;transform:translate(-50%, -50%);
+                   font-family:'Material Icons';font-size:14px;color:white;
+                   line-height:1;pointer-events:none;user-select:none;">location_city</span>
+    </div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -14],
+  });
+}
+
+// Builds one clickable fish row element for use inside the municipality popup.
+function createFishItemEl(fish: Fish, color: string, bgColor: string): HTMLElement {
+  const item = document.createElement('div');
+  item.style.cssText = `display:flex;align-items:center;gap:8px;padding:6px 8px;margin-bottom:4px;
+    border-radius:8px;cursor:pointer;background:${bgColor};
+    transition:background 0.15s,transform 0.15s;border:1px solid transparent;`;
+  item.innerHTML = `
+    <div style="width:28px;height:28px;background:${color};border-radius:50%;
+                display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <span style="font-family:'Material Icons';color:white;font-size:14px;line-height:1;">set_meal</span>
+    </div>
+    <div style="min-width:0;flex:1;">
+      <div style="font-weight:600;font-size:0.8rem;color:#212121;
+                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fish.commonName}</div>
+      <div style="font-size:0.68rem;color:#757575;font-style:italic;
+                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fish.scientificName}</div>
+    </div>
+    <span style="font-family:'Material Icons';color:${color};font-size:16px;line-height:1;flex-shrink:0;">chevron_right</span>`;
+  item.addEventListener('mouseenter', () => {
+    item.style.background = bgColor.replace('0.06', '0.13');
+    item.style.transform = 'translateX(2px)';
+  });
+  item.addEventListener('mouseleave', () => {
+    item.style.background = bgColor;
+    item.style.transform = '';
+  });
+  item.addEventListener('click', () => {
+    map?.closePopup();
+    selectFish(fish);
+  });
+  return item;
+}
+
+// Builds the full popup DOM element shown when a municipality marker is clicked.
+function buildMuniPopupContent(muni: LakeMunicipality): HTMLElement {
+  const endemicFish = species.value.filter((f) => f.type === 'endemic' && f.municipal === muni.name);
+  const invasiveFish = species.value.filter((f) => f.type === 'invasive' && f.municipal === muni.name);
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'font-family:Roboto,sans-serif;min-width:230px;max-width:270px;max-height:300px;overflow-y:auto;';
+
+  // ── Header ──
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #e0e0e0;';
+  hdr.innerHTML = `
+    <div style="width:36px;height:36px;background:#F9A825;border-radius:50%;
+                display:flex;align-items:center;justify-content:center;
+                flex-shrink:0;border:2px solid #E65100;">
+      <span style="font-family:'Material Icons';color:white;font-size:20px;line-height:1;">location_city</span>
+    </div>
+    <div>
+      <div style="font-weight:700;font-size:0.9rem;color:#212121;line-height:1.2;">${muni.name}</div>
+      <div style="font-size:0.68rem;color:#757575;margin-top:2px;">Municipality · Lake Lanao</div>
+    </div>`;
+  wrap.appendChild(hdr);
+
+  // ── Count badges ──
+  const badgeRow = document.createElement('div');
+  badgeRow.style.cssText = 'display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;';
+  badgeRow.innerHTML = `
+    <span style="background:rgba(21,101,192,0.12);color:#1565C0;border-radius:12px;
+                 padding:2px 10px;font-size:0.7rem;font-weight:700;">${endemicFish.length} Endemic</span>
+    <span style="background:rgba(211,47,47,0.12);color:#D32F2F;border-radius:12px;
+                 padding:2px 10px;font-size:0.7rem;font-weight:700;">${invasiveFish.length} Invasive</span>`;
+  wrap.appendChild(badgeRow);
+
+  // ── Empty state ──
+  if (endemicFish.length === 0 && invasiveFish.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'text-align:center;color:#9e9e9e;font-size:0.78rem;padding:14px 0 6px;';
+    empty.innerHTML = `<span style="font-family:'Material Icons';font-size:28px;display:block;
+                                    margin-bottom:6px;opacity:0.45;">search_off</span>
+                       No observations recorded yet.`;
+    wrap.appendChild(empty);
+    return wrap;
+  }
+
+  // ── Endemic section ──
+  if (endemicFish.length > 0) {
+    const sh = document.createElement('div');
+    sh.style.cssText = 'font-size:0.65rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;'
+      + 'color:#1565C0;background:rgba(21,101,192,0.08);padding:4px 8px;border-radius:6px;'
+      + 'border-left:3px solid #1565C0;margin-bottom:6px;';
+    sh.textContent = 'Endemic Species';
+    wrap.appendChild(sh);
+    endemicFish.forEach((f) => wrap.appendChild(createFishItemEl(f, '#1565C0', 'rgba(21,101,192,0.06)')));
+  }
+
+  // ── Invasive section ──
+  if (invasiveFish.length > 0) {
+    const sh = document.createElement('div');
+    sh.style.cssText = 'font-size:0.65rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;'
+      + 'color:#D32F2F;background:rgba(211,47,47,0.08);padding:4px 8px;border-radius:6px;'
+      + 'border-left:3px solid #D32F2F;margin-bottom:6px;margin-top:8px;';
+    sh.textContent = 'Invasive Species';
+    wrap.appendChild(sh);
+    invasiveFish.forEach((f) => wrap.appendChild(createFishItemEl(f, '#D32F2F', 'rgba(211,47,47,0.06)')));
+  }
+
+  return wrap;
+}
+
+// Creates the municipality pin layer group with one yellow city marker per LGU.
+// Uses hardcoded LAKE_MUNICIPALITIES coordinates — no GeoJSON loading required.
+function buildMunicipalityMarkers() {
+  if (!map || municipalityMarkersLayerGroup) return;
+  municipalityMarkersLayerGroup = L.layerGroup();
+
+  LAKE_MUNICIPALITIES.forEach((muni) => {
+    const marker = L.marker([muni.lat, muni.lng], {
+      icon: makeMunicipalityIcon(),
+      zIndexOffset: 200,
+      title: muni.name,
+    });
+    marker.bindTooltip(muni.name, {
+      direction: 'top',
+      offset: [0, -14],
+      className: 'muni-tooltip',
+    });
+    marker.on('click', () => {
+      L.popup({ maxWidth: 290, className: 'muni-popup' })
+        .setLatLng([muni.lat, muni.lng])
+        .setContent(buildMuniPopupContent(muni))
+        .openOn(map!);
+      map?.flyTo([muni.lat, muni.lng], 13, { duration: 0.8 });
+    });
+    municipalityMarkersLayerGroup!.addLayer(marker);
+  });
+  syncLayerVisibility();
 }
 </script>
 
@@ -3370,5 +3549,38 @@ function goToWaterQuality() {
 }
 .add-data-btn--shifted {
   left: 408px;
+}
+</style>
+
+<!-- Global styles for Leaflet municipality popups (outside Vue scoped scope) -->
+<style>
+.muni-popup .leaflet-popup-content-wrapper {
+  border-radius: 14px !important;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.14),
+    0 1px 4px rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid rgba(249, 168, 37, 0.25) !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+.muni-popup .leaflet-popup-content {
+  margin: 14px 14px 12px !important;
+  width: auto !important;
+}
+.muni-popup .leaflet-popup-tip {
+  background: white !important;
+}
+.muni-tooltip {
+  background: rgba(249, 168, 37, 0.95) !important;
+  border: 1px solid #E65100 !important;
+  color: white !important;
+  font-weight: 700 !important;
+  font-size: 0.75rem !important;
+  border-radius: 6px !important;
+  padding: 3px 8px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18) !important;
+}
+.muni-tooltip::before {
+  border-top-color: #E65100 !important;
 }
 </style>
