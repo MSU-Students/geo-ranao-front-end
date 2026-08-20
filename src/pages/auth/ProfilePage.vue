@@ -402,7 +402,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { useQuasar } from 'quasar';
+import { useQuasar, type QFile } from 'quasar';
 import { useRoute } from 'vue-router';
 import BackButton from 'src/components/BackButton.vue';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
@@ -415,7 +415,7 @@ const activeProfileTab = ref(route.query.tab === 'contributions' ? 'contribution
 const editDialog = ref(false);
 const avatarFile = ref<File | null>(null);
 const avatarPreview = ref<string>('');
-const fileInputRef = ref<any>(null);
+const fileInputRef = ref<QFile | null>(null);
 const passwordForm = ref({ current: '', new: '', confirm: '' });
 
 // Report state (Upload Data state now lives in UploadDataDialog.vue)

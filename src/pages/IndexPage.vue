@@ -918,7 +918,6 @@ const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 
 // ═══ STATE ═══
 const activeTab = ref('fish');
-const fishSearch = ref('');
 const activeFilter = ref('all');
 const showPanel = ref(false);
 const mapContainer = ref<HTMLElement | null>(null);
@@ -2783,7 +2782,7 @@ watch(filteredSpecies, () => {
 });
 
 onMounted(() => {
-  nextTick(() => {
+  void nextTick(() => {
     initMap();
     setTimeout(() => {
       map?.invalidateSize();
