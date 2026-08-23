@@ -273,6 +273,111 @@
           </div>
         </div>
       </div>
+
+      <!-- Distribution Explorer -->
+      <div class="text-white text-h6 text-weight-bold q-mb-sm q-mt-lg">
+        <q-icon name="explore" color="teal-3" class="q-mr-sm" />
+        Geographic & Temporal Distribution
+      </div>
+      <q-card class="glass-morph q-mb-lg">
+        <q-card-section>
+          <div class="row q-col-gutter-md q-mb-md">
+            <div class="col-12 col-sm-4">
+              <q-select v-model="distYear" :options="distYearOptions" label="Year" outlined dense dark />
+            </div>
+            <div class="col-12 col-sm-4">
+              <q-select v-model="distMunicipality" :options="distMuniOptions" label="Municipality" outlined dense dark />
+            </div>
+            <div class="col-12 col-sm-4">
+              <q-select v-model="distCategory" :options="distCategoryOptions" label="Category" outlined dense dark emit-value map-options />
+            </div>
+          </div>
+          <q-list dark separator>
+            <q-item v-for="item in distributionResults" :key="item.speciesName">
+              <q-item-section>
+                <q-item-label class="text-white text-weight-bold">{{ item.speciesName }}</q-item-label>
+                <q-item-label caption class="text-grey-4">{{ item.type }}</q-item-label>
+              </q-item-section>
+              <q-item-section side class="text-right">
+                <q-item-label class="text-grey-3">Avg Count: {{ item.avgCount.toFixed(1) }}</q-item-label>
+                <q-item-label caption class="text-grey-5">Avg Depth: {{ item.avgDepth.toFixed(1) }}m</q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-item v-if="distributionResults.length === 0">
+              <q-item-section class="text-center text-grey-4 q-py-sm">No species found for these filters.</q-item-section>
+            </q-item>
+          </q-list>
+        </q-card-section>
+      </q-card>
+
+      <!-- Timeline Comparison -->
+      <div class="text-white text-h6 text-weight-bold q-mb-sm q-mt-lg">
+        <q-icon name="timeline" color="teal-3" class="q-mr-sm" />
+        Timeline Comparison
+      </div>
+      <p class="text-grey-4 text-caption q-mb-md">Compare up to 2 timelines (count, length, weight, bathymetry/depth) side-by-side.</p>
+      
+      <div class="row q-col-gutter-md q-mb-xl">
+        <!-- Series A -->
+        <div class="col-12 col-md-6">
+          <q-card class="glass-morph full-height">
+            <q-card-section>
+              <div class="row q-col-gutter-sm q-mb-md">
+                <div class="col-6 col-sm-3">
+                  <q-select v-model="timelineAYear" :options="timelineYearOptions" label="Year" outlined dense dark />
+                </div>
+                <div class="col-6 col-sm-3">
+                  <q-select v-model="timelineAMuni" :options="distMuniOptions" label="Municipality" outlined dense dark />
+                </div>
+                <div class="col-6 col-sm-3">
+                  <q-select v-model="timelineASpecies" :options="speciesSelectOptions" label="Species" outlined dense dark />
+                </div>
+                <div class="col-6 col-sm-3">
+                  <q-select v-model="timelineAMetric" :options="metricSelectOptions" label="Metric" outlined dense dark emit-value map-options />
+                </div>
+              </div>
+              <ParameterTrendChart
+                v-if="timelineASeries.values.length"
+                :months="timelineASeries.months"
+                :values="timelineASeries.values"
+                :unit="timelineASeries.unit"
+                color="#4dd0e1"
+              />
+              <div v-else class="text-center text-grey-5 q-py-xl">Not enough data to graph for this year</div>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <!-- Series B -->
+        <div class="col-12 col-md-6">
+          <q-card class="glass-morph full-height">
+            <q-card-section>
+              <div class="row q-col-gutter-sm q-mb-md">
+                <div class="col-6 col-sm-3">
+                  <q-select v-model="timelineBYear" :options="timelineYearOptions" label="Year" outlined dense dark />
+                </div>
+                <div class="col-6 col-sm-3">
+                  <q-select v-model="timelineBMuni" :options="distMuniOptions" label="Municipality" outlined dense dark />
+                </div>
+                <div class="col-6 col-sm-3">
+                  <q-select v-model="timelineBSpecies" :options="speciesSelectOptions" label="Species" outlined dense dark />
+                </div>
+                <div class="col-6 col-sm-3">
+                  <q-select v-model="timelineBMetric" :options="metricSelectOptions" label="Metric" outlined dense dark emit-value map-options />
+                </div>
+              </div>
+              <ParameterTrendChart
+                v-if="timelineBSeries.values.length"
+                :months="timelineBSeries.months"
+                :values="timelineBSeries.values"
+                :unit="timelineBSeries.unit"
+                color="#ba68c8"
+              />
+              <div v-else class="text-center text-grey-5 q-py-xl">Not enough data to graph for this year</div>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
     </div>
   </q-page>
 </template>
@@ -280,6 +385,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import BackButton from 'components/BackButton.vue';
+import ParameterTrendChart from 'components/charts/ParameterTrendChart.vue';
 import {
   fetchFishObservations,
   CONSERVATION_STATUS_LABELS,
@@ -334,11 +440,13 @@ function toSpeciesList(observations: FishObservation[]): Fish[] {
 }
 
 const species = ref<Fish[]>([]);
+const rawObservations = ref<FishObservation[]>([]);
 
 onMounted(async () => {
   loading.value = true;
   try {
     const observations = await fetchFishObservations({ status: 'APPROVED' });
+    rawObservations.value = observations;
     species.value = toSpeciesList(observations);
   } catch (err) {
     console.error('Failed to load fish observations:', err);
@@ -396,6 +504,153 @@ const criticallyEndangeredCount = computed(
 function selectFish(fish: Fish) {
   selectedFish.value = fish;
 }
+
+// --- Distribution Explorer Logic ---
+const distYear = ref<string>('All Years');
+const distMunicipality = ref<string>('All Municipalities');
+const distCategory = ref<string>('All');
+
+const distCategoryOptions = [
+  { label: 'All Categories', value: 'All' },
+  { label: 'Endemic', value: 'ENDEMIC' },
+  { label: 'Invasive', value: 'INVASIVE' },
+];
+
+const distYearOptions = computed(() => {
+  const years = new Set<string>();
+  rawObservations.value.forEach(o => {
+    if (o.dateObserved) years.add(o.dateObserved.split('-')[0]);
+  });
+  return ['All Years', ...Array.from(years).sort().reverse()];
+});
+
+const distMuniOptions = computed(() => {
+  const munis = new Set<string>();
+  rawObservations.value.forEach(o => {
+    if (o.municipal) munis.add(o.municipal);
+  });
+  return ['All Municipalities', ...Array.from(munis).sort()];
+});
+
+const distributionResults = computed(() => {
+  const filtered = rawObservations.value.filter(o => {
+    const y = o.dateObserved ? o.dateObserved.split('-')[0] : '';
+    if (distYear.value !== 'All Years' && y !== distYear.value) return false;
+    if (distMunicipality.value !== 'All Municipalities' && o.municipal !== distMunicipality.value) return false;
+    if (distCategory.value !== 'All' && o.category !== distCategory.value) return false;
+    return true;
+  });
+
+  const bySpecies = new Map<string, { count: number, depth: number, occ: number, type: string }>();
+  filtered.forEach(o => {
+    const name = o.speciesCommon || o.speciesScientific || 'Unnamed';
+    const b = bySpecies.get(name) || { count: 0, depth: 0, occ: 0, type: o.category === 'ENDEMIC' ? 'Endemic Cyprinid' : (o.category === 'INVASIVE' ? 'Invasive Species' : 'General') };
+    b.count += (o.count || 0);
+    b.depth += (o.depthM || 0);
+    b.occ += 1;
+    bySpecies.set(name, b);
+  });
+
+  return Array.from(bySpecies.entries()).map(([name, data]) => ({
+    speciesName: name,
+    type: data.type,
+    avgCount: data.occ ? data.count / data.occ : 0,
+    avgDepth: data.occ ? data.depth / data.occ : 0,
+  })).sort((a, b) => b.avgCount - a.avgCount);
+});
+
+
+// --- Timeline Comparison Logic ---
+const speciesSelectOptions = computed(() => {
+  const opts = new Set<string>();
+  rawObservations.value.forEach(o => {
+    if (o.speciesCommon) opts.add(o.speciesCommon);
+    else if (o.speciesScientific) opts.add(o.speciesScientific);
+  });
+  return ['All Species', ...Array.from(opts).sort()];
+});
+
+const metricSelectOptions = [
+  { label: 'Count (Individuals)', value: 'count' },
+  { label: 'True Length (cm)', value: 'trueLengthCm' },
+  { label: 'Weight (g)', value: 'weightG' },
+  { label: 'Bathymetry / Depth (m)', value: 'depthM' },
+];
+
+const timelineYearOptions = computed(() => {
+  const years = new Set<string>();
+  rawObservations.value.forEach(o => {
+    if (o.dateObserved) years.add(o.dateObserved.split('-')[0]);
+  });
+  const sorted = Array.from(years).sort().reverse();
+  if (!sorted.length) sorted.push(String(new Date().getFullYear()));
+  return sorted;
+});
+
+const timelineAYear = ref(String(new Date().getFullYear()));
+const timelineBYear = ref(String(new Date().getFullYear()));
+
+const timelineAMuni = ref('All Municipalities');
+const timelineBMuni = ref('All Municipalities');
+
+const timelineASpecies = ref('All Species');
+const timelineAMetric = ref('count');
+const timelineBSpecies = ref('All Species');
+const timelineBMetric = ref('depthM');
+
+function computeTimelineSeries(targetSpecies: string, targetMetric: string, targetYear: string, targetMuni: string) {
+  const months: string[] = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(parseInt(targetYear), i, 1);
+    months.push(d.toLocaleString('default', { month: 'short', year: 'numeric' }));
+  }
+
+  const buckets = new Map<string, { sum: number, occ: number }>();
+  months.forEach(m => buckets.set(m, { sum: 0, occ: 0 }));
+
+  rawObservations.value.forEach(o => {
+    const name = o.speciesCommon || o.speciesScientific || 'Unnamed';
+    if (targetSpecies !== 'All Species' && name !== targetSpecies) return;
+    if (targetMuni !== 'All Municipalities' && o.municipal !== targetMuni) return;
+    
+    if (o.dateObserved && o.dateObserved.startsWith(targetYear)) {
+      const d = new Date(o.dateObserved);
+      const mStr = d.toLocaleString('default', { month: 'short', year: 'numeric' });
+      const b = buckets.get(mStr);
+      if (b) {
+        let val = 0;
+        if (targetMetric === 'count') val = o.count || 0;
+        else if (targetMetric === 'trueLengthCm') val = o.trueLengthCm || 0;
+        else if (targetMetric === 'weightG') val = o.weightG || 0;
+        else if (targetMetric === 'depthM') val = o.depthM || 0;
+
+        if (val > 0) {
+          b.sum += val;
+          b.occ += 1;
+        }
+      }
+    }
+  });
+
+  const values = months.map(m => {
+    const b = buckets.get(m)!;
+    return b.occ > 0 ? b.sum / b.occ : 0;
+  });
+
+  let unit = '';
+  if (targetMetric === 'trueLengthCm') unit = 'cm';
+  else if (targetMetric === 'weightG') unit = 'g';
+  else if (targetMetric === 'depthM') unit = 'm';
+
+  if (values.every(v => v === 0)) {
+    return { months, values: [], unit };
+  }
+
+  return { months, values, unit };
+}
+
+const timelineASeries = computed(() => computeTimelineSeries(timelineASpecies.value, timelineAMetric.value, timelineAYear.value, timelineAMuni.value));
+const timelineBSeries = computed(() => computeTimelineSeries(timelineBSpecies.value, timelineBMetric.value, timelineBYear.value, timelineBMuni.value));
 </script>
 
 <style scoped>
