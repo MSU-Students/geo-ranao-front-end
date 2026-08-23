@@ -67,6 +67,35 @@ export async function submitFishObservation(form: FormData): Promise<FishObserva
   return data;
 }
 
+// ─── Bulk upload (Endemic Cyprinids / Invasive Species / General) ───
+// Field set matches what the manual Fish Observation form collects per
+// category, so a bulk-uploaded row and a manually-submitted record carry the
+// same data — see useFishObservationUpload.ts for the spreadsheet parser
+// that produces these rows.
+export interface FishObservationBulkRow {
+  category: FishCategory;
+  dateObserved: string;
+  speciesScientific?: string | undefined;
+  speciesCommon?: string | undefined;
+  conservationStatus?: ConservationStatus | undefined;
+  trueLengthCm?: number | undefined;
+  bodyDepthCm?: number | undefined;
+  weightG?: number | undefined;
+  depthM?: number | undefined;
+  count?: number | undefined;
+  sizeCategory?: string | undefined;
+  latitude?: number | undefined;
+  longitude?: number | undefined;
+  municipal?: string | undefined;
+  barangay?: string | undefined;
+  notes?: string | undefined;
+}
+
+export async function submitFishObservationBatch(rows: FishObservationBulkRow[]): Promise<FishObservation[]> {
+  const { data } = await api.post<FishObservation[]>('/fish-observations/bulk', { rows });
+  return data;
+}
+
 export async function fetchFishObservations(
   params: { status?: ReviewStatus; category?: FishCategory; mine?: boolean } = {},
 ): Promise<FishObservation[]> {

@@ -21,12 +21,12 @@
         class="unified-upload-stepper"
         style="flex: 1 1 auto; min-height: 0;"
       >
-        <!-- STEP 1: Select Data Type -->
+        <!-- STEP: Select Data Type -->
         <q-step
-          :name="1"
+          name="type"
           title="Select Data Type"
           icon="category"
-          :done="step > 1"
+          :done="stepIndex('type') < stepIndex(step)"
         >
           <div class="text-h6 text-teal-10 q-mb-sm text-center">What type of data are you uploading?</div>
           <div class="text-body2 text-grey-7 text-center q-mb-lg">Select the appropriate category for your dataset to ensure correct processing.</div>
@@ -64,16 +64,16 @@
           </div>
 
           <q-stepper-navigation class="text-right">
-            <q-btn unelevated color="teal-9" label="Continue" @click="step = 2" :disable="!selectedDataType" />
+            <q-btn unelevated color="teal-9" label="Continue" @click="step = 'method'" :disable="!selectedDataType" />
           </q-stepper-navigation>
         </q-step>
 
-        <!-- STEP 2: Choose Method -->
+        <!-- STEP: Choose Method -->
         <q-step
-          :name="2"
+          name="method"
           title="Choose Method"
           icon="tune"
-          :done="step > 2"
+          :done="stepIndex('method') < stepIndex(step)"
         >
           <div class="text-h6 text-teal-10 q-mb-sm text-center">How would you like to submit your data?</div>
           <div class="text-body2 text-grey-7 text-center q-mb-lg">
@@ -107,27 +107,95 @@
           </q-stepper-navigation>
         </q-step>
 
-        <!-- STEP 3: File Upload -->
+        <!-- STEP: Fish Category (bulk upload only) -->
         <q-step
-          :name="3"
+          v-if="selectedDataType === 'fish'"
+          name="fishCategory"
+          title="Fish Category"
+          icon="set_meal"
+          :done="stepIndex('fishCategory') < stepIndex(step)"
+        >
+          <div class="text-h6 text-teal-10 q-mb-sm text-center">What type of fish are you uploading?</div>
+          <div class="text-body2 text-grey-7 text-center q-mb-lg">
+            Each category has its own template — pick the one that matches your spreadsheet.
+          </div>
+
+          <div class="row q-col-gutter-md justify-center q-pa-md">
+            <div class="col-12 col-sm-4">
+              <q-card
+                class="type-selector-card cursor-pointer"
+                :class="{ 'active': selectedFishCategory === 'endemic' }"
+                flat bordered
+                @click="selectFishCategory('endemic')"
+              >
+                <q-card-section class="column items-center q-pa-md text-center">
+                  <q-icon name="water" size="44px" color="teal-6" class="q-mb-sm" />
+                  <div class="text-subtitle1 text-grey-9">Endemic Cyprinids</div>
+                  <div class="text-caption text-grey-6 q-mt-xs">Native species of Lake Lanao</div>
+                </q-card-section>
+              </q-card>
+            </div>
+
+            <div class="col-12 col-sm-4">
+              <q-card
+                class="type-selector-card cursor-pointer"
+                :class="{ 'active': selectedFishCategory === 'invasive' }"
+                flat bordered
+                @click="selectFishCategory('invasive')"
+              >
+                <q-card-section class="column items-center q-pa-md text-center">
+                  <q-icon name="pest_control" size="44px" color="red-6" class="q-mb-sm" />
+                  <div class="text-subtitle1 text-grey-9">Invasive Species</div>
+                  <div class="text-caption text-grey-6 q-mt-xs">Non-native, introduced fish</div>
+                </q-card-section>
+              </q-card>
+            </div>
+
+            <div class="col-12 col-sm-4">
+              <q-card
+                class="type-selector-card cursor-pointer"
+                :class="{ 'active': selectedFishCategory === 'others' }"
+                flat bordered
+                @click="selectFishCategory('others')"
+              >
+                <q-card-section class="column items-center q-pa-md text-center">
+                  <q-icon name="blender" size="44px" color="orange-6" class="q-mb-sm" />
+                  <div class="text-subtitle1 text-grey-9">General / Others</div>
+                  <div class="text-caption text-grey-6 q-mt-xs">Other fish species</div>
+                </q-card-section>
+              </q-card>
+            </div>
+          </div>
+
+          <q-stepper-navigation class="text-right">
+            <q-btn flat color="grey-8" label="Back" @click="step = 'method'" />
+          </q-stepper-navigation>
+        </q-step>
+
+        <!-- STEP: File Upload -->
+        <q-step
+          name="upload"
           title="Upload File"
           icon="upload_file"
-          :done="step > 3"
+          :done="stepIndex('upload') < stepIndex(step)"
         >
           <!-- Template download banner -->
           <div class="template-banner q-mb-lg">
             <div class="row items-center">
-              <q-icon name="description" :color="selectedDataType === 'fish' ? 'teal-7' : 'blue-7'" size="22px" class="q-mr-sm" />
+              <q-icon name="description" :color="selectedDataType === 'fish' ? fishCategoryColor : 'blue-7'" size="22px" class="q-mr-sm" />
               <div class="col">
                 <div class="text-weight-medium text-grey-9" style="font-size:0.85rem;">
                   Don't have the template?
                 </div>
                 <div class="text-grey-6" style="font-size:0.75rem;">
-                  Download the official {{ selectedDataType === 'fish' ? 'Fish Observation' : 'Water Quality' }} Excel template
+                  Download the official {{ uploadTypeLabel }} Excel template
                 </div>
-                <div v-if="selectedDataType === 'water'" class="text-grey-6 q-mt-xs" style="font-size:0.72rem;">
+                <div class="text-grey-6 q-mt-xs" style="font-size:0.72rem;">
                   <q-icon name="info" size="12px" class="q-mr-xs" />
-                  <strong>site_id</strong>, <strong>date</strong> (YYYY-MM-DD), and <strong>depth_m</strong> are required for every row — everything else may be left blank.
+                  <strong>Date Observed</strong> (YYYY-MM-DD) is required for every row — everything else may be left blank.
+                  <template v-if="selectedDataType === 'fish' && selectedFishCategory !== 'others'">
+                    Photo columns are for your own reference only; bulk upload doesn't attach image files.
+                  </template>
                 </div>
               </div>
               <q-btn
@@ -135,7 +203,7 @@
                 dense
                 icon="download"
                 label="Download Template"
-                :color="selectedDataType === 'fish' ? 'teal-7' : 'blue-7'"
+                :color="selectedDataType === 'fish' ? fishCategoryColor : 'blue-7'"
                 size="sm"
                 @click="downloadTemplate"
               />
@@ -180,10 +248,9 @@
           </div>
 
           <q-stepper-navigation class="text-right q-mt-md row items-center">
-            <q-btn flat color="grey-8" label="Back" @click="step = 2" class="q-mr-sm" />
+            <q-btn flat color="grey-8" label="Back" @click="handleBackFromUpload" class="q-mr-sm" />
             <q-space />
             <q-btn
-              v-if="selectedDataType === 'water'"
               unelevated
               label="Continue"
               color="teal-9"
@@ -192,69 +259,59 @@
               :disable="!uploadFile"
               @click="proceedToReview"
             />
-            <q-btn
-              v-else
-              unelevated
-              label="Upload Data"
-              color="teal-9"
-              icon="cloud_upload"
-              @click="submitUpload"
-              :disable="!uploadFile"
-            />
           </q-stepper-navigation>
         </q-step>
 
-        <!-- STEP 4: Review & Confirm (Water Quality only) -->
+        <!-- STEP: Review & Confirm -->
         <q-step
-          v-if="selectedDataType === 'water'"
-          :name="4"
+          name="review"
           title="Review & Confirm"
           icon="fact_check"
         >
-          <div v-if="uploadParseResult">
+          <div v-if="reviewSummary">
             <div class="text-h6 text-teal-10 q-mb-sm text-center">
-              {{ uploadParseResult.validRows.length }} of {{ uploadParseResult.totalDataRows }} rows are valid and will be submitted.
+              {{ reviewSummary.validCount }} of {{ reviewSummary.totalDataRows }} rows are valid and will be submitted.
             </div>
 
-            <q-banner v-if="uploadParseResult.invalidRows.length > 0" class="bg-red-1 text-red-9 q-mb-md" rounded>
+            <q-banner v-if="reviewSummary.invalidRows.length > 0" class="bg-red-1 text-red-9 q-mb-md" rounded>
               <template #avatar><q-icon name="error" color="red-7" /></template>
               <div class="text-weight-bold q-mb-xs">
-                {{ uploadParseResult.invalidRows.length }} row(s) will be skipped:
+                {{ reviewSummary.invalidRows.length }} row(s) will be skipped:
               </div>
               <q-scroll-area style="height: 140px;">
-                <div v-for="row in uploadParseResult.invalidRows" :key="row.rowNumber" class="text-caption q-mb-xs">
+                <div v-for="row in reviewSummary.invalidRows" :key="row.rowNumber" class="text-caption q-mb-xs">
                   Row {{ row.rowNumber }}: {{ row.reasons.join('; ') }}
                 </div>
               </q-scroll-area>
             </q-banner>
 
-            <q-banner v-if="rowsWithWarnings.length > 0" class="bg-orange-1 text-orange-9 q-mb-md" rounded>
+            <q-banner v-if="reviewSummary.warningRows.length > 0" class="bg-orange-1 text-orange-9 q-mb-md" rounded>
               <template #avatar><q-icon name="warning" color="orange-7" /></template>
               <div class="text-weight-bold q-mb-xs">
-                {{ rowsWithWarnings.length }} valid row(s) have flagged values:
+                {{ reviewSummary.warningRows.length }} valid row(s) have flagged values:
               </div>
               <q-scroll-area style="height: 140px;">
-                <div v-for="(row, i) in rowsWithWarnings" :key="i" class="text-caption q-mb-xs">
-                  {{ row.siteId }} ({{ row.date }}): {{ row.warnings.join('; ') }}
+                <div v-for="(row, i) in reviewSummary.warningRows" :key="i" class="text-caption q-mb-xs">
+                  {{ row.label }}: {{ row.warnings.join('; ') }}
                 </div>
               </q-scroll-area>
             </q-banner>
 
-            <div v-if="uploadParseResult.validRows.length === 0" class="text-center text-negative q-my-md">
+            <div v-if="reviewSummary.validCount === 0" class="text-center text-negative q-my-md">
               No valid rows found in this file. Please fix the errors above and re-upload.
             </div>
           </div>
 
           <q-stepper-navigation class="text-right q-mt-md row items-center">
-            <q-btn flat color="grey-8" label="Back" @click="step = 3" class="q-mr-sm" />
+            <q-btn flat color="grey-8" label="Back" @click="step = 'upload'" class="q-mr-sm" />
             <q-space />
             <q-btn
               unelevated
-              :label="`Confirm & Submit ${uploadParseResult?.validRows.length ?? 0} Readings`"
+              :label="`Confirm & Submit ${reviewSummary?.validCount ?? 0} Record${reviewSummary?.validCount === 1 ? '' : 's'}`"
               color="teal-9"
               icon="cloud_done"
               :loading="submittingBatch"
-              :disable="!uploadParseResult || uploadParseResult.validRows.length === 0"
+              :disable="!reviewSummary || reviewSummary.validCount === 0"
               @click="confirmBatchSubmit"
             />
           </q-stepper-navigation>
@@ -270,38 +327,101 @@ import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { parseWaterQualityWorkbook, type WaterQualityUploadParseResult } from 'src/composables/useWaterQualityUpload';
 import { submitWaterQualityBatch } from 'src/composables/useWaterQualityReadings';
+import {
+  parseFishObservationWorkbook,
+  type FishBulkCategory,
+  type FishUploadParseResult,
+} from 'src/composables/useFishObservationUpload';
+import { submitFishObservationBatch } from 'src/composables/useFishObservations';
 
 const $q = useQuasar();
 const router = useRouter();
 const submittingBatch = ref(false);
 
+type StepName = 'type' | 'method' | 'fishCategory' | 'upload' | 'review';
+// Order used only to derive each q-step's :done state from the current step.
+const STEP_ORDER: StepName[] = ['type', 'method', 'fishCategory', 'upload', 'review'];
+function stepIndex(name: StepName): number {
+  return STEP_ORDER.indexOf(name);
+}
+
 const show = ref(false);
-const step = ref(1);
+const step = ref<StepName>('type');
 const selectedDataType = ref<'fish' | 'water' | ''>('');
-// true when opened directly into Step 2 via openFor() — Back on Step 2 then
-// closes the dialog instead of returning to a Step 1 the user never saw.
+const selectedFishCategory = ref<FishBulkCategory | ''>('');
+// true when opened directly into Step "method" via openFor() — Back on that
+// step then closes the dialog instead of returning to a "type" step the user
+// never saw.
 const skippedTypeStep = ref(false);
 const uploadFile = ref<File | null>(null);
 const uploadError = ref('');
 const fileInputEl = ref<HTMLInputElement | null>(null);
-const uploadParseResult = ref<WaterQualityUploadParseResult | null>(null);
+const waterParseResult = ref<WaterQualityUploadParseResult | null>(null);
+const fishParseResult = ref<FishUploadParseResult | null>(null);
 const parsingFile = ref(false);
 
-const rowsWithWarnings = computed(
-  () => uploadParseResult.value?.validRows.filter((r) => r.warnings.length > 0) ?? [],
+const fishCategoryLabel = computed(() => {
+  if (selectedFishCategory.value === 'endemic') return 'Endemic Cyprinids';
+  if (selectedFishCategory.value === 'invasive') return 'Invasive Species';
+  if (selectedFishCategory.value === 'others') return 'General / Others';
+  return '';
+});
+
+const fishCategoryColor = computed(() => {
+  if (selectedFishCategory.value === 'endemic') return 'teal-7';
+  if (selectedFishCategory.value === 'invasive') return 'red-7';
+  if (selectedFishCategory.value === 'others') return 'orange-7';
+  return 'teal-7';
+});
+
+const uploadTypeLabel = computed(() =>
+  selectedDataType.value === 'fish' ? fishCategoryLabel.value : 'Water Quality',
 );
 
+// A single shape the Review step renders from, regardless of which parser
+// (water quality or fish observation) produced the result.
+const reviewSummary = computed(() => {
+  if (selectedDataType.value === 'water' && waterParseResult.value) {
+    const result = waterParseResult.value;
+    return {
+      totalDataRows: result.totalDataRows,
+      validCount: result.validRows.length,
+      invalidRows: result.invalidRows,
+      warningRows: result.validRows
+        .filter((r) => r.warnings.length > 0)
+        .map((r) => ({ label: `${r.siteId} (${r.date})`, warnings: r.warnings })),
+    };
+  }
+  if (selectedDataType.value === 'fish' && fishParseResult.value) {
+    const result = fishParseResult.value;
+    return {
+      totalDataRows: result.totalDataRows,
+      validCount: result.validRows.length,
+      invalidRows: result.invalidRows,
+      warningRows: result.validRows
+        .filter((r) => r.warnings.length > 0)
+        .map((r) => ({
+          label: `${r.speciesScientific ?? r.speciesCommon ?? fishCategoryLabel.value} (${r.dateObserved})`,
+          warnings: r.warnings,
+        })),
+    };
+  }
+  return null;
+});
+
 function resetState() {
-  step.value = 1;
+  step.value = 'type';
   selectedDataType.value = '';
+  selectedFishCategory.value = '';
   skippedTypeStep.value = false;
   uploadFile.value = null;
   uploadError.value = '';
-  uploadParseResult.value = null;
+  waterParseResult.value = null;
+  fishParseResult.value = null;
   parsingFile.value = false;
 }
 
-/** Open on Step 1 — the caller doesn't know the data type yet. */
+/** Open on the "type" step — the caller doesn't know the data type yet. */
 function open() {
   resetState();
   show.value = true;
@@ -313,7 +433,7 @@ function openFor(dataType: 'fish' | 'water') {
   resetState();
   selectedDataType.value = dataType;
   skippedTypeStep.value = true;
-  step.value = 2;
+  step.value = 'method';
   show.value = true;
 }
 
@@ -321,15 +441,24 @@ defineExpose({ open, openFor });
 
 function selectDataType(type: 'fish' | 'water') {
   selectedDataType.value = type;
-  step.value = 2;
+  step.value = 'method';
 }
 
 function handleBackFromMethod() {
   if (skippedTypeStep.value) {
     show.value = false;
   } else {
-    step.value = 1;
+    step.value = 'type';
   }
+}
+
+function handleBackFromUpload() {
+  step.value = selectedDataType.value === 'fish' ? 'fishCategory' : 'method';
+}
+
+function selectFishCategory(category: FishBulkCategory) {
+  selectedFishCategory.value = category;
+  step.value = 'upload';
 }
 
 function chooseMethod(method: 'manual' | 'file') {
@@ -339,7 +468,7 @@ function chooseMethod(method: 'manual' | 'file') {
     router.push(target).catch((err) => console.error('Navigation error:', err));
     return;
   }
-  step.value = 3;
+  step.value = selectedDataType.value === 'fish' ? 'fishCategory' : 'upload';
 }
 
 function triggerFileUpload() {
@@ -385,14 +514,21 @@ function formatFileSize(bytes: number) {
   return `${(bytes / (k * k)).toFixed(1)} MB`;
 }
 
+const FISH_TEMPLATE_FILES: Record<FishBulkCategory, string> = {
+  endemic: 'endemic cyprinids template.xlsx',
+  invasive: 'invasive species template.xlsx',
+  others: 'general species template.xlsx',
+};
+
 function downloadTemplate() {
   const isFish = selectedDataType.value === 'fish';
-  const href = isFish
-    ? '/templates/fish observation template.xlsx'
-    : '/templates/water quality template.xlsx';
-  const filename = isFish
-    ? 'fish observation template.xlsx'
-    : 'water quality template.xlsx';
+  let filename: string;
+  if (isFish && selectedFishCategory.value) {
+    filename = FISH_TEMPLATE_FILES[selectedFishCategory.value];
+  } else {
+    filename = 'water quality template.xlsx';
+  }
+  const href = `/templates/${filename}`;
 
   const a = document.createElement('a');
   a.href = href;
@@ -403,23 +539,10 @@ function downloadTemplate() {
 
   $q.notify({
     message: 'Template download started.',
-    color: isFish ? 'teal-7' : 'blue-7',
+    color: isFish ? fishCategoryColor.value : 'blue-7',
     icon: 'download',
     position: 'top',
     timeout: 2000,
-  });
-}
-
-// Fish bulk-upload parsing isn't built yet (unlike water quality, there's no
-// column-mapped parser for it) — submit a single record instead via the Fish
-// Observation form, or use bulk upload for Water Quality.
-function submitUpload() {
-  $q.notify({
-    type: 'warning',
-    message: 'Bulk fish observation upload isn\'t available yet.',
-    caption: 'Use "Manual Input" to submit fish observations one at a time for now.',
-    position: 'top',
-    timeout: 4000,
   });
 }
 
@@ -431,8 +554,14 @@ async function proceedToReview() {
   parsingFile.value = true;
   uploadError.value = '';
   try {
-    uploadParseResult.value = await parseWaterQualityWorkbook(uploadFile.value);
-    step.value = 4;
+    if (selectedDataType.value === 'water') {
+      waterParseResult.value = await parseWaterQualityWorkbook(uploadFile.value);
+    } else if (selectedDataType.value === 'fish' && selectedFishCategory.value) {
+      fishParseResult.value = await parseFishObservationWorkbook(uploadFile.value, selectedFishCategory.value);
+    } else {
+      return;
+    }
+    step.value = 'review';
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Could not read this file.';
     uploadError.value = message;
@@ -443,19 +572,31 @@ async function proceedToReview() {
 }
 
 async function confirmBatchSubmit() {
-  const result = uploadParseResult.value;
-  if (!result || result.validRows.length === 0) return;
-
   submittingBatch.value = true;
   try {
-    await submitWaterQualityBatch(result.validRows);
-    $q.notify({
-      message: `${result.validRows.length} water quality readings submitted for review.`,
-      color: 'teal-7',
-      icon: 'check_circle',
-      position: 'top',
-      timeout: 3000,
-    });
+    if (selectedDataType.value === 'water') {
+      const result = waterParseResult.value;
+      if (!result || result.validRows.length === 0) return;
+      await submitWaterQualityBatch(result.validRows);
+      $q.notify({
+        message: `${result.validRows.length} water quality readings submitted for review.`,
+        color: 'teal-7',
+        icon: 'check_circle',
+        position: 'top',
+        timeout: 3000,
+      });
+    } else if (selectedDataType.value === 'fish') {
+      const result = fishParseResult.value;
+      if (!result || result.validRows.length === 0) return;
+      await submitFishObservationBatch(result.validRows);
+      $q.notify({
+        message: `${result.validRows.length} fish observations submitted for review.`,
+        color: 'teal-7',
+        icon: 'check_circle',
+        position: 'top',
+        timeout: 3000,
+      });
+    }
     cancelUpload();
   } catch (err) {
     $q.notify({
