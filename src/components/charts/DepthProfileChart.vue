@@ -121,6 +121,14 @@ const hoverIndex = ref<number | null>(null);
 
 const valueRange = computed(() => {
   const values = props.points.map((p) => p.value);
+  if (values.length === 0) {
+    // No readings yet (e.g. still loading, or nothing sampled at this
+    // station/month) — Math.min/max of an empty array is +/-Infinity, and
+    // Infinity - Infinity is NaN, so fall back to a small neutral range
+    // instead of feeding that through the axis math.
+    const v = props.guidelineValue ?? 0;
+    return { min: v - 1, max: v + 1 };
+  }
   const dataMin = Math.min(...values);
   const dataMax = Math.max(...values);
   const min = props.guidelineValue !== undefined ? Math.min(dataMin, props.guidelineValue) : dataMin;

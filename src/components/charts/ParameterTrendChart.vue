@@ -106,6 +106,14 @@ const padBottom = 8;
 const hoverIndex = ref<number | null>(null);
 
 const valueRange = computed(() => {
+  if (props.values.length === 0) {
+    // No data points (e.g. still loading, or this parameter has never been
+    // sampled) — Math.min/max of an empty array is +/-Infinity, and mixing
+    // that with finite math below produces NaN, so fall back to a small
+    // neutral range instead.
+    const v = props.guidelineValue ?? 0;
+    return { min: v - 1, max: v + 1 };
+  }
   const dataMin = Math.min(...props.values);
   const dataMax = Math.max(...props.values);
   // Widen the domain to include the guideline value so its line is never clipped.
