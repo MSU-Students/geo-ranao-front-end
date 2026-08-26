@@ -519,7 +519,8 @@ const distCategoryOptions = [
 const distYearOptions = computed(() => {
   const years = new Set<string>();
   rawObservations.value.forEach(o => {
-    if (o.dateObserved) years.add(o.dateObserved.split('-')[0]);
+    const year = o.dateObserved?.split('-')[0];
+    if (year) years.add(year);
   });
   return ['All Years', ...Array.from(years).sort().reverse()];
 });
@@ -580,7 +581,8 @@ const metricSelectOptions = [
 const timelineYearOptions = computed(() => {
   const years = new Set<string>();
   rawObservations.value.forEach(o => {
-    if (o.dateObserved) years.add(o.dateObserved.split('-')[0]);
+    const year = o.dateObserved?.split('-')[0];
+    if (year) years.add(year);
   });
   const sorted = Array.from(years).sort().reverse();
   if (!sorted.length) sorted.push(String(new Date().getFullYear()));
