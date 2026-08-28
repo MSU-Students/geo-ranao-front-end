@@ -6,6 +6,7 @@
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import type { StatusLevel } from 'src/composables/useWaterQualityModel';
 
 export interface StationMapSite {
   siteId: string;
@@ -14,29 +15,50 @@ export interface StationMapSite {
   lng: number;
 }
 
-const props = defineProps<{
-  sites: StationMapSite[];
-  /** Simplified 3-tier color per site (good/warning/critical) — empty when no parameter is selected. */
-  statusColorBySite: Record<string, string>;
-  selectedSiteId: string | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    sites: StationMapSite[];
+    /** Simplified 3-tier color per site (good/warning/critical) — empty when no parameter is selected. */
+    statusColorBySite: Record<string, string>;
+    /**
+     * True (uncollapsed) status per site, used only to decide the attention
+     * decoration below — independent of statusColorBySite's quick-glance color.
+     * serious -> pulsing ring, warning -> static badge, critical -> both.
+     */
+    statusBySite?: Record<string, StatusLevel>;
+    selectedSiteId: string | null;
+  }>(),
+  { statusBySite: () => ({}) },
+);
 
 const emit = defineEmits<{ 'select-station': [siteId: string] }>();
 
 const mapContainer = ref<HTMLElement | null>(null);
 let map: L.Map | null = null;
-const markers = new Map<string, L.CircleMarker>();
+const markers = new Map<string, L.Marker>();
 
 const NEUTRAL_COLOR = '#78909c';
+const MARKER_SIZE = 34;
 
-function styleFor(siteId: string, selected: boolean) {
-  return {
-    color: selected ? '#ffffff' : 'rgba(255,255,255,0.75)',
-    weight: selected ? 3 : 1.5,
-    radius: selected ? 9 : 6,
-    fillColor: props.statusColorBySite[siteId] ?? NEUTRAL_COLOR,
-    fillOpacity: 0.9,
-  };
+function iconFor(siteId: string, selected: boolean): L.DivIcon {
+  const color = props.statusColorBySite[siteId] ?? NEUTRAL_COLOR;
+  const status = props.statusBySite[siteId];
+  const pulse = status === 'serious' || status === 'critical';
+  const badge = status === 'warning' || status === 'critical';
+  const dotClass = `wq-marker__dot${selected ? ' wq-marker__dot--selected' : ''}`;
+
+  return L.divIcon({
+    className: 'wq-marker-wrap',
+    html: `
+      <div class="wq-marker" style="--wq-color:${color}">
+        ${pulse ? '<span class="wq-marker__pulse"></span>' : ''}
+        <span class="${dotClass}"></span>
+        ${badge ? '<span class="wq-marker__badge">!</span>' : ''}
+      </div>
+    `,
+    iconSize: [MARKER_SIZE, MARKER_SIZE],
+    iconAnchor: [MARKER_SIZE / 2, MARKER_SIZE / 2],
+  });
 }
 
 function renderMarkers() {
@@ -45,13 +67,11 @@ function renderMarkers() {
   markers.clear();
 
   props.sites.forEach((site) => {
-    const marker = L.circleMarker(
-      [site.lat, site.lng],
-      styleFor(site.siteId, site.siteId === props.selectedSiteId),
-    );
+    const selected = site.siteId === props.selectedSiteId;
+    const marker = L.marker([site.lat, site.lng], { icon: iconFor(site.siteId, selected) });
     marker.bindTooltip(`<strong>${site.siteId}</strong><br>Station: ${site.stationId}`, {
       direction: 'top',
-      offset: [0, -6],
+      offset: [0, -16],
     });
     marker.on('click', () => emit('select-station', site.siteId));
     marker.addTo(map!);
@@ -61,7 +81,7 @@ function renderMarkers() {
 
 function restyleMarkers() {
   markers.forEach((marker, siteId) => {
-    marker.setStyle(styleFor(siteId, siteId === props.selectedSiteId));
+    marker.setIcon(iconFor(siteId, siteId === props.selectedSiteId));
   });
 }
 
@@ -86,7 +106,7 @@ onBeforeUnmount(() => {
 });
 
 watch(() => props.sites, renderMarkers);
-watch([() => props.statusColorBySite, () => props.selectedSiteId], restyleMarkers);
+watch([() => props.statusColorBySite, () => props.statusBySite, () => props.selectedSiteId], restyleMarkers);
 </script>
 
 <style scoped>
@@ -96,5 +116,101 @@ watch([() => props.statusColorBySite, () => props.selectedSiteId], restyleMarker
   min-height: 340px;
   border-radius: 12px;
   overflow: hidden;
+}
+</style>
+
+<!--
+  Unscoped: Leaflet injects this markup via divIcon's raw HTML string, outside
+  Vue's render tree, so Vue's scoped data-v-* attribute never reaches it —
+  scoped styles here would silently no-op.
+-->
+<style>
+.wq-marker-wrap {
+  background: transparent;
+  border: none;
+}
+
+.wq-marker {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.wq-marker__dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  background: var(--wq-color);
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+.wq-marker__dot--selected {
+  width: 18px;
+  height: 18px;
+  border-width: 3px;
+  border-color: #ffffff;
+}
+
+/* Serious + Critical: a repeating radar-ping ring around the dot. */
+.wq-marker__pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--wq-color);
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  pointer-events: none;
+  animation: wq-marker-pulse 1.8s ease-out infinite;
+}
+
+@keyframes wq-marker-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0.6;
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(2.4);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wq-marker__pulse {
+    animation: none;
+    opacity: 0.35;
+    transform: translate(-50%, -50%) scale(1.6);
+  }
+}
+
+/* Warning + Critical: a static "!" badge — always paired with the color, never a signal on its own. */
+.wq-marker__badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #b5290a;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 13px;
+  text-align: center;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  z-index: 3;
+  pointer-events: none;
 }
 </style>

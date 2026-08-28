@@ -115,6 +115,7 @@
                 <StationMap
                   :sites="sites"
                   :status-color-by-site="statusColorBySite"
+                  :status-by-site="statusBySite"
                   :selected-site-id="selectedStationId"
                   @select-station="selectStation"
                 />
@@ -134,6 +135,10 @@
                   <span class="text-caption text-grey-4 q-ml-xs">Serious / Critical</span>
                 </div>
               </div>
+              <p class="text-caption text-grey-5 q-mt-xs q-mb-0">
+                Pulsing ring = Serious &nbsp;·&nbsp; <strong>!</strong> badge = Warning &nbsp;·&nbsp;
+                both = Critical — needs attention
+              </p>
             </q-card-section>
           </q-card>
         </div>
@@ -842,6 +847,20 @@ const statusColorBySite = computed<Record<string, string>>(() => {
   sites.value.forEach((site) => {
     const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
     result[site.siteId] = value !== null ? mapStatusColor(param.getStatus(value)) : NO_DATA_COLOR;
+  });
+  return result;
+});
+
+// True (uncollapsed) status per site, separate from statusColorBySite's
+// quick-glance 3-tier color — drives the map's pulse/badge attention cues,
+// which do distinguish serious from critical.
+const statusBySite = computed<Record<string, StatusLevel>>(() => {
+  const param = selectedParam.value;
+  const result: Record<string, StatusLevel> = {};
+  if (!param) return result;
+  sites.value.forEach((site) => {
+    const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
+    if (value !== null) result[site.siteId] = param.getStatus(value);
   });
   return result;
 });
