@@ -401,14 +401,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useQuasar, type QFile } from 'quasar';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import BackButton from 'src/components/BackButton.vue';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
+import { useAuthStore } from 'src/stores/auth';
 
 const $q = useQuasar();
 const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
+
+// No profile page for admins — MainLayout's header already keeps them from
+// navigating here, but this covers a typed URL or bookmark too.
+onMounted(() => {
+  if (authStore.user?.role === 'Admin') {
+    router.replace('/admin').catch((err) => {
+      console.error('Navigation error:', err);
+    });
+  }
+});
 
 const activeProfileTab = ref(route.query.tab === 'contributions' ? 'contributions' : 'activity');
 

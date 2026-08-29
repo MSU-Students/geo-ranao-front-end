@@ -67,7 +67,8 @@
             @click="handleLogin"
           />
 
-          <!-- When LOGGED IN: show Profile + Logout -->
+          <!-- When LOGGED IN: show Profile (researchers only — admins have no
+               profile page, just their name) + Logout -->
           <template v-else>
             <q-btn
               unelevated
@@ -77,6 +78,7 @@
               icon="account_circle"
               size="sm"
               class="q-px-md profile-btn"
+              :class="{ 'profile-btn--static': isAdminUser }"
               @click="goToProfile"
             />
             <q-btn
@@ -246,6 +248,7 @@ function handleLogin() {
 }
 
 function goToProfile() {
+  if (isAdminUser.value) return; // admins have no profile page
   router.push('/auth/profile').catch((err) => {
     console.error('Navigation error:', err);
   });
@@ -439,6 +442,14 @@ html {
 .profile-btn:hover {
   filter: brightness(1.12);
   transform: scale(1.02);
+}
+/* Admins: identity chip only, not a link to a page that doesn't exist for them. */
+.profile-btn--static {
+  cursor: default;
+}
+.profile-btn--static:hover {
+  filter: none;
+  transform: none;
 }
 
 /* ═══════════════════════════════════ */

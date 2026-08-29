@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import axios from 'axios';
 import { api } from 'src/boot/axios';
 import type { WaterQualityUploadRow } from 'src/composables/useWaterQualityUpload';
-import { allWaterQualityParams } from 'src/composables/useWaterQualityModel';
+import { allWaterQualityParams, getReadingWarnings } from 'src/composables/useWaterQualityModel';
 import {
   fetchFishObservations,
   approveFishObservation,
@@ -64,6 +64,14 @@ export interface UploadReviewItem {
   reviewNote?: string | undefined;
   /** Present only for bulk Water Quality batch uploads — one entry per submitted reading. */
   rows?: WaterQualityUploadRow[] | undefined;
+  /**
+   * Water Quality only — parameter values outside their expected range,
+   * e.g. a pH reading of 25. Flags likely data-entry or sensor errors for
+   * the admin to look at before approving; never blocks the submission
+   * automatically. Absent (not empty) for Fish Observation items, where the
+   * concept doesn't apply.
+   */
+  warnings?: string[] | undefined;
 }
 
 // ── Backend shapes (from geo-ranao-api) ──
@@ -118,19 +126,24 @@ function mapReviewStatus(status: 'PENDING' | 'APPROVED' | 'REJECTED'): UploadRev
   return 'pending';
 }
 
-function readingToRow(r: WaterQualityReading): WaterQualityUploadRow {
+function extractParamValues(r: WaterQualityReading): Partial<Record<string, number>> {
   const values: Partial<Record<string, number>> = {};
   for (const param of allWaterQualityParams) {
     const value = r[param.key as keyof WaterQualityReading];
     if (typeof value === 'number') values[param.key] = value;
   }
+  return values;
+}
+
+function readingToRow(r: WaterQualityReading): WaterQualityUploadRow {
+  const values = extractParamValues(r);
   return {
     siteId: r.siteId,
     date: r.dateObserved,
     depthM: r.depthM,
     values,
     notes: r.notes ?? undefined,
-    warnings: [],
+    warnings: getReadingWarnings(values),
   };
 }
 
@@ -204,6 +217,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   function waterSingleToItem(r: WaterQualityReading): UploadReviewItem {
+    const warnings = getReadingWarnings(extractParamValues(r));
     const item: UploadReviewItem = {
       id: `water-${r.id}`,
       type: 'water',
@@ -216,12 +230,17 @@ export const useAdminStore = defineStore('admin', () => {
       status: mapReviewStatus(r.reviewStatus),
     };
     if (r.reviewNote) item.reviewNote = r.reviewNote;
+    if (warnings.length) item.warnings = warnings;
     return item;
   }
 
   function waterBatchToItem(batchId: string, rows: WaterQualityReading[]): UploadReviewItem {
     const uniqueSites = [...new Set(rows.map((r) => r.siteId))];
     const first = rows[0]!;
+    const rowsWithWarnings = rows.map(readingToRow);
+    const warnings = rowsWithWarnings.flatMap((row, i) =>
+      row.warnings.map((w) => `Row ${i + 1} (${row.siteId}): ${w}`),
+    );
     const item: UploadReviewItem = {
       id: `water-batch-${batchId}`,
       type: 'water',
@@ -233,9 +252,10 @@ export const useAdminStore = defineStore('admin', () => {
         uniqueSites.slice(0, 3).join(', ') + (uniqueSites.length > 3 ? ` +${uniqueSites.length - 3} more` : ''),
       submittedDate: first.createdAt.slice(0, 10),
       status: mapReviewStatus(first.reviewStatus),
-      rows: rows.map(readingToRow),
+      rows: rowsWithWarnings,
     };
     if (first.reviewNote) item.reviewNote = first.reviewNote;
+    if (warnings.length) item.warnings = warnings;
     return item;
   }
 

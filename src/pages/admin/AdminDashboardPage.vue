@@ -305,6 +305,31 @@
                     />
                   </q-td>
                 </template>
+                <template #body-cell-warnings="props">
+                  <q-td :props="props">
+                    <template v-if="props.row.category === 'Water Quality'">
+                      <q-badge
+                        v-if="props.row.warnings && props.row.warnings.length"
+                        color="orange"
+                        text-color="black"
+                        :label="`⚠ ${props.row.warnings.length} unusual`"
+                        class="cursor-help"
+                      >
+                        <q-tooltip class="text-caption" style="max-width: 340px;">
+                          <div class="text-weight-bold q-mb-xs">Values outside the expected range:</div>
+                          <div v-for="(w, i) in props.row.warnings.slice(0, 8)" :key="i">{{ w }}</div>
+                          <div v-if="props.row.warnings.length > 8" class="text-grey-5 q-mt-xs">
+                            +{{ props.row.warnings.length - 8 }} more
+                          </div>
+                        </q-tooltip>
+                      </q-badge>
+                      <q-icon v-else name="check_circle" color="positive" size="20px">
+                        <q-tooltip>All parameter values are within the expected range</q-tooltip>
+                      </q-icon>
+                    </template>
+                    <span v-else class="text-grey-6">—</span>
+                  </q-td>
+                </template>
                 <template #body-cell-status="props">
                   <q-td :props="props">
                     <q-badge
@@ -759,6 +784,13 @@ const uploadColumns = [
   { name: 'title', label: 'Submission', field: 'title', align: 'left' as const },
   { name: 'location', label: 'Coordinates', field: 'location', align: 'left' as const },
   { name: 'submittedDate', label: 'Submitted', field: 'submittedDate', align: 'center' as const, sortable: true },
+  {
+    name: 'warnings',
+    label: 'Data Check',
+    field: (row: UploadReviewItem) => row.warnings?.length ?? 0,
+    align: 'center' as const,
+    sortable: true,
+  },
   { name: 'status', label: 'Status', field: 'status', align: 'center' as const, sortable: true },
   { name: 'actions', label: 'Actions', field: 'actions', align: 'center' as const },
 ];

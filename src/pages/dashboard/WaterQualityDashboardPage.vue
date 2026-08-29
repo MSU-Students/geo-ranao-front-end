@@ -116,6 +116,7 @@
                   :sites="sites"
                   :status-color-by-site="statusColorBySite"
                   :status-by-site="statusBySite"
+                  :attention-detail-by-site="attentionDetailBySite"
                   :selected-site-id="selectedStationId"
                   @select-station="selectStation"
                 />
@@ -137,7 +138,7 @@
               </div>
               <p class="text-caption text-grey-5 q-mt-xs q-mb-0">
                 Pulsing ring = Serious &nbsp;·&nbsp; <strong>!</strong> badge = Warning &nbsp;·&nbsp;
-                both = Critical — needs attention
+                both = Critical — on <em>any</em> parameter, not just {{ selectedParam?.label ?? 'the one shown' }}
               </p>
             </q-card-section>
           </q-card>
@@ -851,16 +852,50 @@ const statusColorBySite = computed<Record<string, string>>(() => {
   return result;
 });
 
-// True (uncollapsed) status per site, separate from statusColorBySite's
-// quick-glance 3-tier color — drives the map's pulse/badge attention cues,
-// which do distinguish serious from critical.
-const statusBySite = computed<Record<string, StatusLevel>>(() => {
-  const param = selectedParam.value;
-  const result: Record<string, StatusLevel> = {};
-  if (!param) return result;
+// Worst status across ALL parameters per site — separate from
+// statusColorBySite's single-parameter quick-glance color, and deliberately
+// NOT scoped to selectedParam. Drives the map's pulse/badge attention cues,
+// same scope as sitesNeedingAttention: a site with one bad parameter should
+// stay flagged on the map no matter which parameter is currently selected.
+// attentionDetailBySite carries WHICH parameter earned that status, so the
+// map tooltip can say why a site is flagged instead of just showing an
+// unexplained badge (easy to assume it's about whichever parameter the map
+// happens to be colored by, when it's actually a different one).
+interface SiteAttention {
+  status: StatusLevel;
+  paramLabel: string;
+  formattedValue: string;
+}
+
+const attentionBySite = computed<Record<string, SiteAttention>>(() => {
+  const result: Record<string, SiteAttention> = {};
   sites.value.forEach((site) => {
-    const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
-    if (value !== null) result[site.siteId] = param.getStatus(value);
+    let worst: SiteAttention | null = null;
+    allWaterQualityParams.forEach((param) => {
+      const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
+      if (value === null) return;
+      const status = param.getStatus(value);
+      if (worst === null || STATUS_LEVELS.indexOf(status) > STATUS_LEVELS.indexOf(worst.status)) {
+        worst = { status, paramLabel: param.label, formattedValue: formatReading(value, param) };
+      }
+    });
+    if (worst !== null) result[site.siteId] = worst;
+  });
+  return result;
+});
+
+const statusBySite = computed<Record<string, StatusLevel>>(() => {
+  const result: Record<string, StatusLevel> = {};
+  Object.entries(attentionBySite.value).forEach(([siteId, a]) => {
+    result[siteId] = a.status;
+  });
+  return result;
+});
+
+const attentionDetailBySite = computed<Record<string, { paramLabel: string; formattedValue: string }>>(() => {
+  const result: Record<string, { paramLabel: string; formattedValue: string }> = {};
+  Object.entries(attentionBySite.value).forEach(([siteId, a]) => {
+    result[siteId] = { paramLabel: a.paramLabel, formattedValue: a.formattedValue };
   });
   return result;
 });

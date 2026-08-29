@@ -285,17 +285,9 @@
                     <span class="text-caption text-grey-7 q-ml-xs">{{ STATUS_LABELS[level] }}</span>
                   </div>
                 </div>
-
-                <!-- Coverage Heatmap -->
-                <div v-if="selectedColorParam" class="q-mb-md">
-                  <q-toggle v-model="showHeatmap" color="teal" dense>
-                    <span class="text-caption text-grey-8">Show Coverage Heatmap</span>
-                  </q-toggle>
-                  <div class="text-caption text-grey-5 q-mt-xs">
-                    Colors show the estimated status across the whole lake; areas that fade to
-                    transparent are far from any sampling site — a coordinate gap, not a
-                    reading.
-                  </div>
+                <div class="text-caption text-grey-6 q-mb-md">
+                  Pulsing ring = Serious &nbsp;·&nbsp; <strong>!</strong> badge = Warning &nbsp;·&nbsp;
+                  both = Critical — flagged on any parameter, pin color or not
                 </div>
 
                 <!-- Sampling Depth -->
@@ -745,42 +737,11 @@
 
     <UploadDataDialog ref="uploadDialogRef" />
 
-    <!-- ═══ PARAMETER READING MODAL (click anywhere inside the lake) ═══ -->
-    <q-dialog v-model="showParameterModal">
-      <q-card v-if="parameterModalData" class="parameter-modal-card">
-        <div class="parameter-modal-header" :style="{ background: parameterModalData.color }">
-          <q-icon name="water_drop" size="28px" color="white" />
-          <div class="text-white text-weight-bold text-subtitle1 q-mt-xs">
-            {{ parameterModalData.statusLabel }}
-          </div>
-        </div>
-        <q-card-section>
-          <div class="text-caption text-grey-6">
-            {{ parameterModalData.paramLabel }} · {{ selectedMonthLabel }} ·
-            {{ parameterModalData.depthLabel }}
-          </div>
-          <div class="text-h4 text-weight-bold text-grey-9 q-mt-xs">
-            {{ parameterModalData.valueText }}
-          </div>
-          <div class="text-caption text-grey-5 q-mt-sm">
-            Estimated at {{ parameterModalData.lat.toFixed(5) }},
-            {{ parameterModalData.lng.toFixed(5) }}
-          </div>
-          <div class="text-caption text-grey-5 q-mt-xs">
-            Interpolated from nearby sampling sites — simulated data, not a direct measurement.
-          </div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Close" color="grey-7" v-close-popup />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
-import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
 import {
   TRIBUTARY_RIVER_SITES,
@@ -794,6 +755,7 @@ import {
   waterQualityParameterGroups,
   allWaterQualityParams,
   type WaterQualityParam,
+  type StatusLevel,
 } from 'src/composables/useWaterQualityModel';
 import {
   fetchWaterQualityReadings,
@@ -848,24 +810,47 @@ function makeFishIcon(statusShort: string): L.DivIcon {
   });
 }
 
+// "Needs attention" decoration shared by water + river pins: a pulsing ring
+// for serious, a static "!" badge for warning, both for critical — mirrors
+// the Water Quality Dashboard's station map (StationMap.vue). Returned as
+// SVG fragments so each pin builder can splice them into its own <svg>.
+function attentionSvgFragments(color: string, attention: StatusLevel | null | undefined): {
+  pulse: string;
+  badge: string;
+} {
+  const pulse = attention === 'serious' || attention === 'critical';
+  const badge = attention === 'warning' || attention === 'critical';
+  return {
+    pulse: pulse ? `<circle class="wq-pulse-ring" cx="18" cy="18" r="16" fill="${color}"/>` : '',
+    badge: badge
+      ? `<circle cx="29" cy="7" r="6.5" fill="#fff" stroke="rgba(0,0,0,0.25)" stroke-width="1"/>
+         <text x="29" y="10" text-anchor="middle" font-size="10" font-weight="800" fill="#b5290a" font-family="sans-serif">!</text>`
+      : '',
+  };
+}
+
 // Water-quality marker: circle with a water droplet inside. Recolorable —
 // when a parameter is selected (Water tab → Color Sites By Parameter), each
 // site's pin switches to its good/warning/serious/critical status color.
 const WATER_PIN_COLOR = '#0277BD'; // rich cerulean blue — default when no parameter is selected
 const waterPinIconCache = new Map<string, L.DivIcon>();
 
-function makeWaterPinIcon(color: string): L.DivIcon {
-  let icon = waterPinIconCache.get(color);
+function makeWaterPinIcon(color: string, attention?: StatusLevel | null): L.DivIcon {
+  const cacheKey = `${color}|${attention ?? ''}`;
+  let icon = waterPinIconCache.get(cacheKey);
   if (icon) return icon;
 
+  const { pulse, badge } = attentionSvgFragments(color, attention);
   const html = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 36 36">
     <filter id="ws" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
     </filter>
+    ${pulse}
     <circle cx="18" cy="18" r="16"
             fill="${color}" stroke="#fff" stroke-width="2" filter="url(#ws)"/>
     <path d="M18 9 Q22 15 22 18.5 A4 4 0 0 1 14 18.5 Q14 15 18 9Z"
           fill="#fff" opacity="0.95"/>
+    ${badge}
   </svg>`;
 
   icon = L.divIcon({
@@ -876,7 +861,7 @@ function makeWaterPinIcon(color: string): L.DivIcon {
     popupAnchor: [0, -12],
     tooltipAnchor: [0, -12],
   });
-  waterPinIconCache.set(color, icon);
+  waterPinIconCache.set(cacheKey, icon);
   return icon;
 }
 
@@ -887,14 +872,17 @@ function makeWaterPinIcon(color: string): L.DivIcon {
 const RIVER_PIN_COLOR = '#D84315'; // deep orange — default when no parameter is selected; kept distinct from the depth-zone palette (purple/brown/green) and the lake pin blue
 const riverPinIconCache = new Map<string, L.DivIcon>();
 
-function makeRiverPinIcon(color: string): L.DivIcon {
-  let icon = riverPinIconCache.get(color);
+function makeRiverPinIcon(color: string, attention?: StatusLevel | null): L.DivIcon {
+  const cacheKey = `${color}|${attention ?? ''}`;
+  let icon = riverPinIconCache.get(cacheKey);
   if (icon) return icon;
 
+  const { pulse, badge } = attentionSvgFragments(color, attention);
   const html = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 36 36">
     <filter id="rs" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
     </filter>
+    ${pulse}
     <circle cx="18" cy="18" r="16"
             fill="${color}" stroke="#fff" stroke-width="2" filter="url(#rs)"/>
     <path d="M9.5 14.5c1.7-2.2 3.4-2.2 5.1 0s3.4 2.2 5.1 0 3.4-2.2 5.1 0"
@@ -903,6 +891,7 @@ function makeRiverPinIcon(color: string): L.DivIcon {
           stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.95"/>
     <path d="M9.5 23.5c1.7-2.2 3.4-2.2 5.1 0s3.4 2.2 5.1 0 3.4-2.2 5.1 0"
           stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.95"/>
+    ${badge}
   </svg>`;
 
   icon = L.divIcon({
@@ -913,7 +902,7 @@ function makeRiverPinIcon(color: string): L.DivIcon {
     popupAnchor: [0, -12],
     tooltipAnchor: [0, -12],
   });
-  riverPinIconCache.set(color, icon);
+  riverPinIconCache.set(cacheKey, icon);
   return icon;
 }
 
@@ -927,7 +916,6 @@ const riverSiteMarkerEntries: { siteId: string; marker: L.Marker }[] = [];
 let riverSitesLayerGroup: L.LayerGroup | null = null;
 
 const authStore = useAuthStore();
-const $q = useQuasar();
 const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 
 // ═══ STATE ═══
@@ -947,7 +935,6 @@ let wqTributaryLayerGroup: L.GeoJSON | null = null;
 let lakeStationsLayerGroup: L.GeoJSON | null = null;
 let tributariesLayerGroup: L.GeoJSON | null = null;
 let currentBaseTileLayer: L.TileLayer | null = null;
-let heatmapOverlay: L.ImageOverlay | null = null;
 let contourLinesLayerGroup: L.LayerGroup | null = null;
 let contourFilledLayerGroup: L.LayerGroup | null = null;
 let contourLabelsLayerGroup: L.LayerGroup | null = null;
@@ -1217,6 +1204,11 @@ onMounted(async () => {
   try {
     const readings = await fetchWaterQualityReadings({ status: 'APPROVED' });
     readingsLookup.value = buildReadingLookup(readings);
+    // Readings load independently of the site GeoJSON — markers may already
+    // be on the map (colored/attention-flagged as "no data") by the time
+    // this resolves, so refresh them now rather than waiting for the user
+    // to touch the month/depth/param controls.
+    recolorWaterLayers();
   } catch (err) {
     console.error('Failed to load water quality readings:', err);
   }
@@ -1254,10 +1246,6 @@ const selectedColorParam = computed(
   () => allWaterParams.value.find((p) => p.key === selectedColorParamKey.value) ?? null,
 );
 
-// Coverage heatmap for the selected parameter — off by default, only usable
-// once a parameter is picked (see the "PARAMETER HEATMAP" section below).
-const showHeatmap = ref(false);
-
 // River sites are always Surface-only, regardless of the map's selected depth.
 function effectiveDepthFor(siteId: string): number {
   return TRIBUTARY_RIVER_SITE_IDS.has(siteId) ? 0 : selectedDepthM.value;
@@ -1286,20 +1274,58 @@ function getMarkerColor(siteId: string, defaultColor: string): string {
   return value !== null ? STATUS_COLORS[param.getStatus(value)] : NO_DATA_COLOR;
 }
 
+interface SiteAttentionInfo {
+  status: StatusLevel;
+  paramLabel: string;
+  formattedValue: string;
+}
+
+// Worst status across ALL parameters at a site, independent of whichever one
+// parameter (if any) selectedColorParam is currently coloring pins by — a
+// site with one bad reading should pulse/badge no matter what the map's
+// color dropdown is set to. Same scope as the Water Quality Dashboard's
+// sitesNeedingAttention / statusBySite. Carries WHICH parameter earned that
+// status too, so the tooltip can say why instead of showing an unexplained
+// badge — easy to assume it's about selectedColorParam when it isn't.
+function siteAttention(siteId: string): SiteAttentionInfo | null {
+  let worst: SiteAttentionInfo | null = null;
+  for (const param of allWaterParams.value) {
+    const value = generateReading(siteId, selectedMonthIndex.value, param, effectiveDepthFor(siteId));
+    if (value === null) continue;
+    const status = param.getStatus(value);
+    if (worst === null || STATUS_LEVELS.indexOf(status) > STATUS_LEVELS.indexOf(worst.status)) {
+      worst = { status, paramLabel: param.label, formattedValue: formatReading(value, param) };
+    }
+  }
+  return worst;
+}
+
+function siteAttentionStatus(siteId: string): StatusLevel | null {
+  return siteAttention(siteId)?.status ?? null;
+}
+
 function recolorWaterLayers() {
   for (const entry of waterSiteMarkerEntries) {
     const color = getMarkerColor(entry.siteId, entry.defaultColor);
-    entry.marker.setIcon(makeWaterPinIcon(color));
+    entry.marker.setIcon(makeWaterPinIcon(color, siteAttentionStatus(entry.siteId)));
   }
   for (const entry of riverSiteMarkerEntries) {
     const color = getMarkerColor(entry.siteId, RIVER_PIN_COLOR);
-    entry.marker.setIcon(makeRiverPinIcon(color));
+    entry.marker.setIcon(makeRiverPinIcon(color, siteAttentionStatus(entry.siteId)));
   }
 }
 
-watch([selectedColorParam, selectedMonthIndex, selectedDepthM, showHeatmap], () => {
+watch([selectedColorParam, selectedMonthIndex, selectedDepthM], () => {
   recolorWaterLayers();
-  renderHeatmapOverlay();
+});
+
+// Pins are created (via createWaterQualitySiteLayer / the river-markers loop)
+// before this page's separate onMounted() finishes fetching readings, so
+// their first paint always has readingsLookup still empty — no attention
+// decoration would ever appear until the user happened to touch a filter.
+// Re-decorate once real data lands.
+watch(readingsLookup, () => {
+  recolorWaterLayers();
 });
 
 function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
@@ -1315,6 +1341,14 @@ function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
       paramLine = `<br><span style="color:${NO_DATA_COLOR}; font-weight:bold;">${param.label} @ ${depthLabel(selectedDepthM.value)}: No Data</span>`;
     }
   }
+  // Only shown when it's a different parameter than paramLine above — avoids
+  // repeating the same reading twice when selectedColorParam happens to be
+  // the same one driving the pulse/badge.
+  const attention = siteAttention(props.SITE_ID);
+  const attentionLine =
+    attention && attention.paramLabel !== param?.label
+      ? `<br><span style="color:${STATUS_COLORS[attention.status]}; font-weight:bold;">⚠ ${attention.paramLabel}: ${attention.formattedValue} (${STATUS_LABELS[attention.status]})</span>`
+      : '';
   return `
     <div style="font-family: Roboto, sans-serif; min-width: 170px;">
       <strong style="color:#0288D1;">${props.SITE_ID}</strong><br>
@@ -1322,6 +1356,7 @@ function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
       <span style="color:#666;">Coordinates: ${props.LATITUDE.toFixed(5)}, ${props.LONGITUDE.toFixed(5)}</span>
       ${zone ? `<br><span style="color:#666;">Depth Zone: ${zone}</span>` : ''}
       ${paramLine}
+      ${attentionLine}
     </div>
   `;
 }
@@ -1334,7 +1369,7 @@ function createWaterQualitySiteLayer(
     pointToLayer: (feature, latlng) => {
       const siteId = (feature.properties as WaterQualitySiteProps).SITE_ID;
       const color = getMarkerColor(siteId, defaultColor);
-      const marker = L.marker(latlng, { icon: makeWaterPinIcon(color) });
+      const marker = L.marker(latlng, { icon: makeWaterPinIcon(color, siteAttentionStatus(siteId)) });
       waterSiteMarkerEntries.push({ siteId, defaultColor, marker });
       return marker;
     },
@@ -1400,96 +1435,7 @@ function extractPolygonRings(geojson: GeoJSON.FeatureCollection): [number, numbe
   return rings;
 }
 
-// Inverse-distance-weighted estimate of a parameter's value at any clicked
-// point, from real readings at nearby sampling sites only — at the currently
-// selected sampling depth, same as everywhere else on the map. Sites with no
-// real reading for this month/depth simply don't contribute a weight; null
-// comes back only when literally no nearby site has any data at all.
-function interpolateValueAt(
-  lat: number,
-  lng: number,
-  param: WaterQualityParam,
-  monthIndex: number,
-  depthM: number,
-): number | null {
-  const sites = waterQualitySites.value;
-  let weightedSum = 0;
-  let weightTotal = 0;
-  for (const site of sites) {
-    const value = generateReading(site.siteId, monthIndex, param, depthM);
-    if (value === null) continue;
-    const dLat = site.lat - lat;
-    const dLng = site.lng - lng;
-    const weight = 1 / (dLat * dLat + dLng * dLng + 0.0001);
-    weightedSum += value * weight;
-    weightTotal += weight;
-  }
-  if (weightTotal === 0) return null;
-  return weightedSum / weightTotal;
-}
-
-// ── Click anywhere inside the lake boundary to view an estimated reading ──
-interface ParameterModalData {
-  paramLabel: string;
-  valueText: string;
-  statusLabel: string;
-  color: string;
-  lat: number;
-  lng: number;
-  depthLabel: string;
-}
-
-const showParameterModal = ref(false);
-const parameterModalData = ref<ParameterModalData | null>(null);
-
-function handleMapClick(e: L.LeafletMouseEvent) {
-  if (lakePolygonRings.length === 0) return;
-  const { lat, lng } = e.latlng;
-  if (!pointInPolygon(lat, lng, lakePolygonRings)) return;
-
-  const param = selectedColorParam.value;
-  if (!param) {
-    $q.notify({
-      type: 'warning',
-      message: 'Select a water quality parameter first (Water tab → Color Sites By Parameter).',
-      position: 'top',
-    });
-    return;
-  }
-
-  const value = interpolateValueAt(lat, lng, param, selectedMonthIndex.value, selectedDepthM.value);
-  if (value === null) {
-    parameterModalData.value = {
-      paramLabel: param.label,
-      valueText: 'No Data',
-      statusLabel: 'No Data',
-      color: NO_DATA_COLOR,
-      lat,
-      lng,
-      depthLabel: depthLabel(selectedDepthM.value),
-    };
-    showParameterModal.value = true;
-    return;
-  }
-  const status = param.getStatus(value);
-  parameterModalData.value = {
-    paramLabel: param.label,
-    valueText: formatReading(value, param),
-    statusLabel: STATUS_LABELS[status],
-    color: STATUS_COLORS[status],
-    lat,
-    lng,
-    depthLabel: depthLabel(selectedDepthM.value),
-  };
-  showParameterModal.value = true;
-}
-
-// ═══ PARAMETER HEATMAP (visualizes estimated status + coverage gaps) ═══
-// Same IDW model as the click-anywhere reading above, rendered as a colored
-// overlay across the whole lake. Color = estimated status at that point;
-// opacity fades out with distance from the nearest real sampling site, so
-// stretches of open water far from any site read as blank/transparent
-// (a coverage gap) instead of a falsely confident color.
+// Shared geo helpers — also used by the bathymetry-contours feature below.
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -1517,149 +1463,6 @@ function computeRingsBounds(
   }
   if (!isFinite(minLat) || !isFinite(minLng)) return null;
   return { minLat, maxLat, minLng, maxLng };
-}
-
-// How far (in km) the heatmap's color fades out around each sampling site —
-// derived from the sites' own average nearest-neighbor spacing, so it auto-
-// adapts if sites are added/removed rather than relying on a guessed constant.
-const heatmapFadeRadiusKm = computed(() => {
-  const sites = waterQualitySites.value;
-  if (sites.length < 2) return 3;
-  let total = 0;
-  for (const site of sites) {
-    let nearest = Infinity;
-    for (const other of sites) {
-      if (other === site) continue;
-      const d = haversineKm(site.lat, site.lng, other.lat, other.lng);
-      if (d < nearest) nearest = d;
-    }
-    total += nearest;
-  }
-  return (total / sites.length) * 1.4;
-});
-
-function renderHeatmapOverlay() {
-  if (!map) return;
-
-  if (heatmapOverlay) {
-    map.removeLayer(heatmapOverlay);
-    heatmapOverlay = null;
-  }
-
-  const param = selectedColorParam.value;
-  if (
-    !showHeatmap.value ||
-    !param ||
-    lakePolygonRings.length === 0 ||
-    waterQualitySites.value.length === 0
-  ) {
-    return;
-  }
-
-  const bounds = computeRingsBounds(lakePolygonRings);
-  if (!bounds) return;
-  const { minLat, maxLat, minLng, maxLng } = bounds;
-  const latSpan = maxLat - minLat;
-  const lngSpan = maxLng - minLng;
-  if (latSpan <= 0 || lngSpan <= 0) return;
-
-  // Longitude degrees are narrower than latitude degrees away from the
-  // equator — correct for that so the raster grid isn't stretched.
-  const midLatRad = (((minLat + maxLat) / 2) * Math.PI) / 180;
-  const lngCorrection = Math.max(Math.cos(midLatRad), 0.1);
-  const correctedLngSpan = lngSpan * lngCorrection;
-  const RES = 160;
-  let width: number;
-  let height: number;
-  if (correctedLngSpan >= latSpan) {
-    width = RES;
-    height = Math.max(40, Math.round((RES * latSpan) / correctedLngSpan));
-  } else {
-    height = RES;
-    width = Math.max(40, Math.round((RES * correctedLngSpan) / latSpan));
-  }
-
-  // Raster the raw status color + coverage opacity across the full bounding
-  // box first...
-  const rawCanvas = document.createElement('canvas');
-  rawCanvas.width = width;
-  rawCanvas.height = height;
-  const rawCtx = rawCanvas.getContext('2d');
-  if (!rawCtx) return;
-  const imageData = rawCtx.createImageData(width, height);
-  const data = imageData.data;
-
-  const monthIndex = selectedMonthIndex.value;
-  const depthM = selectedDepthM.value;
-  // Standard deviation of each site's coverage contribution — derived from
-  // the fade radius (itself derived from real site spacing above).
-  const sigmaKm = heatmapFadeRadiusKm.value * 0.55;
-  const sites = waterQualitySites.value;
-
-  for (let py = 0; py < height; py++) {
-    const lat = maxLat - (py / height) * latSpan;
-    for (let px = 0; px < width; px++) {
-      const lng = minLng + (px / width) * lngSpan;
-
-      // Sum of each site's Gaussian contribution, rather than "distance to
-      // the single nearest site" — a nearest-site model has a kink exactly
-      // where the nearest site switches from one to another, which shows up
-      // as a visible seam between neighboring sites. A sum of smooth
-      // (Gaussian) contributions has no such seam anywhere.
-      let coverage = 0;
-      for (const site of sites) {
-        const d = haversineKm(lat, lng, site.lat, site.lng);
-        coverage += Math.exp(-(d * d) / (2 * sigmaKm * sigmaKm));
-      }
-      coverage = Math.min(coverage, 1);
-      if (coverage <= 0.02) continue; // leave fully transparent — a coverage gap
-
-      const value = interpolateValueAt(lat, lng, param, monthIndex, depthM);
-      if (value === null) continue; // no real data near this point — leave transparent
-      const status = param.getStatus(value);
-      const hex = STATUS_COLORS[status];
-      const idx = (py * width + px) * 4;
-      data[idx] = parseInt(hex.slice(1, 3), 16);
-      data[idx + 1] = parseInt(hex.slice(3, 5), 16);
-      data[idx + 2] = parseInt(hex.slice(5, 7), 16);
-      data[idx + 3] = Math.round(coverage * 0.75 * 255);
-    }
-  }
-  rawCtx.putImageData(imageData, 0, 0);
-
-  // ...then composite it through a clip mask shaped like the actual lake
-  // boundary (putImageData ignores canvas clip paths, so this has to be a
-  // second pass) so only the water gets painted, not the surrounding land.
-  const finalCanvas = document.createElement('canvas');
-  finalCanvas.width = width;
-  finalCanvas.height = height;
-  const finalCtx = finalCanvas.getContext('2d');
-  if (!finalCtx) return;
-  finalCtx.beginPath();
-  for (const ring of lakePolygonRings) {
-    ring.forEach(([lat, lng], i) => {
-      const x = ((lng - minLng) / lngSpan) * width;
-      const y = ((maxLat - lat) / latSpan) * height;
-      if (i === 0) finalCtx.moveTo(x, y);
-      else finalCtx.lineTo(x, y);
-    });
-    finalCtx.closePath();
-  }
-  finalCtx.clip('evenodd');
-  // Soften the raster's remaining hard edges (status-color band transitions,
-  // grid-resolution jaggedness) into a smooth blend.
-  finalCtx.filter = 'blur(3px)';
-  finalCtx.drawImage(rawCanvas, 0, 0);
-
-  heatmapOverlay = L.imageOverlay(
-    finalCanvas.toDataURL('image/png'),
-    [
-      [minLat, minLng],
-      [maxLat, maxLng],
-    ],
-    { interactive: false, className: 'heatmap-overlay-img' },
-  );
-  heatmapOverlay.addTo(map);
 }
 
 // ═══ BATHYMETRY CONTOURS ═══
@@ -2537,11 +2340,6 @@ function initMap() {
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   L.control.scale({ position: 'bottomleft', metric: true, imperial: false, maxWidth: 150 }).addTo(map);
 
-  // Lets users click anywhere inside the lake to view an estimated reading for
-  // the selected parameter (non-interactive layers, like the boundary outline
-  // below, don't intercept this).
-  map.on('click', handleMapClick);
-
   // Contour depth labels only show once zoomed in far enough (see
   // syncLayerVisibility) — re-check on every zoom change.
   map.on('zoomend', syncLayerVisibility);
@@ -2572,7 +2370,6 @@ function initMap() {
       buildContourLayers();
       buildMunicipalZones();
       syncLayerVisibility();
-      renderHeatmapOverlay();
     })
     .catch((err) => {
       console.error('Failed to load Lake Lanao boundary GeoJSON:', err);
@@ -2618,7 +2415,6 @@ function initMap() {
           });
           wqAllLayerGroup = createWaterQualitySiteLayer(geojson, WATER_PIN_COLOR);
           syncLayerVisibility();
-          renderHeatmapOverlay();
         });
     })
     .catch((err) => console.error('Failed to load water quality sampling sites GeoJSON:', err));
@@ -2628,13 +2424,22 @@ function initMap() {
   {
     const markers = TRIBUTARY_RIVER_SITES.map((site) => {
       const color = getMarkerColor(site.siteId, RIVER_PIN_COLOR);
-      const marker = L.marker([site.lat, site.lng], { icon: makeRiverPinIcon(color) });
+      const marker = L.marker([site.lat, site.lng], { icon: makeRiverPinIcon(color, siteAttentionStatus(site.siteId)) });
+      // Bound as a function so the attention line stays accurate as
+      // month/depth change, not just whatever it was at page load.
       marker.bindTooltip(
-        `<div style="font-family: Roboto, sans-serif; min-width: 170px;">
-          <strong style="color:${RIVER_PIN_COLOR};">${site.siteId}</strong><br>
-          <span style="color:#666;">Tributary River — Surface only</span><br>
-          <span style="color:#666;">Coordinates: ${site.lat.toFixed(5)}, ${site.lng.toFixed(5)}</span>
-        </div>`,
+        () => {
+          const attention = siteAttention(site.siteId);
+          const attentionLine = attention
+            ? `<br><span style="color:${STATUS_COLORS[attention.status]}; font-weight:bold;">⚠ ${attention.paramLabel}: ${attention.formattedValue} (${STATUS_LABELS[attention.status]})</span>`
+            : '';
+          return `<div style="font-family: Roboto, sans-serif; min-width: 170px;">
+            <strong style="color:${RIVER_PIN_COLOR};">${site.siteId}</strong><br>
+            <span style="color:#666;">Tributary River — Surface only</span><br>
+            <span style="color:#666;">Coordinates: ${site.lat.toFixed(5)}, ${site.lng.toFixed(5)}</span>
+            ${attentionLine}
+          </div>`;
+        },
         { sticky: true, direction: 'top', offset: [0, -8] },
       );
       marker.on('click', () => {
@@ -3367,22 +3172,6 @@ function buildMunicipalityMarkers() {
 }
 
 /* ═══════════════════════════════════ */
-/* PARAMETER READING MODAL            */
-/* ═══════════════════════════════════ */
-.parameter-modal-card {
-  width: 320px;
-  border-radius: 18px;
-  overflow: hidden;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.08),
-    0 24px 48px rgba(0, 0, 0, 0.12);
-}
-.parameter-modal-header {
-  padding: 20px;
-  text-align: center;
-}
-
-/* ═══════════════════════════════════ */
 /* DETAIL PANEL (Right)               */
 /* ═══════════════════════════════════ */
 .detail-panel {
@@ -3582,5 +3371,35 @@ function buildMunicipalityMarkers() {
 }
 .muni-tooltip::before {
   border-top-color: #E65100 !important;
+}
+
+/* "Needs attention" pulse ring on water/river pins (see attentionSvgFragments
+   in the script) — mirrors StationMap.vue's .wq-marker__pulse. */
+.wq-pulse-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  pointer-events: none;
+  animation: wq-pulse-ring 1.8s ease-out infinite;
+}
+@keyframes wq-pulse-ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.65;
+  }
+  70% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wq-pulse-ring {
+    animation: none;
+    opacity: 0.3;
+    transform: scale(1.4);
+  }
 }
 </style>

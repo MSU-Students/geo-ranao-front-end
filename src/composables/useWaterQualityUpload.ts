@@ -4,7 +4,7 @@
 // dropped or flagged with a warning but never invalidates the row, since the
 // three mandatory fields already make the row meaningful on their own.
 import * as XLSX from 'xlsx';
-import { allWaterQualityParams } from './useWaterQualityModel';
+import { allWaterQualityParams, getParamWarning } from './useWaterQualityModel';
 
 export interface WaterQualityUploadRow {
   siteId: string;
@@ -157,10 +157,9 @@ export async function parseWaterQualityWorkbook(file: File): Promise<WaterQualit
       }
 
       const param = allWaterQualityParams.find((p) => p.key === paramKey);
-      if (param && (num < param.min || num > param.max)) {
-        warnings.push(
-          `${param.label} (${num}${param.unit}) is outside the expected range ${param.min}–${param.max}${param.unit}`,
-        );
+      if (param) {
+        const warning = getParamWarning(param, num);
+        if (warning) warnings.push(warning);
       }
       values[paramKey] = num;
     }

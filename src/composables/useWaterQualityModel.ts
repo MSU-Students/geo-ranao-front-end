@@ -241,6 +241,30 @@ export function formatReading(value: number, param: WaterQualityParam): string {
   return `${value.toFixed(param.decimals)}${param.unit ? ' ' + param.unit : ''}`;
 }
 
+// ─── DATA QUALITY WARNINGS ───
+// A value outside a parameter's expected min–max range is very likely a
+// data-entry mistake or sensor fault rather than a real Lake Lanao reading —
+// flagged for a human to look at during review, never silently dropped or
+// auto-rejected. Shared by the bulk-upload parser and the admin review table
+// so "unusual" means the same thing in both places.
+export function getParamWarning(param: WaterQualityParam, value: number): string | null {
+  if (value < param.min || value > param.max) {
+    return `${param.label} (${value}${param.unit}) is outside the expected range ${param.min}–${param.max}${param.unit}`;
+  }
+  return null;
+}
+
+export function getReadingWarnings(values: Partial<Record<string, number>>): string[] {
+  const warnings: string[] = [];
+  for (const param of allWaterQualityParams) {
+    const value = values[param.key];
+    if (value === undefined) continue;
+    const warning = getParamWarning(param, value);
+    if (warning) warnings.push(warning);
+  }
+  return warnings;
+}
+
 // ─── DEPTH MODEL ───
 // The client's real field sampling uses these fixed depths (matches the
 // "SURFACE / 5m / 10m / .../ 100m" convention in the actual data template),

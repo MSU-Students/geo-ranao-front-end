@@ -6,13 +6,18 @@
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { StatusLevel } from 'src/composables/useWaterQualityModel';
+import { STATUS_COLORS, STATUS_LABELS, type StatusLevel } from 'src/composables/useWaterQualityModel';
 
 export interface StationMapSite {
   siteId: string;
   stationId: string;
   lat: number;
   lng: number;
+}
+
+export interface SiteAttentionDetail {
+  paramLabel: string;
+  formattedValue: string;
 }
 
 const props = withDefaults(
@@ -26,9 +31,16 @@ const props = withDefaults(
      * serious -> pulsing ring, warning -> static badge, critical -> both.
      */
     statusBySite?: Record<string, StatusLevel>;
+    /**
+     * Which parameter/reading is driving statusBySite's status — surfaced in
+     * the tooltip so a pulse/badge never shows up unexplained (it's easy to
+     * assume it means whichever parameter the map is currently colored by,
+     * when it's actually the worst of all 13).
+     */
+    attentionDetailBySite?: Record<string, SiteAttentionDetail>;
     selectedSiteId: string | null;
   }>(),
-  { statusBySite: () => ({}) },
+  { statusBySite: () => ({}), attentionDetailBySite: () => ({}) },
 );
 
 const emit = defineEmits<{ 'select-station': [siteId: string] }>();
@@ -61,6 +73,16 @@ function iconFor(siteId: string, selected: boolean): L.DivIcon {
   });
 }
 
+function tooltipHtml(site: StationMapSite): string {
+  const status = props.statusBySite[site.siteId];
+  const detail = props.attentionDetailBySite[site.siteId];
+  const attentionLine =
+    status && detail
+      ? `<br><span style="color:${STATUS_COLORS[status]}; font-weight:bold;">⚠ ${detail.paramLabel}: ${detail.formattedValue} (${STATUS_LABELS[status]})</span>`
+      : '';
+  return `<strong>${site.siteId}</strong><br>Station: ${site.stationId}${attentionLine}`;
+}
+
 function renderMarkers() {
   if (!map) return;
   markers.forEach((m) => m.remove());
@@ -69,7 +91,10 @@ function renderMarkers() {
   props.sites.forEach((site) => {
     const selected = site.siteId === props.selectedSiteId;
     const marker = L.marker([site.lat, site.lng], { icon: iconFor(site.siteId, selected) });
-    marker.bindTooltip(`<strong>${site.siteId}</strong><br>Station: ${site.stationId}`, {
+    // Bound as a function (not a static string) so the tooltip stays
+    // accurate as statusBySite/attentionDetailBySite change without needing
+    // to recreate every marker on every month/depth/param change.
+    marker.bindTooltip(() => tooltipHtml(site), {
       direction: 'top',
       offset: [0, -16],
     });
