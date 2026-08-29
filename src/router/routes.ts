@@ -7,13 +7,14 @@ const routes: RouteRecordRaw[] = [
     component: () => import('layouts/MainLayout.vue'),
     children: [
       { path: '', component: () => import('pages/IndexPage.vue') },
-      {
-        path: '/dashboard/fish',
-        component: () => import('pages/dashboard/FishDashboardPage.vue'),
-      },
+      { path: '/dashboard/fish', component: () => import('pages/dashboard/FishDashboardPage.vue') },
       {
         path: '/dashboard/water-quality',
         component: () => import('pages/dashboard/WaterQualityDashboardPage.vue'),
+      },
+      {
+        path: '/map/3d',
+        component: () => import('pages/Map3DPage.vue'),
       },
       {
         path: '/researcher',

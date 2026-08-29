@@ -179,6 +179,12 @@ const linksList: NavLink[] = [
     link: '/dashboard/water-quality',
   },
   {
+    title: '3D Lake Model',
+    caption: 'Interactive Bathymetry',
+    icon: 'view_in_ar',
+    link: '/map/3d',
+  },
+  {
     title: 'My Contributions',
     caption: 'Your Records',
     icon: 'assignment_ind',
