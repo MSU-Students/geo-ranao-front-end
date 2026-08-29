@@ -183,7 +183,6 @@ const linksList: NavLink[] = [
     caption: 'Your Records',
     icon: 'assignment_ind',
     link: '/auth/profile',
-    query: { tab: 'contributions' },
     requiresAuth: true,
     hideForAdmin: true,
   },

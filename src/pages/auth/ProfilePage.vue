@@ -16,400 +16,195 @@
     <!-- Main Container -->
     <div class="profile-container">
       <div class="single-card bright-panel column">
-        
-        <!-- ══ TOP SECTION (Identity - 1st Picture Content) ══ -->
+        <!-- ══ TOP SECTION (Identity) ══ -->
         <div class="top-section col-auto">
-          <!-- Cover strip -->
           <div class="cover-strip" />
-          
+
           <div class="profile-header row items-start q-pa-md">
-            <!-- Avatar -->
+            <!-- Avatar (fixed placeholder — no upload; the backend user record has no avatar field to save one to) -->
             <div class="avatar-col q-mr-md relative-position" style="width: 84px; height: 84px;">
               <q-avatar size="84px" class="avatar-img shadow-3 relative-position">
-                <img :src="avatarPreview || user.avatar || 'https://img.freepik.com/free-vector/blue-circle-with-white-user_78370-4707.jpg?semt=ais_hybrid&w=740&q=80'" />
+                <img src="https://img.freepik.com/free-vector/blue-circle-with-white-user_78370-4707.jpg?semt=ais_hybrid&w=740&q=80" />
               </q-avatar>
               <div class="online-dot bg-teal" />
-
-              <!-- Hidden file input -->
-              <q-file
-                v-show="false"
-                ref="fileInputRef"
-                v-model="avatarFile"
-                accept="image/*"
-                @update:model-value="onAvatarSelected"
-              />
             </div>
-            
-            <!-- User Info & Details -->
+
+            <!-- User Info & Details — sourced from the logged-in account, not placeholder data -->
             <div class="user-info-col col">
-              <div class="text-h5 text-weight-bold text-teal-10 q-mb-xs">{{ user.name }}</div>
-              <div class="text-subtitle2 text-teal-8">{{ user.institution }}</div>
-              
+              <div class="text-h5 text-weight-bold text-teal-10 q-mb-xs">
+                {{ authStore.user?.username ?? 'Researcher' }}
+              </div>
+              <div class="text-subtitle2 text-teal-8">{{ authStore.user?.affiliation }}</div>
+
               <div class="info-fields row q-gutter-md">
                 <div class="info-row">
-                  <q-icon name="badge" size="16px" class="info-icon" />
-                  <span class="info-val">{{ user.username }}</span>
-                </div>
-                <div class="info-row">
                   <q-icon name="email" size="16px" class="info-icon" />
-                  <span class="info-val">{{ user.email }}</span>
+                  <span class="info-val">{{ authStore.user?.email }}</span>
                 </div>
                 <div class="info-row">
                   <q-icon name="school" size="16px" class="info-icon" />
-                  <span class="info-val">{{ user.role }}</span>
+                  <span class="info-val">{{ authStore.user?.role }}</span>
+                </div>
+                <div v-if="authStore.user?.departmentRole" class="info-row">
+                  <q-icon name="work" size="16px" class="info-icon" />
+                  <span class="info-val">{{ authStore.user.departmentRole }}</span>
+                </div>
+                <div v-if="statusLabel" class="info-row">
+                  <q-icon name="verified" size="16px" class="info-icon" />
+                  <span class="info-val">{{ statusLabel }}</span>
                 </div>
               </div>
             </div>
-            
-            <!-- Stats & Actions -->
+
+            <!-- Actions -->
             <div class="stats-col col-auto row items-center">
-              <div class="action-icons row q-gutter-sm q-mr-lg">
-                <q-btn outline round color="teal-8" icon="edit" size="md" @click="openEditDialog">
-                  <q-tooltip>Edit Profile</q-tooltip>
-                </q-btn>
-                
-                <q-btn outline round color="teal-6" icon="upload_file" size="md" @click="openUploadDialog">
-                  <q-tooltip>Upload Data</q-tooltip>
-                </q-btn>
-                <q-btn unelevated round color="teal-8" text-color="white" icon="add_chart" size="md" @click="openReportDialog">
-                  <q-tooltip>Reports</q-tooltip>
-                </q-btn>
-              </div>
-              
-              <div class="stats-row row items-center justify-center">
-                <div class="stat-pill column items-center">
-                  <span class="stat-num text-teal-8">9</span>
-                  <span class="stat-lbl">Uploads</span>
-                </div>
-                <div class="stat-divider" />
-                <div class="stat-pill column items-center">
-                  <span class="stat-num text-teal-6">7</span>
-                  <span class="stat-lbl">Layers</span>
-                </div>
-                <div class="stat-divider" />
-                <div class="stat-pill column items-center">
-                  <span class="stat-num text-orange-8">6</span>
-                  <span class="stat-lbl">Reports</span>
-                </div>
-              </div>
+              <q-btn
+                unelevated
+                round
+                color="teal-8"
+                text-color="white"
+                icon="upload_file"
+                size="md"
+                @click="openUploadDialog"
+              >
+                <q-tooltip>Upload Data</q-tooltip>
+              </q-btn>
             </div>
           </div>
         </div>
 
         <q-separator color="grey-3" />
 
-        <!-- ══ BOTTOM SECTION (Activity + My Contributions) ══ -->
-        <div class="bottom-section col column">
-          <q-tabs
-            v-model="activeProfileTab"
-            dense
-            class="text-grey-7 profile-tabs"
-            active-color="teal-9"
-            indicator-color="teal"
-            narrow-indicator
-            align="left"
-          >
-            <q-tab name="activity" label="Activity" icon="timeline" />
-            <q-tab name="contributions" label="My Contributions" icon="assignment_ind" />
-          </q-tabs>
-          <q-separator color="grey-3" />
+        <!-- ══ MY CONTRIBUTIONS (this researcher's own submissions — real data) ══ -->
+        <div class="bottom-section col column q-pa-lg">
+          <div class="row items-center q-mb-md">
+            <q-icon name="assignment_ind" size="20px" class="q-mr-xs text-teal-9" />
+            <span class="text-subtitle1 text-weight-bold text-teal-9">My Contributions</span>
+          </div>
 
-          <q-tab-panels v-model="activeProfileTab" animated class="col">
-            <!-- ═══ TAB: Activity ═══ -->
-            <q-tab-panel name="activity" class="fit q-pa-none">
-              <div class="tab-content col relative-position">
-                <div class="activity-tab fit q-pa-lg">
-                    <div class="activity-grid fit">
-                      <!-- Timeline -->
-                      <div class="activity-col col column">
-                        <div class="col-title text-teal-9 q-mb-md col-auto">
-                          <q-icon name="timeline" size="20px" class="q-mr-xs" />
-                          <span class="text-subtitle1 text-weight-bold">Research Timeline</span>
-                        </div>
-                        <q-scroll-area class="col">
-                          <div class="timeline-list q-pr-md">
-                          <div v-for="(item, i) in timeline" :key="i" class="timeline-item">
-                            <div class="tl-dot" :class="`dot-${item.color}`">
-                              <q-icon :name="item.icon" size="14px" />
-                            </div>
-                            <div class="tl-line" v-if="i < timeline.length - 1" />
-                            <div class="tl-body">
-                              <div class="tl-title text-teal-10">{{ item.title }}</div>
-                              <div class="tl-sub text-teal-7">{{ item.subtitle }}</div>
-                              <div class="tl-desc text-grey-8">{{ item.description }}</div>
-                              <div class="tl-time text-grey-6">
-                                <q-icon name="schedule" size="12px" class="q-mr-xs" />
-                                {{ item.timestamp }}
-                              </div>
-                            </div>
-                            </div>
-                          </div>
-                        </q-scroll-area>
-                      </div>
+          <div class="row items-center q-mb-md q-gutter-sm">
+            <span class="text-grey-8 text-weight-medium q-mr-sm">Filter:</span>
+            <q-btn
+              v-for="opt in filterOptions"
+              :key="opt.value"
+              :color="contributionFilter === opt.value ? opt.color : 'grey-5'"
+              :flat="contributionFilter !== opt.value"
+              :unelevated="contributionFilter === opt.value"
+              :label="opt.label"
+              :icon="opt.value === 'water' ? 'water_drop' : undefined"
+              size="sm"
+              rounded
+              @click="contributionFilter = opt.value"
+            />
+          </div>
 
-                      <!-- Recent Uploads -->
-                      <div class="activity-col col column">
-                        <div class="col-title text-teal-9 q-mb-md col-auto">
-                          <q-icon name="cloud_upload" size="20px" class="q-mr-xs" />
-                          <span class="text-subtitle1 text-weight-bold">Recent Uploads</span>
-                        </div>
-                        <q-scroll-area class="col">
-                          <div class="uploads-list q-pr-md">
-                          <div v-for="(upload, i) in recentUploads" :key="i" class="upload-item bg-white shadow-1">
-                            <div class="upload-icon-wrap" :class="`icon-${getFileIcon(upload.fileType).color}`">
-                              <q-icon :name="getFileIcon(upload.fileType).icon" size="20px" />
-                            </div>
-                            <div class="upload-info">
-                              <div class="upload-name text-teal-10">{{ upload.fileName }}</div>
-                              <div class="upload-meta text-grey-6">{{ upload.fileType }} · {{ upload.size }}</div>
-                            </div>
-                            <div class="upload-right">
-                              <span class="upload-status" :class="`status-${upload.status.toLowerCase()}`">
-                                {{ upload.status }}
-                              </span>
-                              <div class="upload-date text-grey-6">{{ upload.timestamp }}</div>
-                            </div>
-                            </div>
-                          </div>
-                        </q-scroll-area>
-                      </div>
-                    </div>
-                  </div>
+          <div v-if="contributionsError" class="text-center text-grey-6 q-pa-xl col">
+            <q-icon name="error_outline" size="40px" class="q-mb-sm" />
+            <div>Couldn't load your contributions. Try refreshing the page.</div>
+          </div>
+
+          <template v-else>
+            <template v-if="contributionFilter !== 'water'">
+              <div v-if="contributionFilter === 'all'" class="text-subtitle2 text-weight-bold text-teal-8 q-mb-sm">
+                Fish Observations
               </div>
-            </q-tab-panel>
-
-            <!-- ═══ TAB: My Contributions (this researcher's own submissions only) ═══ -->
-            <q-tab-panel name="contributions" class="fit q-pa-lg">
-              <div class="row items-center q-mb-md q-gutter-sm">
-                <span class="text-grey-8 text-weight-medium q-mr-sm">Filter:</span>
-                <q-btn
-                  :color="contributionFilter === 'all' ? 'teal-8' : 'grey-5'"
-                  :flat="contributionFilter !== 'all'"
-                  :unelevated="contributionFilter === 'all'"
-                  label="All"
-                  size="sm"
-                  rounded
-                  @click="contributionFilter = 'all'"
-                />
-                <q-btn
-                  :color="contributionFilter === 'endemic' ? 'blue-7' : 'grey-5'"
-                  :flat="contributionFilter !== 'endemic'"
-                  :unelevated="contributionFilter === 'endemic'"
-                  label="Endemic"
-                  size="sm"
-                  rounded
-                  @click="contributionFilter = 'endemic'"
-                />
-                <q-btn
-                  :color="contributionFilter === 'invasive' ? 'orange-8' : 'grey-5'"
-                  :flat="contributionFilter !== 'invasive'"
-                  :unelevated="contributionFilter === 'invasive'"
-                  label="Invasive"
-                  size="sm"
-                  rounded
-                  @click="contributionFilter = 'invasive'"
-                />
-                <q-btn
-                  :color="contributionFilter === 'water' ? 'teal-6' : 'grey-5'"
-                  :flat="contributionFilter !== 'water'"
-                  :unelevated="contributionFilter === 'water'"
-                  label="Water Quality"
-                  icon="water_drop"
-                  size="sm"
-                  rounded
-                  @click="contributionFilter = 'water'"
-                />
-              </div>
-
               <q-table
-                :rows="filteredContributions"
-                :columns="contributionColumns"
+                :rows="filteredFishContributions"
+                :columns="fishColumns"
+                :loading="contributionsLoading"
+                row-key="id"
+                flat
+                bordered
+                :rows-per-page-options="[10, 20, 50]"
+                class="contributions-table q-mb-lg"
+              >
+                <template #body-cell-detail="props">
+                  <q-td :props="props">
+                    <span class="detail-text">{{ props.row.detail }}</span>
+                    <q-tooltip v-if="props.row.detail.length > 36">{{ props.row.detail }}</q-tooltip>
+                  </q-td>
+                </template>
+
+                <template #body-cell-type="props">
+                  <q-td :props="props">
+                    <q-badge :color="getTypeColor(props.row.type)" :label="getTypeLabel(props.row.type)" />
+                  </q-td>
+                </template>
+
+                <template #body-cell-reviewStatus="props">
+                  <q-td :props="props">
+                    <q-badge
+                      :color="getReviewStatusColor(props.row.reviewStatus)"
+                      :label="getReviewStatusLabel(props.row.reviewStatus)"
+                    />
+                  </q-td>
+                </template>
+
+                <template #no-data>
+                  <div class="full-width text-center text-grey-6 q-pa-lg">
+                    {{ contributionsLoading ? 'Loading…' : "You haven't submitted any fish observations yet." }}
+                  </div>
+                </template>
+              </q-table>
+            </template>
+
+            <template v-if="contributionFilter === 'all' || contributionFilter === 'water'">
+              <div v-if="contributionFilter === 'all'" class="text-subtitle2 text-weight-bold text-teal-8 q-mb-sm">
+                Water Quality Readings
+              </div>
+              <q-table
+                :rows="waterContributions"
+                :columns="waterColumns"
+                :loading="contributionsLoading"
                 row-key="id"
                 flat
                 bordered
                 :rows-per-page-options="[10, 20, 50]"
                 class="contributions-table"
               >
-                <!-- Type column badge -->
-                <template #body-cell-type="props">
+                <template #body-cell-reviewStatus="props">
                   <q-td :props="props">
                     <q-badge
-                      :color="getTypeColor(props.row.type)"
-                      :label="getTypeLabel(props.row.type)"
+                      :color="getReviewStatusColor(props.row.reviewStatus)"
+                      :label="getReviewStatusLabel(props.row.reviewStatus)"
                     />
                   </q-td>
                 </template>
 
-                <!-- Status badge -->
-                <template #body-cell-status="props">
-                  <q-td :props="props">
-                    <q-badge :color="getStatusColor(props.row.status)" :label="props.row.status" />
-                  </q-td>
-                </template>
-
-                <!-- Actions column -->
-                <template #body-cell-actions="props">
-                  <q-td :props="props">
-                    <q-btn
-                      flat
-                      round
-                      dense
-                      icon="edit"
-                      color="teal-8"
-                      size="sm"
-                      @click="handleEditContribution(props.row)"
-                    >
-                      <q-tooltip>Edit</q-tooltip>
-                    </q-btn>
-                    <q-btn
-                      flat
-                      round
-                      dense
-                      icon="delete"
-                      color="red-6"
-                      size="sm"
-                      @click="handleDeleteContribution(props.row.id)"
-                    >
-                      <q-tooltip>Delete</q-tooltip>
-                    </q-btn>
-                  </q-td>
+                <template #no-data>
+                  <div class="full-width text-center text-grey-6 q-pa-lg">
+                    {{ contributionsLoading ? 'Loading…' : "You haven't submitted any water quality readings yet." }}
+                  </div>
                 </template>
               </q-table>
-            </q-tab-panel>
-          </q-tab-panels>
+            </template>
+          </template>
         </div>
       </div>
     </div>
 
-    <!-- Edit Profile Dialog -->
-    <q-dialog v-model="editDialog" persistent>
-      <q-card style="width: 600px; max-width: 90vw; border-radius: 12px;">
-        <q-card-section class="bg-teal-9 text-white row items-center">
-          <div class="text-h6">Edit Profile</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup @click="cancelEdit" />
-        </q-card-section>
-
-        <q-card-section class="q-pa-md">
-          <div class="row q-col-gutter-md">
-            <!-- Avatar Edit -->
-            <div class="col-12 flex flex-center q-mb-sm">
-              <q-avatar size="100px" class="avatar-img shadow-3 relative-position cursor-pointer" @click="triggerFileInput">
-                <img :src="avatarPreview || user.avatar || 'https://img.freepik.com/free-vector/blue-circle-with-white-user_78370-4707.jpg?semt=ais_hybrid&w=740&q=80'" />
-                <div class="avatar-edit-overlay absolute-full flex flex-center">
-                  <q-icon name="photo_camera" size="32px" color="white" />
-                </div>
-              </q-avatar>
-            </div>
-            
-            <div class="col-12 col-md-6">
-              <q-input outlined dense v-model="editForm.name" label="Full Name" color="teal" />
-            </div>
-            <div class="col-12 col-md-6">
-              <q-input outlined dense v-model="editForm.email" label="Email Address" color="teal" />
-            </div>
-            <div class="col-12">
-              <q-input outlined dense v-model="editForm.institution" label="Institution / Organization" color="teal" />
-            </div>
-            <div class="col-12">
-              <q-input outlined dense v-model="editForm.bio" type="textarea" rows="3" label="Research Focus / Bio" color="teal" />
-            </div>
-
-            <div class="col-12 q-mt-md">
-              <div class="section-divider row items-center q-mb-sm">
-                <q-separator class="col" color="grey-4" />
-                <span class="q-px-md text-caption text-weight-bold text-teal-9 text-uppercase">Change Password</span>
-                <q-separator class="col" color="grey-4" />
-              </div>
-            </div>
-            
-            <div class="col-12">
-              <q-input outlined dense v-model="passwordForm.current" type="password" label="Current Password" color="teal">
-                <template v-slot:prepend><q-icon name="vpn_key" size="18px" color="teal" /></template>
-              </q-input>
-            </div>
-            <div class="col-12 col-md-6">
-              <q-input outlined dense v-model="passwordForm.new" type="password" label="New Password" color="teal">
-                <template v-slot:prepend><q-icon name="lock" size="18px" color="teal" /></template>
-              </q-input>
-            </div>
-            <div class="col-12 col-md-6">
-              <q-input outlined dense v-model="passwordForm.confirm" type="password" label="Confirm Password" color="teal">
-                <template v-slot:prepend><q-icon name="lock_outline" size="18px" color="teal" /></template>
-              </q-input>
-            </div>
-
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="bg-grey-1 q-pa-md">
-          <q-btn flat label="Cancel" color="grey-8" v-close-popup @click="cancelEdit" />
-          <q-btn unelevated label="Save Changes" color="teal-9" @click="saveProfile" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Report Dialog -->
-    <q-dialog v-model="reportDialog" position="right" maximized>
-      <q-card style="width: 450px; border-radius: 0;">
-        <q-card-section class="bg-teal-9 text-white row items-center q-pa-md">
-          <div class="text-h6 row items-center">
-            <q-icon name="analytics" size="24px" class="q-mr-sm" />
-            My Reports
-          </div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-        
-        <q-card-section class="q-pa-lg">
-          <div class="text-subtitle1 text-weight-bold text-teal-10 q-mb-md">Available Reports</div>
-          <div class="q-gutter-y-sm">
-            <q-card flat bordered class="report-card">
-              <q-card-section class="row items-center q-pa-sm">
-                <q-avatar size="40px" color="teal-1" text-color="teal-7" icon="picture_as_pdf" />
-                <div class="col q-ml-md">
-                  <div class="text-weight-bold text-grey-9">Water Quality Summary Q1</div>
-                  <div class="text-caption text-grey-6">Generated: April 12, 2026</div>
-                </div>
-                <q-btn flat dense round color="teal-7" icon="download">
-                  <q-tooltip>Download PDF</q-tooltip>
-                </q-btn>
-              </q-card-section>
-            </q-card>
-            
-            <q-card flat bordered class="report-card">
-              <q-card-section class="row items-center q-pa-sm">
-                <q-avatar size="40px" color="blue-1" text-color="blue-7" icon="description" />
-                <div class="col q-ml-md">
-                  <div class="text-weight-bold text-grey-9">Fish Catch Assessment 2025</div>
-                  <div class="text-caption text-grey-6">Generated: Jan 20, 2026</div>
-                </div>
-                <q-btn flat dense round color="blue-7" icon="download">
-                  <q-tooltip>Download Excel</q-tooltip>
-                </q-btn>
-              </q-card-section>
-            </q-card>
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-
     <!-- Upload Data Dialog -->
     <UploadDataDialog ref="uploadDialogRef" />
-
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useQuasar, type QFile } from 'quasar';
-import { useRoute, useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
 import BackButton from 'src/components/BackButton.vue';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
 import { useAuthStore } from 'src/stores/auth';
+import {
+  fetchFishObservations,
+  CONSERVATION_STATUS_LABELS,
+  type FishCategory,
+  type ReviewStatus,
+} from 'src/composables/useFishObservations';
+import { fetchWaterQualityReadings, type WaterQualityReading } from 'src/composables/useWaterQualityReadings';
+import { allWaterQualityParams, formatReading, depthLabel } from 'src/composables/useWaterQualityModel';
 
 const $q = useQuasar();
-const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 
@@ -423,319 +218,238 @@ onMounted(() => {
   }
 });
 
-const activeProfileTab = ref(route.query.tab === 'contributions' ? 'contributions' : 'activity');
-
-const editDialog = ref(false);
-const avatarFile = ref<File | null>(null);
-const avatarPreview = ref<string>('');
-const fileInputRef = ref<QFile | null>(null);
-const passwordForm = ref({ current: '', new: '', confirm: '' });
-
-// Report state (Upload Data state now lives in UploadDataDialog.vue)
-const reportDialog = ref(false);
-const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
-
-const editForm = ref({
-  name: '',
-  email: '',
-  institution: '',
-  bio: ''
+const statusLabel = computed(() => {
+  switch (authStore.user?.status) {
+    case 'verified':
+      return 'Verified Researcher';
+    case 'pending':
+      return 'Pending Verification';
+    case 'suspended':
+      return 'Suspended';
+    case 'rejected':
+      return 'Application Rejected';
+    default:
+      return '';
+  }
 });
 
-function openEditDialog() {
-  editForm.value = {
-    name: user.value.name,
-    email: user.value.email,
-    institution: user.value.institution,
-    bio: user.value.bio
-  };
-  editDialog.value = true;
-}
-
-function triggerFileInput() {
-  fileInputRef.value?.pickFiles();
-}
-
-function onAvatarSelected(file: File | null) {
-  if (file) {
-    avatarPreview.value = URL.createObjectURL(file);
-  } else {
-    avatarPreview.value = '';
-  }
-}
-
-function saveProfile() {
-  user.value.name = editForm.value.name;
-  user.value.email = editForm.value.email;
-  user.value.institution = editForm.value.institution;
-  user.value.bio = editForm.value.bio;
-  
-  if (avatarPreview.value) {
-    user.value.avatar = avatarPreview.value;
-  }
-  
-  passwordForm.value = { current: '', new: '', confirm: '' };
-  editDialog.value = false;
-}
-
-function cancelEdit() {
-  avatarFile.value = null;
-  avatarPreview.value = '';
-  passwordForm.value = { current: '', new: '', confirm: '' };
-  editDialog.value = false;
-}
-
-// ─── UPLOAD AND REPORT HANDLERS ───
-
-function openReportDialog() {
-  reportDialog.value = true;
-}
-
+const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 function openUploadDialog() {
   uploadDialogRef.value?.open();
 }
 
-interface User {
-  name: string;
-  username: string;
-  email: string;
-  role: string;
-  institution: string;
-  avatar: string;
-  bio: string;
-}
-
-interface TimelineItem {
-  title: string;
-  subtitle: string;
-  description: string;
-  icon: string;
-  color: string;
-  timestamp: string;
-}
-
-interface Upload {
-  fileName: string;
-  fileType: string;
-  size: string;
-  status: string;
-  timestamp: string;
-}
-
-const user = ref<User>({
-  name: 'Dr. Juan Dela Cruz',
-  username: 'jdelacruz_msu',
-  email: 'j.delacruz@msumain.edu.ph',
-  role: 'Researcher',
-  institution: 'Mindanao State University - Main Campus',
-  avatar: '',
-  bio: 'Specializing in water quality analysis and limnological studies of Lake Lanao. Focus on nitrate and phosphorous level monitoring.',
-});
-
-const timeline = ref<TimelineItem[]>([
-  {
-    title: 'Generated Interpolated Map',
-    subtitle: 'Nitrate Levels Analysis',
-    description: 'Created spatial interpolation map for nitrate concentrations across Lake Lanao basin using IDW method.',
-    icon: 'terrain',
-    color: 'teal',
-    timestamp: 'Apr 8, 2026 — 2:30 PM',
-  },
-  {
-    title: 'Updated Sampling Coordinates',
-    subtitle: 'Field Data Collection',
-    description: 'Added 5 new GPS coordinates for sampling stations in the western region of Lake Lanao.',
-    icon: 'gps_fixed',
-    color: 'blue',
-    timestamp: 'Apr 5, 2026 — 11:15 AM',
-  },
-  {
-    title: 'Uploaded Water Quality Data',
-    subtitle: 'Site A — March 2026',
-    description: 'Batch upload of pH, dissolved oxygen, and temperature readings from 15 sampling points.',
-    icon: 'science',
-    color: 'purple',
-    timestamp: 'Apr 1, 2026 — 4:45 PM',
-  },
-]);
-
-const recentUploads = ref<Upload[]>([
-  {
-    fileName: 'lanao_nitrate_mar2026.csv',
-    fileType: 'CSV',
-    size: '2.4 MB',
-    status: 'Published',
-    timestamp: 'Apr 1, 2026',
-  },
-  {
-    fileName: 'sampling_points_west.geojson',
-    fileType: 'GeoJSON',
-    size: '856 KB',
-    status: 'Published',
-    timestamp: 'Apr 5, 2026',
-  },
-  {
-    fileName: 'ph_levels_batch_0420.csv',
-    fileType: 'CSV',
-    size: '1.1 MB',
-    status: 'Processing',
-    timestamp: 'Apr 10, 2026',
-  },
-  {
-    fileName: 'temperature_readings_err.csv',
-    fileType: 'CSV',
-    size: '450 KB',
-    status: 'Error',
-    timestamp: 'Apr 9, 2026',
-  },
-]);
-
-function getFileIcon(fileType: string): { icon: string; color: string } {
-  switch (fileType) {
-    case 'CSV':
-      return { icon: 'table_chart', color: 'green' };
-    case 'GeoJSON':
-      return { icon: 'map', color: 'purple' };
-    default:
-      return { icon: 'insert_drive_file', color: 'grey' };
-  }
-}
-
 // ─── MY CONTRIBUTIONS ───
-// Only this researcher's own submissions — cross-researcher visibility lives
-// in the Admin Dashboard, not here.
-type ContributionType = 'endemic' | 'invasive' | 'water';
+// This researcher's own fish observations + water quality readings, fetched
+// live via the same `mine: true` API filter the rest of the app already
+// uses — no edit/delete actions here because neither API exposes them for a
+// researcher's own records (only admin approve/reject).
+//
+// Fish and water quality get their own tables with their own column shapes
+// (matching how the admin's batch-detail view lays out water parameters as
+// dedicated columns) rather than forcing both into one generic Title/Detail
+// row — a fish observation and a 13-parameter water reading don't actually
+// share a natural row shape.
+type FishContributionType = 'endemic' | 'invasive' | 'general';
+type ContributionFilterValue = 'all' | FishContributionType | 'water';
 
-interface Contribution {
-  id: number;
-  type: ContributionType;
+interface FishContributionRow {
+  id: string;
+  type: FishContributionType;
   title: string;
   detail: string;
-  status: string;
+  reviewStatus: ReviewStatus;
   location: string;
   date: string;
 }
 
-const contributionColumns = [
-  { name: 'id', label: '#', field: 'id', align: 'left' as const, sortable: true },
+const fishColumns = [
   { name: 'title', label: 'Title', field: 'title', align: 'left' as const, sortable: true },
   { name: 'detail', label: 'Detail', field: 'detail', align: 'left' as const },
   { name: 'type', label: 'Type', field: 'type', align: 'center' as const, sortable: true },
-  { name: 'status', label: 'Status', field: 'status', align: 'center' as const, sortable: true },
-  { name: 'location', label: 'Coordinates', field: 'location', align: 'left' as const },
-  { name: 'date', label: 'Date Submitted', field: 'date', align: 'center' as const, sortable: true },
-  { name: 'actions', label: 'Actions', field: 'actions', align: 'center' as const },
+  { name: 'reviewStatus', label: 'Review Status', field: 'reviewStatus', align: 'center' as const, sortable: true },
+  { name: 'location', label: 'Location', field: 'location', align: 'left' as const },
+  { name: 'date', label: 'Date Observed', field: 'date', align: 'center' as const, sortable: true },
 ];
 
-const myContributions = ref<Contribution[]>([
-  {
-    id: 101,
-    type: 'endemic',
-    title: 'Pait',
-    detail: 'Puntius sirang',
-    status: 'Critically Endangered',
-    location: '7.9900, 124.0500',
-    date: '2025-05-12',
-  },
-  {
-    id: 102,
-    type: 'endemic',
-    title: 'Banak',
-    detail: 'Puntius lanaoensis',
-    status: 'Critically Endangered',
-    location: '7.9500, 124.0200',
-    date: '2025-06-01',
-  },
-  {
-    id: 103,
-    type: 'invasive',
-    title: 'Nile Tilapia',
-    detail: 'Oreochromis niloticus',
-    status: 'Least Concern',
-    location: '8.0000, 124.0400',
-    date: '2025-06-10',
-  },
-  {
-    id: 104,
-    type: 'endemic',
-    title: 'Tarong',
-    detail: 'Puntius tras',
-    status: 'Endangered',
-    location: '7.9600, 124.0600',
-    date: '2025-06-15',
-  },
-  {
-    id: 105,
-    type: 'water',
-    title: 'Station WQ-07 — Dissolved Oxygen Reading',
-    detail: 'DO 6.8 mg/L · Temp 26.5°C · pH 7.2',
-    status: 'Pending Review',
-    location: '8.0000, 124.0450',
-    date: '2025-06-20',
-  },
-  {
-    id: 106,
-    type: 'water',
-    title: 'Station WQ-12 — Turbidity Reading',
-    detail: 'Turbidity 4.8 NTU · TSS 8.7 mg/L',
-    status: 'Reviewed',
-    location: '8.0100, 124.0900',
-    date: '2025-06-22',
-  },
-]);
+interface WaterContributionRow {
+  id: string;
+  siteId: string;
+  depthM: number;
+  date: string;
+  reviewStatus: ReviewStatus;
+  notes: string | null | undefined;
+  values: Partial<Record<string, number>>;
+}
 
-const contributionFilter = ref<'all' | ContributionType>('all');
+const fishContributions = ref<FishContributionRow[]>([]);
+const waterContributions = ref<WaterContributionRow[]>([]);
+const contributionsLoading = ref(true);
+const contributionsError = ref(false);
 
-const filteredContributions = computed(() =>
-  myContributions.value.filter((c) => {
-    if (contributionFilter.value === 'all') return true;
-    return c.type === contributionFilter.value;
-  }),
+function fishTypeFor(category: FishCategory): FishContributionType {
+  if (category === 'ENDEMIC') return 'endemic';
+  if (category === 'INVASIVE') return 'invasive';
+  return 'general';
+}
+
+onMounted(async () => {
+  try {
+    const [fish, water] = await Promise.all([
+      fetchFishObservations({ mine: true }),
+      fetchWaterQualityReadings({ mine: true }),
+    ]);
+
+    const fishRows: FishContributionRow[] = fish.map((obs) => {
+      const title = obs.speciesCommon || obs.speciesScientific || 'Unidentified catch';
+      const detail =
+        obs.speciesScientific && obs.speciesScientific !== title
+          ? obs.speciesScientific
+          : CONSERVATION_STATUS_LABELS[obs.conservationStatus];
+      return {
+        id: `fish-${obs.id}`,
+        type: fishTypeFor(obs.category),
+        title,
+        detail,
+        reviewStatus: obs.reviewStatus,
+        location:
+          obs.latitude != null && obs.longitude != null
+            ? `${obs.latitude.toFixed(4)}, ${obs.longitude.toFixed(4)}`
+            : '—',
+        date: obs.dateObserved,
+      };
+    });
+
+    const waterRows: WaterContributionRow[] = water.map((reading) => {
+      const values: Partial<Record<string, number>> = {};
+      for (const param of allWaterQualityParams) {
+        const value = reading[param.key as keyof WaterQualityReading];
+        if (typeof value === 'number') values[param.key] = value;
+      }
+      return {
+        id: `wq-${reading.id}`,
+        siteId: reading.siteId,
+        depthM: reading.depthM,
+        date: reading.dateObserved,
+        reviewStatus: reading.reviewStatus,
+        notes: reading.notes,
+        values,
+      };
+    });
+
+    fishContributions.value = fishRows.sort((a, b) => b.date.localeCompare(a.date));
+    waterContributions.value = waterRows.sort((a, b) => b.date.localeCompare(a.date));
+  } catch (err) {
+    console.error('Failed to load contributions:', err);
+    contributionsError.value = true;
+    $q.notify({
+      type: 'negative',
+      message: "Couldn't load your contributions.",
+      position: 'top',
+    });
+  } finally {
+    contributionsLoading.value = false;
+  }
+});
+
+const contributionFilter = ref<ContributionFilterValue>('all');
+
+const filteredFishContributions = computed(() =>
+  fishContributions.value.filter(
+    (c) => contributionFilter.value === 'all' || c.type === contributionFilter.value,
+  ),
 );
 
-function getTypeLabel(type: ContributionType): string {
-  if (type === 'endemic') return 'Endemic';
-  if (type === 'invasive') return 'Invasive';
-  return 'Water Quality';
-}
+// Only columns for parameters this researcher actually recorded at least
+// once — showing all 13 possible parameters as columns regardless of
+// whether any reading used them would just be a wall of "—".
+const waterParamColumns = computed(() =>
+  allWaterQualityParams
+    .filter((param) => waterContributions.value.some((row) => row.values[param.key] != null))
+    .map((param) => ({
+      name: param.key,
+      label: param.unit ? `${param.label} (${param.unit})` : param.label,
+      field: (row: WaterContributionRow) => row.values[param.key],
+      format: (val: number | undefined) => (val != null ? formatReading(val, param) : '—'),
+      align: 'center' as const,
+      sortable: true,
+    })),
+);
 
-function getTypeColor(type: ContributionType): string {
-  if (type === 'endemic') return 'blue-7';
-  if (type === 'invasive') return 'orange-8';
-  return 'teal-6';
-}
+const hasWaterNotes = computed(() => waterContributions.value.some((row) => row.notes));
 
-function getStatusColor(status: string): string {
-  switch (status) {
-    case 'Critically Endangered': return 'red';
-    case 'Endangered': return 'orange';
-    case 'Vulnerable': return 'yellow-8';
-    case 'Least Concern': return 'green';
-    case 'Reviewed': return 'green';
-    case 'Pending Review': return 'blue-grey-6';
-    default: return 'grey';
+const waterColumns = computed(() => [
+  { name: 'siteId', label: 'Site', field: 'siteId', align: 'left' as const, sortable: true },
+  {
+    name: 'depth',
+    label: 'Depth',
+    field: (row: WaterContributionRow) => depthLabel(row.depthM),
+    align: 'center' as const,
+    sortable: true,
+  },
+  { name: 'date', label: 'Date Observed', field: 'date', align: 'center' as const, sortable: true },
+  { name: 'reviewStatus', label: 'Review Status', field: 'reviewStatus', align: 'center' as const, sortable: true },
+  ...waterParamColumns.value,
+  ...(hasWaterNotes.value
+    ? [{ name: 'notes', label: 'Notes', field: 'notes' as const, align: 'left' as const }]
+    : []),
+]);
+
+function getTypeLabel(type: ContributionFilterValue): string {
+  switch (type) {
+    case 'endemic':
+      return 'Endemic';
+    case 'invasive':
+      return 'Invasive';
+    case 'general':
+      return 'General';
+    case 'water':
+      return 'Water Quality';
+    default:
+      return 'All';
   }
 }
 
-function handleEditContribution(contribution: Contribution) {
-  $q.notify({
-    message: `Editing record for ${contribution.title}...`,
-    color: 'teal-8',
-    icon: 'edit',
-    position: 'top',
-    timeout: 2000,
-  });
+function getTypeColor(type: ContributionFilterValue): string {
+  switch (type) {
+    case 'endemic':
+      return 'blue-7';
+    case 'invasive':
+      return 'orange-8';
+    case 'general':
+      return 'grey-7';
+    case 'water':
+      return 'teal-6';
+    default:
+      return 'teal-8';
+  }
 }
 
-function handleDeleteContribution(id: number) {
-  myContributions.value = myContributions.value.filter((c) => c.id !== id);
-  $q.notify({
-    message: `Record #${id} deleted.`,
-    color: 'red-6',
-    icon: 'delete',
-    position: 'top',
-    timeout: 2000,
-  });
+const CONTRIBUTION_FILTER_VALUES: ContributionFilterValue[] = ['endemic', 'invasive', 'general', 'water'];
+const filterOptions = computed(() => [
+  { value: 'all' as const, label: 'All', color: 'teal-8' },
+  ...CONTRIBUTION_FILTER_VALUES.map((t) => ({ value: t, label: getTypeLabel(t), color: getTypeColor(t) })),
+]);
+
+function getReviewStatusLabel(status: ReviewStatus): string {
+  switch (status) {
+    case 'APPROVED':
+      return 'Approved';
+    case 'REJECTED':
+      return 'Rejected';
+    default:
+      return 'Pending Review';
+  }
+}
+
+function getReviewStatusColor(status: ReviewStatus): string {
+  switch (status) {
+    case 'APPROVED':
+      return 'green';
+    case 'REJECTED':
+      return 'red';
+    default:
+      return 'blue-grey-6';
+  }
 }
 </script>
 
@@ -791,6 +505,10 @@ function handleDeleteContribution(id: number) {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  /* Quasar's "column" class is flex-flow: column wrap, not just
+     flex-direction: column — nowrap here too so .bottom-section can never
+     wrap into a second row-of-columns beside .top-section. */
+  flex-wrap: nowrap;
 }
 
 /* ═══════════════════════════════════════
@@ -800,31 +518,16 @@ function handleDeleteContribution(id: number) {
   position: relative;
 }
 
-/* Cover strip */
 .cover-strip {
   height: 50px;
   background: linear-gradient(135deg, #00695c 0%, #26a69a 100%) !important;
   flex-shrink: 0;
 }
 
-/* Avatar */
 .avatar-img {
   border: 4px solid white;
   background: white;
   overflow: hidden;
-}
-
-.avatar-edit-overlay {
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 2;
-}
-
-.avatar-edit-overlay:hover {
-  background: rgba(0, 0, 0, 0.6);
-  transform: scale(1.02);
 }
 
 .online-dot {
@@ -838,7 +541,6 @@ function handleDeleteContribution(id: number) {
   z-index: 10;
 }
 
-/* Identity Info */
 .info-fields {
   margin-top: 4px;
 }
@@ -859,264 +561,46 @@ function handleDeleteContribution(id: number) {
   font-weight: 500;
 }
 
-.bio-text {
-  font-size: 0.85rem;
-  line-height: 1.4;
-  max-width: 500px;
+/* ── CONTRIBUTIONS TABLE ──
+   .bottom-section and .contributions-table are flex items whose default
+   min-width is `auto`, so a wide table (6 columns, plus a long joined
+   "Detail" string) was forcing them past .bright-panel's edge instead of
+   shrinking — the overflow then rendered outside the card rather than being
+   contained, since the clipping ancestor never actually got the chance to
+   clip a box that had already grown past it. min-width: 0 lets both shrink
+   below their content's natural width; width/max-width: 100% then forces
+   q-table's own internal width (which otherwise still sized itself off its
+   content, min-width: 0 alone wasn't enough to override that) down to
+   whatever .bottom-section actually has available; overflow-x: auto scrolls
+   the table itself (not the card) for whatever still doesn't fit. */
+.bottom-section {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  /* Quasar's "column" utility (used here and on .bright-panel) sets
+     flex-flow: column wrap, not just flex-direction: column — when this
+     section's content (filter row + a growing water-quality table) needed
+     more height than the fixed-height card had available, it wrapped into a
+     second column rendered beside the filters instead of scrolling below
+     them. nowrap forces normal single-column stacking; overflow-y then
+     scrolls whatever still doesn't fit vertically. */
+  flex-wrap: nowrap;
+  overflow-y: auto;
 }
-
-/* Stats Row */
-.stats-row {
-  background: #f1f8f8;
-  border-radius: 12px;
-  padding: 12px 24px;
-  border: 1px solid #e0f2f1;
-}
-
-.stat-pill {
-  min-width: 60px;
-}
-
-.stat-divider {
-  width: 1px;
-  height: 36px;
-  background: #b2dfdb;
-  margin: 0 16px;
-}
-
-.stat-num {
-  font-size: 1.6rem;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.stat-lbl {
-  font-size: 0.65rem;
-  color: #78909c;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 600;
-  margin-top: 4px;
-}
-
-
-
-/* ── PROFILE TABS ── */
-.profile-tabs {
-  padding: 0 24px;
-  flex-shrink: 0;
-}
-
-/* ── CONTRIBUTIONS TABLE ── */
 .contributions-table {
   border-radius: 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
 }
-
-/* ── ACTIVITY TAB ── */
-.activity-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 32px;
-}
-
-.activity-col {
-  display: flex;
-  flex-direction: column;
-}
-
-.col-title {
-  display: flex;
-  align-items: center;
-}
-
-/* Timeline */
-.timeline-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.timeline-item {
-  display: flex;
-  gap: 16px;
-  position: relative;
-  padding-bottom: 24px;
-}
-
-.timeline-item:last-child {
-  padding-bottom: 0;
-}
-
-.tl-dot {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  position: relative;
-  z-index: 1;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-}
-
-.dot-teal   { background: #26a69a; }
-.dot-blue   { background: #42a5f5; }
-.dot-purple { background: #ab47bc; }
-
-.tl-line {
-  position: absolute;
-  left: 15px;
-  top: 32px;
-  width: 2px;
-  height: calc(100% - 8px);
-  background: #e0e0e0;
-}
-
-.tl-body {
-  flex: 1;
-  background: #f9fbfb;
-  padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid #e0f2f1;
-}
-
-.tl-title {
-  font-size: 0.85rem;
-  font-weight: 700;
-}
-
-.tl-sub {
-  font-size: 0.75rem;
-  font-weight: 600;
-  margin-top: 2px;
-}
-
-.tl-desc {
-  font-size: 0.8rem;
-  margin-top: 6px;
-  line-height: 1.4;
-}
-
-.tl-time {
-  display: flex;
-  align-items: center;
-  font-size: 0.7rem;
-  margin-top: 8px;
-}
-
-/* Uploads */
-.uploads-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.upload-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 16px;
-  border-radius: 12px;
-  border: 1px solid #e0e0e0;
-  transition: all 0.2s;
-}
-
-.upload-item:hover {
-  border-color: #b2dfdb;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-}
-
-.upload-icon-wrap {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.icon-green  { background: #e8f5e9; color: #4caf50; }
-.icon-purple { background: #f3e5f5; color: #9c27b0; }
-.icon-grey   { background: #f5f5f5; color: #9e9e9e; }
-
-.upload-name {
-  font-size: 0.85rem;
-  font-weight: 700;
+.detail-text {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
   white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px;
-}
-
-.upload-meta {
-  font-size: 0.75rem;
-  margin-top: 2px;
-}
-
-.upload-status {
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 2px 10px;
-  border-radius: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.status-published { background: #e8f5e9; color: #2e7d32; }
-.status-processing { background: #fff3e0; color: #ef6c00; }
-.status-error     { background: #ffebee; color: #c62828; }
-
-.upload-date {
-  font-size: 0.7rem;
-  margin-top: 4px;
-}
-
-/* ═══════════════════════════════════════
-   TRANSITIONS
-═══════════════════════════════════════ */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-.fade-enter-from { opacity: 0; transform: translateY(10px); }
-.fade-leave-to { opacity: 0; transform: translateY(-10px); }
-
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: all 0.3s ease;
-  overflow: hidden;
-}
-.slide-down-enter-from,
-.slide-down-leave-to { opacity: 0; max-height: 0; margin-top: 0 !important; }
-.slide-down-enter-to,
-.slide-down-leave-from { opacity: 1; max-height: 300px; }
-
-/* ═══════════════════════════════════════
-   REPORT & UPLOAD DIALOGS
-═══════════════════════════════════════ */
-.report-card {
-  transition: transform 0.2s, box-shadow 0.2s;
-  cursor: pointer;
-  border-radius: 8px;
-}
-.report-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-
-.slide-in {
-  animation: slideIn 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  vertical-align: middle;
 }
 </style>
