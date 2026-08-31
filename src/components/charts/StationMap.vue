@@ -110,6 +110,29 @@ function restyleMarkers() {
   });
 }
 
+// Selecting a site — by clicking its marker directly, or from a list like
+// "Sites of Concern" elsewhere on the page — zooms/pans the map to it, so a
+// site that needs attention doesn't just get a badge you have to go hunting
+// for. The zoom-in itself scales with severity: critical sites "size up"
+// more than a routine good/warning one, matching the pulse/badge emphasis.
+const ATTENTION_ZOOM: Record<StatusLevel, number> = {
+  good: 14,
+  warning: 14,
+  serious: 15,
+  critical: 16,
+};
+
+function flyToSelected() {
+  if (!map || !props.selectedSiteId) return;
+  const site = props.sites.find((s) => s.siteId === props.selectedSiteId);
+  if (!site) return;
+  const status = props.statusBySite[site.siteId];
+  const targetZoom = status ? ATTENTION_ZOOM[status] : 14;
+  // Only ever zoom in, never out — clicking a site you're already zoomed
+  // past shouldn't yank the view back out.
+  map.flyTo([site.lat, site.lng], Math.max(map.getZoom(), targetZoom), { duration: 1.1 });
+}
+
 onMounted(() => {
   if (!mapContainer.value) return;
   map = L.map(mapContainer.value, {
@@ -132,6 +155,7 @@ onBeforeUnmount(() => {
 
 watch(() => props.sites, renderMarkers);
 watch([() => props.statusColorBySite, () => props.statusBySite, () => props.selectedSiteId], restyleMarkers);
+watch(() => props.selectedSiteId, flyToSelected);
 </script>
 
 <style scoped>

@@ -1111,10 +1111,24 @@ interface WaterQualitySite {
 const waterQualitySites = ref<WaterQualitySite[]>([]);
 const selectedWaterSite = ref<WaterQualitySite | null>(null);
 
+// Selecting a site zooms/pans to it, scaled by how badly it needs attention
+// — a critical site "sizes up" more than a routine one, matching the
+// pulse/badge emphasis on its marker. Only ever zooms in, never out, so
+// clicking a site you're already zoomed past doesn't yank the view back.
+const ATTENTION_ZOOM: Record<StatusLevel, number> = {
+  good: 15,
+  warning: 15,
+  serious: 16,
+  critical: 17,
+};
+
 function selectWaterSite(site: WaterQualitySite) {
   selectedWaterSite.value = site;
   selectedFish.value = null;
-  if (map) map.flyTo([site.lat, site.lng], 15, { duration: 1.2 });
+  if (!map) return;
+  const status = siteAttentionStatus(site.siteId);
+  const targetZoom = status ? ATTENTION_ZOOM[status] : 15;
+  map.flyTo([site.lat, site.lng], Math.max(map.getZoom(), targetZoom), { duration: 1.2 });
 }
 
 // ── Site search (mirrors the Fish tab's search-by-name q-select) ──
