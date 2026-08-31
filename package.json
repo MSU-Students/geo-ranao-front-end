@@ -13,7 +13,8 @@
     "dev": "quasar dev",
     "build": "quasar build",
     "postinstall": "quasar prepare",
-    "generate:wq-template": "node scripts/generate-water-quality-template.mjs"
+    "generate:wq-template": "node scripts/generate-water-quality-template.mjs",
+    "generate:municipal-zones": "node scripts/generate-municipal-water-zones.mjs"
   },
   "dependencies": {
     "@quasar/extras": "^1.16.4",
@@ -35,11 +36,14 @@
   "devDependencies": {
     "@eslint/js": "^9.14.0",
     "@quasar/app-vite": "^2.1.0",
+    "@turf/turf": "^7.4.0",
+    "@types/geojson": "^7946.0.16",
     "@types/node": "^20.5.9",
     "@types/three": "^0.185.4",
     "@vue/eslint-config-prettier": "^10.1.0",
     "@vue/eslint-config-typescript": "^14.4.0",
     "autoprefixer": "^10.4.2",
+    "d3-delaunay": "^6.0.4",
     "eslint": "^9.14.0",
     "eslint-plugin-vue": "^10.4.0",
     "globals": "^16.4.0",

@@ -1,0 +1,21 @@
+[
+  { "name": "Marawi City", "lat": 8.0047262, "lng": 124.2854351 },
+  { "name": "Bacolod-Kalawi", "lat": 7.8576753, "lng": 124.1423567 },
+  { "name": "Balindong", "lat": 7.9162827, "lng": 124.2055463 },
+  { "name": "Bayang", "lat": 7.793733, "lng": 124.1972049 },
+  { "name": "Binidayan", "lat": 7.7949244, "lng": 124.1670371 },
+  { "name": "Buadiposo-Buntong", "lat": 7.9654, "lng": 124.37615 },
+  { "name": "Ditsaan-Ramain", "lat": 7.9788768, "lng": 124.3516506 },
+  { "name": "Ganassi", "lat": 7.8260261, "lng": 124.1018827 },
+  { "name": "Lumbatan", "lat": 7.7848782, "lng": 124.2552241 },
+  { "name": "Lumbayanague", "lat": 7.7830923, "lng": 124.2815746 },
+  { "name": "Madalum", "lat": 7.8540188, "lng": 124.1140094 },
+  { "name": "Madamba", "lat": 7.8588264, "lng": 124.050705 },
+  { "name": "Marantao", "lat": 7.9482892, "lng": 124.2315699 },
+  { "name": "Masiu", "lat": 7.8184459, "lng": 124.3308048 },
+  { "name": "Mulondo", "lat": 7.9170563, "lng": 124.3615673 },
+  { "name": "Poona Bayabao", "lat": 7.8531283, "lng": 124.3394332 },
+  { "name": "Tamparan", "lat": 7.8765155, "lng": 124.3264879 },
+  { "name": "Taraka", "lat": 7.8998799, "lng": 124.3339467 },
+  { "name": "Tugaya", "lat": 7.883728, "lng": 124.17801 }
+]

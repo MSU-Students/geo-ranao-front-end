@@ -743,6 +743,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useAuthStore } from 'src/stores/auth';
+import lakeMunicipalitiesRaw from 'src/data/lake-municipalities.json';
 import {
   TRIBUTARY_RIVER_SITES,
   TRIBUTARY_RIVER_SITE_IDS,
@@ -773,11 +774,11 @@ import {
   buildDepthGrid,
   colorForDepth,
   extractPolygonRings,
-  pointInPolygon,
   type DepthGrid,
   CONTOUR_LEVELS,
   CONTOUR_LINE_COLOR,
-  CONTOUR_LABEL_MIN_ZOOM
+  CONTOUR_LABEL_MIN_ZOOM,
+  CONTOUR_COLOR_STOPS
 } from 'src/composables/useBathymetry';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
 import L from 'leaflet';
@@ -1402,25 +1403,14 @@ function createWaterQualitySiteLayer(
   });
 }
 
-// ═══ CLICK ANYWHERE INSIDE THE LAKE (single parameter at a time, from the dropdown/slider) ═══
-// pointInPolygon and extractPolygonRings are imported from useBathymetry
-
-// Shared geo helpers — also used by the bathymetry-contours feature below.
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-// computeRingsBounds is imported from useBathymetry
+// extractPolygonRings is imported from useBathymetry. computeRingsBounds is
+// also from useBathymetry, but internal to it (only buildDepthGrid calls
+// it) — nothing here needs it directly.
 
 // ═══ BATHYMETRY CONTOURS ═══
-// CONTOUR_LEVELS, CONTOUR_LINE_COLOR, CONTOUR_LABEL_MIN_ZOOM, colorForDepth,
-// DepthGrid, and buildDepthGrid are all imported from useBathymetry.
+// CONTOUR_LEVELS, CONTOUR_LINE_COLOR, CONTOUR_LABEL_MIN_ZOOM,
+// CONTOUR_COLOR_STOPS, colorForDepth, DepthGrid, and buildDepthGrid are all
+// imported from useBathymetry.
 
 // Marching squares — extracts line segments where the depth field crosses a
 // given contour level. Segments aren't stitched into continuous rings; each
@@ -1635,197 +1625,62 @@ interface LakeMunicipality {
   color: string;
 }
 
+// Raw name/lat/lng lives in src/data/lake-municipalities.json — the single
+// source of truth shared with scripts/generate-municipal-water-zones.mjs, so
+// a town added there automatically gets a pin here AND (after re-running
+// `npm run generate:municipal-zones`) a zone on the map, with matching color.
 const LAKE_MUNICIPALITIES: LakeMunicipality[] = (
-  [
-    { name: 'Marawi City', lat: 8.0047262, lng: 124.2854351 },
-    { name: 'Bacolod-Kalawi', lat: 7.8576753, lng: 124.1423567 },
-    { name: 'Balindong', lat: 7.9162827, lng: 124.2055463 },
-    { name: 'Bayang', lat: 7.793733, lng: 124.1972049 },
-    { name: 'Binidayan', lat: 7.7949244, lng: 124.1670371 },
-    { name: 'Buadiposo-Buntong', lat: 7.9654, lng: 124.37615 },
-    { name: 'Ditsaan-Ramain', lat: 7.9788768, lng: 124.3516506 },
-    { name: 'Ganassi', lat: 7.8260261, lng: 124.1018827 },
-    { name: 'Lumbatan', lat: 7.7848782, lng: 124.2552241 },
-    { name: 'Lumbayanague', lat: 7.7830923, lng: 124.2815746 },
-    { name: 'Madalum', lat: 7.8540188, lng: 124.1140094 },
-    { name: 'Madamba', lat: 7.8588264, lng: 124.050705 },
-    { name: 'Marantao', lat: 7.9482892, lng: 124.2315699 },
-    { name: 'Masiu', lat: 7.8184459, lng: 124.3308048 },
-    { name: 'Mulondo', lat: 7.9170563, lng: 124.3615673 },
-    { name: 'Poona Bayabao', lat: 7.8531283, lng: 124.3394332 },
-    { name: 'Tamparan', lat: 7.8765155, lng: 124.3264879 },
-    { name: 'Taraka', lat: 7.8998799, lng: 124.3339467 },
-    { name: 'Tugaya', lat: 7.883728, lng: 124.17801 },
-  ] as Omit<LakeMunicipality, 'color'>[]
+  lakeMunicipalitiesRaw as Omit<LakeMunicipality, 'color'>[]
 ).map((m, i, arr) => ({ ...m, color: `hsl(${Math.round((i * 360) / arr.length)}, 62%, 50%)` }));
 
-const MUNICIPAL_WATER_LIMIT_KM = 15;
-
-function hslToRgb(hsl: string): [number, number, number] {
-  const match = /hsl\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)%,\s*(\d+(?:\.\d+)?)%\)/.exec(hsl);
-  if (!match) return [128, 128, 128];
-  const h = Number(match[1]) / 360;
-  const s = Number(match[2]) / 100;
-  const l = Number(match[3]) / 100;
-  if (s === 0) {
-    const v = Math.round(l * 255);
-    return [v, v, v];
-  }
-  const hue2rgb = (p: number, q: number, t: number) => {
-    let tt = t;
-    if (tt < 0) tt += 1;
-    if (tt > 1) tt -= 1;
-    if (tt < 1 / 6) return p + (q - p) * 6 * tt;
-    if (tt < 1 / 2) return q;
-    if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
-    return p;
-  };
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  return [
-    Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
-    Math.round(hue2rgb(p, q, h) * 255),
-    Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
-  ];
-}
-
+// Zone geometry is pre-computed (Voronoi diagram of the town points, clipped
+// to each town's 15km buffer and the real shoreline) by
+// scripts/generate-municipal-water-zones.mjs and checked in as a static
+// GeoJSON — see that script for the actual nearest-town/15km-cap math. This
+// replaced an in-browser canvas rasterization of the same model, which
+// pixelated on zoom since it was a fixed-resolution raster image; real
+// vector polygons stay crisp at any zoom level, same as every other
+// public/geo/*.geojson layer on this map.
 function buildMunicipalZones() {
   if (!map || municipalZonesLayerGroup) return;
-  const grid = buildDepthGrid(lakePolygonRings);
-  if (!grid) return;
 
-  municipalZonesLayerGroup = L.layerGroup();
-  municipalLabelsLayerGroup = L.layerGroup();
+  fetch('/geo/Municipal-Water-Zones.geojson')
+    .then((res) => res.json())
+    .then((geojson: GeoJSON.FeatureCollection) => {
+      const zonesLayer = L.geoJSON(geojson, {
+        style: (feature) => ({
+          color: '#212121',
+          weight: 1,
+          fillColor: (feature!.properties as { color: string }).color,
+          fillOpacity: 0.4,
+        }),
+        interactive: false,
+      });
+      municipalZonesLayerGroup = L.layerGroup([zonesLayer]);
 
-  const { width, height, minLat, maxLat, minLng, maxLng, values } = grid;
-  const latSpan = maxLat - minLat;
-  const lngSpan = maxLng - minLng;
-  const municipalRgb = LAKE_MUNICIPALITIES.map((m) => hslToRgb(m.color));
-
-  // For every grid cell already known to be inside the lake (the bathymetry
-  // grid's depth is 0 only outside the shoreline), find the nearest town.
-  const assignment = new Int16Array(width * height).fill(-1);
-  const cellSumLat = new Float64Array(LAKE_MUNICIPALITIES.length);
-  const cellSumLng = new Float64Array(LAKE_MUNICIPALITIES.length);
-  const cellCount = new Int32Array(LAKE_MUNICIPALITIES.length);
-
-  for (let row = 0; row < height; row++) {
-    const lat = maxLat - (row / (height - 1)) * latSpan;
-    for (let col = 0; col < width; col++) {
-      const idx = row * width + col;
-      if (values[idx]! <= 0) continue; // outside the lake
-      const lng = minLng + (col / (width - 1)) * lngSpan;
-
-      let nearest = -1;
-      let nearestKm = Infinity;
-      for (let m = 0; m < LAKE_MUNICIPALITIES.length; m++) {
-        const town = LAKE_MUNICIPALITIES[m]!;
-        const d = haversineKm(lat, lng, town.lat, town.lng);
-        if (d < nearestKm) {
-          nearestKm = d;
-          nearest = m;
-        }
-      }
-      if (nearest < 0 || nearestKm > MUNICIPAL_WATER_LIMIT_KM) continue;
-      assignment[idx] = nearest;
-      cellSumLat[nearest]! += lat;
-      cellSumLng[nearest]! += lng;
-      cellCount[nearest]! += 1;
-    }
-  }
-
-  // ── Rasterize flat zone colors + a boundary stroke between neighboring
-  // zones (a simple neighbor-comparison edge, not vector geometry — this is
-  // a categorical field, not the continuous one marching squares needs). ──
-  const rawCanvas = document.createElement('canvas');
-  rawCanvas.width = width;
-  rawCanvas.height = height;
-  const rawCtx = rawCanvas.getContext('2d');
-  if (rawCtx) {
-    const imageData = rawCtx.createImageData(width, height);
-    const data = imageData.data;
-    for (let row = 0; row < height; row++) {
-      for (let col = 0; col < width; col++) {
-        const idx = row * width + col;
-        const m = assignment[idx]!;
-        if (m < 0) continue;
-        const idx4 = idx * 4;
-
-        const isBoundary =
-          (col > 0 && assignment[idx - 1] !== m && assignment[idx - 1]! >= 0) ||
-          (col < width - 1 && assignment[idx + 1] !== m && assignment[idx + 1]! >= 0) ||
-          (row > 0 && assignment[idx - width] !== m && assignment[idx - width]! >= 0) ||
-          (row < height - 1 && assignment[idx + width] !== m && assignment[idx + width]! >= 0);
-
-        if (isBoundary) {
-          data[idx4] = 33;
-          data[idx4 + 1] = 33;
-          data[idx4 + 2] = 33;
-          data[idx4 + 3] = 230;
-        } else {
-          const [r, g, b] = municipalRgb[m]!;
-          data[idx4] = r;
-          data[idx4 + 1] = g;
-          data[idx4 + 2] = b;
-          data[idx4 + 3] = Math.round(0.4 * 255);
-        }
-      }
-    }
-    rawCtx.putImageData(imageData, 0, 0);
-
-    const finalCanvas = document.createElement('canvas');
-    finalCanvas.width = width;
-    finalCanvas.height = height;
-    const finalCtx = finalCanvas.getContext('2d');
-    if (finalCtx) {
-      finalCtx.beginPath();
-      for (const ring of lakePolygonRings) {
-        ring.forEach(([lat, lng], i) => {
-          const x = ((lng - minLng) / lngSpan) * width;
-          const y = ((maxLat - lat) / latSpan) * height;
-          if (i === 0) finalCtx.moveTo(x, y);
-          else finalCtx.lineTo(x, y);
+      // Leaflet's default marker CSS constrains an icon container's width
+      // unless iconSize says otherwise — omitting it (relying on "auto size
+      // to content") silently clips longer names like "Ditsaan-Ramain". So
+      // iconSize is sized explicitly per label, from its own text length.
+      const labelMarkers = geojson.features.map((feature) => {
+        const props = feature.properties as { name: string; labelLat: number; labelLng: number };
+        const width = Math.ceil(props.name.length * 4.4) + 8;
+        const height = 12;
+        const icon = L.divIcon({
+          className: '',
+          html: `<div style="width:100%; height:100%; box-sizing:border-box; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.88); border:1px solid #555; border-radius:2px; font-size:7px; font-weight:700; color:#212121; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.3);">${props.name}</div>`,
+          iconSize: [width, height],
+          iconAnchor: [width / 2, height / 2],
         });
-        finalCtx.closePath();
-      }
-      finalCtx.clip('evenodd');
-      finalCtx.drawImage(rawCanvas, 0, 0);
+        return L.marker([props.labelLat, props.labelLng], { icon, interactive: false, keyboard: false });
+      });
+      municipalLabelsLayerGroup = L.layerGroup(labelMarkers);
 
-      const zonesOverlay = L.imageOverlay(
-        finalCanvas.toDataURL('image/png'),
-        [
-          [minLat, minLng],
-          [maxLat, maxLng],
-        ],
-        { interactive: false, className: 'municipal-zones-img' },
-      );
-      municipalZonesLayerGroup.addLayer(zonesOverlay);
-    }
-  }
-
-  // Label each municipality at the centroid of its own assigned zone (inside
-  // the lake), not at its town center (which is usually on land) — skip any
-  // municipality that never won a single cell under this model.
-  //
-  // Leaflet's default marker CSS constrains an icon container's width unless
-  // iconSize says otherwise — omitting it (relying on "auto size to content")
-  // silently clips longer names like "Ditsaan-Ramain". So iconSize is sized
-  // explicitly per label, from its own text length.
-  LAKE_MUNICIPALITIES.forEach((town, m) => {
-    if (cellCount[m]! === 0) return;
-    const labelLat = cellSumLat[m]! / cellCount[m]!;
-    const labelLng = cellSumLng[m]! / cellCount[m]!;
-    const width = Math.ceil(town.name.length * 4.4) + 8;
-    const height = 12;
-    const icon = L.divIcon({
-      className: '',
-      html: `<div style="width:100%; height:100%; box-sizing:border-box; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.88); border:1px solid #555; border-radius:2px; font-size:7px; font-weight:700; color:#212121; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.3);">${town.name}</div>`,
-      iconSize: [width, height],
-      iconAnchor: [width / 2, height / 2],
+      syncLayerVisibility();
+    })
+    .catch((err) => {
+      console.error('Failed to load municipal water zones GeoJSON:', err);
     });
-    const marker = L.marker([labelLat, labelLng], { icon, interactive: false, keyboard: false });
-    municipalLabelsLayerGroup!.addLayer(marker);
-  });
 }
 
 // ═══ MAP LAYERS ═══
