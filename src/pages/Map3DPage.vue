@@ -53,19 +53,23 @@
               Controls
             </div>
 
-            <input type="file" ref="fileInput" accept=".kmz,.kml" style="display: none" @change="onFileUploaded" />
-
-            <q-btn
-              id="btn-upload-kmz"
-              unelevated
-              rounded
-              dense
-              color="primary"
-              icon="upload"
-              label="Upload KMZ"
-              class="drawer-btn"
-              @click="triggerFileUpload"
-            />
+            <!-- KMZ upload — admin only -->
+            <template v-if="isAdmin">
+              <input type="file" ref="fileInput" accept=".kmz,.kml" style="display: none" @change="onFileUploaded" />
+              <q-btn
+                id="btn-upload-kmz"
+                unelevated
+                rounded
+                dense
+                color="primary"
+                icon="upload"
+                label="Upload KMZ"
+                class="drawer-btn"
+                @click="triggerFileUpload"
+              >
+                <q-tooltip anchor="center right" self="center left">Upload custom KMZ/KML bathymetry model (Admin only)</q-tooltip>
+              </q-btn>
+            </template>
             <q-btn
               id="btn-reset-camera"
               unelevated
@@ -155,10 +159,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { useAuthStore } from 'src/stores/auth';
 import * as THREE from 'three';
 import { buildDepthGrid, colorForDepth, extractPolygonRings, CONTOUR_MAX_DEPTH_M } from 'src/composables/useBathymetry';
 import { parseKMZ, buildGeometryFromPoints } from 'src/composables/useSurfer3D';
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === 'Admin');
 
 // ─── Refs ───────────────────────────────────────────────────────────────────
 const canvasEl = ref<HTMLCanvasElement | null>(null);
