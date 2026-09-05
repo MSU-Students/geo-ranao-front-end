@@ -766,6 +766,7 @@ import {
 } from 'src/composables/useWaterQualityReadings';
 import {
   fetchFishObservations,
+  parseCoordinates,
   CONSERVATION_STATUS_LABELS,
   CONSERVATION_STATUS_SHORT,
   type FishObservation,
@@ -989,7 +990,8 @@ const selectedFish = ref<Fish | null>(null);
 const species = ref<Fish[]>([]);
 
 function toMapFish(obs: FishObservation): Fish | null {
-  if (obs.latitude == null || obs.longitude == null) return null;
+  const coords = parseCoordinates(obs.coordinates);
+  if (!coords) return null;
   const type: Fish['type'] =
     obs.category === 'ENDEMIC' ? 'endemic' : obs.category === 'INVASIVE' ? 'invasive' : 'general';
   const fish: Fish = {
@@ -1004,8 +1006,8 @@ function toMapFish(obs: FishObservation): Fish | null {
     weight: obs.weightG != null ? `${obs.weightG} g` : '-',
     location: [obs.municipal, obs.barangay].filter(Boolean).join(', ') || 'Lake Lanao',
     date: obs.dateObserved || 'Oct 14, 2025',
-    lat: obs.latitude,
-    lng: obs.longitude,
+    lat: coords.lat,
+    lng: coords.lng,
   };
   if (type === 'general') {
     if (obs.depthM != null) fish.depth = `${obs.depthM} m`;
