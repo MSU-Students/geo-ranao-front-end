@@ -79,6 +79,7 @@
               <q-tab name="fish" icon="set_meal" label="Fish" />
               <q-tab name="water" icon="opacity" label="Water" />
               <q-tab name="layers" icon="layers" label="Layers" />
+              <q-tab v-if="isAdmin" name="map-data" icon="cloud_upload" label="Map Data" />
             </q-tabs>
           </q-card-section>
 
@@ -474,6 +475,55 @@
                   </q-item>
                 </q-list>
               </q-tab-panel>
+
+              <!-- ═══ MAP DATA TAB (ADMIN ONLY) ═══ -->
+              <q-tab-panel v-if="isAdmin" name="map-data" class="q-pa-md">
+                <div class="text-subtitle2 text-teal-8 text-weight-bold q-mb-md">
+                  <q-icon name="cloud_upload" class="q-mr-xs" /> Depth Data Upload
+                </div>
+                <q-card flat bordered class="q-pa-sm bg-grey-1 rounded-borders">
+                  <q-card-section>
+                    <div class="text-caption text-grey-8 q-mb-sm">
+                      Upload an Excel file with real bathymetry soundings to replace the synthetic contour model.
+                    </div>
+                    
+                    <div class="column items-center justify-center q-pa-lg cursor-pointer bg-white rounded-borders"
+                         style="border: 2px dashed #ccc;"
+                         @click="!depthUploadFile && depthFileInput?.click()">
+                      <input type="file" ref="depthFileInput" accept=".xlsx,.xls" style="display: none" @change="onDepthFileUploaded" />
+                      
+                      <template v-if="!depthUploadFile">
+                        <q-icon name="cloud_upload" size="48px" color="teal-5" />
+                        <div class="text-subtitle2 text-grey-9 q-mt-sm text-center">Click to browse or drag file here</div>
+                        <div class="text-caption text-negative q-mt-sm" v-if="depthUploadError"><q-icon name="error" /> {{ depthUploadError }}</div>
+                      </template>
+                      <template v-else>
+                        <q-icon name="description" size="48px" color="teal-7" />
+                        <div class="text-subtitle2 text-grey-9 q-mt-sm text-center">{{ depthUploadFile.name }}</div>
+                        <div class="text-caption text-grey-6">{{ (depthUploadFile.size / 1024).toFixed(1) }} KB</div>
+                        <q-btn flat dense color="negative" icon="delete" label="Remove" class="q-mt-sm" @click.stop="depthUploadFile = null; depthUploadError = ''" />
+                      </template>
+                    </div>
+
+                    <div v-if="depthUploadStats" class="q-mt-md text-caption text-grey-8">
+                      <q-icon name="check_circle" color="positive" class="q-mr-xs" />
+                      Successfully parsed {{ depthUploadStats.total - depthUploadStats.skipped }} points.
+                      <span v-if="depthUploadStats.skipped > 0" class="text-warning">
+                        Skipped {{ depthUploadStats.skipped }} invalid rows.
+                      </span>
+                    </div>
+
+                  </q-card-section>
+                  <q-card-actions align="right">
+                    <q-btn flat color="grey-8" label="Reset to Default" @click="resetDepthData" :disable="!customDepthGrid" />
+                    <q-btn unelevated color="teal" label="Apply to Map" :loading="depthUploadLoading" :disable="!depthUploadFile" @click="applyDepthData" />
+                  </q-card-actions>
+                </q-card>
+                
+                <div class="q-mt-md text-center">
+                  <q-btn flat dense color="primary" icon="download" label="Download Template" href="/templates/depth-soundings-template.xlsx" target="_blank" />
+                </div>
+              </q-tab-panel>
             </q-tab-panels>
           </q-card-section>
 
@@ -780,6 +830,7 @@ import {
   CONTOUR_LABEL_MIN_ZOOM,
   CONTOUR_COLOR_STOPS
 } from 'src/composables/useBathymetry';
+import { parseDepthExcel, buildDepthGridFromPoints, uploadMapDataToBackend } from 'src/composables/useMapDataUpload';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -927,11 +978,101 @@ const riverSiteMarkerEntries: { siteId: string; marker: L.Marker }[] = [];
 let riverSitesLayerGroup: L.LayerGroup | null = null;
 
 const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role === 'Admin');
 const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 
 // ═══ STATE ═══
 const activeTab = ref('fish');
-const activeFilter = ref('all');
+
+// ═══ ADMIN MAP DATA UPLOAD ═══
+const depthFileInput = ref<HTMLInputElement | null>(null);
+const customDepthGrid = ref<DepthGrid | null>(null);
+const depthUploadFile = ref<File | null>(null);
+const depthUploadError = ref('');
+const depthUploadLoading = ref(false);
+const depthUploadStats = ref<{ total: number; skipped: number } | null>(null);
+
+async function onDepthFileUploaded(event: Event) {
+  const target = event.target as HTMLInputElement;
+  if (!target.files?.length) return;
+  depthUploadFile.value = target.files[0];
+  depthUploadError.value = '';
+  depthUploadStats.value = null;
+  target.value = '';
+}
+
+async function applyDepthData() {
+  if (!depthUploadFile.value || !lakePolygonRings.length) return;
+  depthUploadLoading.value = true;
+  depthUploadError.value = '';
+  try {
+    const parseResult = await parseDepthExcel(depthUploadFile.value);
+    depthUploadStats.value = { total: parseResult.totalRows, skipped: parseResult.skippedRows };
+    const grid = buildDepthGridFromPoints(parseResult.points, lakePolygonRings);
+    if (!grid) throw new Error('Failed to generate depth grid from the provided points.');
+    
+    customDepthGrid.value = grid;
+    if (contourLinesLayerGroup && map) map.removeLayer(contourLinesLayerGroup);
+    if (contourFilledLayerGroup && map) map.removeLayer(contourFilledLayerGroup);
+    if (contourLabelsLayerGroup && map) map.removeLayer(contourLabelsLayerGroup);
+    
+    contourLinesLayerGroup = null;
+    contourFilledLayerGroup = null;
+    contourLabelsLayerGroup = null;
+    
+    buildContourLayers();
+    
+    const linesActive = mapLayers.value.find((l) => l.id === 'contourLines')?.active;
+    const fillActive = mapLayers.value.find((l) => l.id === 'contourFilled')?.active;
+    if (linesActive && contourLinesLayerGroup && map) {
+      map.addLayer(contourLinesLayerGroup);
+      if (contourLabelsLayerGroup && map.getZoom() >= CONTOUR_LABEL_MIN_ZOOM) {
+        map.addLayer(contourLabelsLayerGroup);
+      }
+    }
+    if (fillActive && contourFilledLayerGroup && map) {
+      map.addLayer(contourFilledLayerGroup);
+    }
+    
+    await uploadMapDataToBackend(depthUploadFile.value, '2d-depth');
+  } catch (err: any) {
+    depthUploadError.value = err.message || String(err);
+    depthUploadFile.value = null;
+    depthUploadStats.value = null;
+  } finally {
+    depthUploadLoading.value = false;
+  }
+}
+
+function resetDepthData() {
+  customDepthGrid.value = null;
+  depthUploadFile.value = null;
+  depthUploadError.value = '';
+  depthUploadStats.value = null;
+  
+  if (contourLinesLayerGroup && map) map.removeLayer(contourLinesLayerGroup);
+  if (contourFilledLayerGroup && map) map.removeLayer(contourFilledLayerGroup);
+  if (contourLabelsLayerGroup && map) map.removeLayer(contourLabelsLayerGroup);
+  
+  contourLinesLayerGroup = null;
+  contourFilledLayerGroup = null;
+  contourLabelsLayerGroup = null;
+  
+  buildContourLayers();
+  
+  const linesActive = mapLayers.value.find((l) => l.id === 'contourLines')?.active;
+  const fillActive = mapLayers.value.find((l) => l.id === 'contourFilled')?.active;
+  if (linesActive && contourLinesLayerGroup && map) {
+    map.addLayer(contourLinesLayerGroup);
+    if (contourLabelsLayerGroup && map.getZoom() >= CONTOUR_LABEL_MIN_ZOOM) {
+      map.addLayer(contourLabelsLayerGroup);
+    }
+  }
+  if (fillActive && contourFilledLayerGroup && map) {
+    map.addLayer(contourFilledLayerGroup);
+  }
+}
+
 const showPanel = ref(false);
 const mapContainer = ref<HTMLElement | null>(null);
 let map: L.Map | null = null;
@@ -1498,10 +1639,11 @@ function marchContourLevel(grid: DepthGrid, level: number): [number, number][][]
 }
 
 // Builds both toggleable contour layers once (cheap to leave built even when
+// Builds both toggleable contour layers once (cheap to leave built even when
 // hidden — toggling them just adds/removes the pre-built layer group).
 function buildContourLayers() {
   if (!map || contourLinesLayerGroup) return;
-  const grid = buildDepthGrid(lakePolygonRings);
+  const grid = customDepthGrid.value ?? buildDepthGrid(lakePolygonRings);
   if (!grid) return;
 
   contourLinesLayerGroup = L.layerGroup();
