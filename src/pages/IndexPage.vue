@@ -992,10 +992,10 @@ const depthUploadError = ref('');
 const depthUploadLoading = ref(false);
 const depthUploadStats = ref<{ total: number; skipped: number } | null>(null);
 
-async function onDepthFileUploaded(event: Event) {
+function onDepthFileUploaded(event: Event) {
   const target = event.target as HTMLInputElement;
   if (!target.files?.length) return;
-  depthUploadFile.value = target.files[0];
+  depthUploadFile.value = target.files[0]!;
   depthUploadError.value = '';
   depthUploadStats.value = null;
   target.value = '';
@@ -1035,8 +1035,8 @@ async function applyDepthData() {
     }
     
     await uploadMapDataToBackend(depthUploadFile.value, '2d-depth');
-  } catch (err: any) {
-    depthUploadError.value = err.message || String(err);
+  } catch (err) {
+    depthUploadError.value = err instanceof Error ? err.message : String(err);
     depthUploadFile.value = null;
     depthUploadStats.value = null;
   } finally {
@@ -1192,6 +1192,8 @@ function filterFn(val: string, update: (callback: () => void) => void) {
     );
   });
 }
+
+const activeFilter = ref('all');
 
 const fishFilters = [
   { value: 'all', label: 'All', icon: 'filter_list', activeColor: 'teal-7' },

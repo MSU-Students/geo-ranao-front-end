@@ -22,16 +22,29 @@ export interface DepthParseResult {
 
 // --- Excel Parser -------------------------------------------------------------
 
+// Same convention as useWaterQualityUpload.ts / useFishObservationUpload.ts â€”
+// cell values from XLSX are string | number | boolean | Date, never an
+// arbitrary object, but their declared type is `unknown` since they come
+// through a generic Record; this narrows safely instead of stringifying an
+// unknown value directly (which could print "[object Object]").
+function cellToString(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value instanceof Date) return value.toISOString();
+  return '';
+}
+
 /**
  * Parses an Excel file (.xlsx / .xls) containing depth sounding data.
  *
  * Required columns (case-insensitive):
- *   latitude  — decimal degrees (e.g. 7.8234)
- *   longitude — decimal degrees (e.g. 124.1234)
- *   depth_m   — depth in meters, positive = downward (e.g. 45.2)
+ *   latitude  ï¿½ decimal degrees (e.g. 7.8234)
+ *   longitude ï¿½ decimal degrees (e.g. 124.1234)
+ *   depth_m   ï¿½ depth in meters, positive = downward (e.g. 45.2)
  *
  * Optional column:
- *   notes     — ignored by the parser but included in the template
+ *   notes     ï¿½ ignored by the parser but included in the template
  */
 export async function parseDepthExcel(file: File): Promise<DepthParseResult> {
   const buffer = await file.arrayBuffer();
@@ -52,7 +65,7 @@ export async function parseDepthExcel(file: File): Promise<DepthParseResult> {
     throw new Error('The sheet contains no data rows. Please add depth measurements and try again.');
   }
 
-  const firstRow = rows[0];
+  const firstRow = rows[0]!;
   const keys = Object.keys(firstRow).map((k) => k.toLowerCase().trim());
 
   const hasLatitude = keys.includes('latitude');
@@ -79,9 +92,9 @@ export async function parseDepthExcel(file: File): Promise<DepthParseResult> {
       normRow[k.toLowerCase().trim()] = v;
     }
 
-    const lat = parseFloat(String(normRow['latitude'] ?? ''));
-    const lng = parseFloat(String(normRow['longitude'] ?? ''));
-    const depth = parseFloat(String(normRow['depth_m'] ?? ''));
+    const lat = parseFloat(cellToString(normRow['latitude']));
+    const lng = parseFloat(cellToString(normRow['longitude']));
+    const depth = parseFloat(cellToString(normRow['depth_m']));
 
     if (isNaN(lat) || isNaN(lng) || isNaN(depth) || depth < 0) {
       skippedRows++;

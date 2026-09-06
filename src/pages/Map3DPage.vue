@@ -312,7 +312,7 @@ async function buildScene() {
   geometry.rotateX(-Math.PI / 2);
 
 
-  const positions = geometry.attributes['position'];
+  const positions = geometry.getAttribute('position');
   const colors    = new Float32Array(positions.count * 3);
   const colAttr   = new THREE.BufferAttribute(colors, 3);
 
@@ -330,7 +330,7 @@ async function buildScene() {
     const lakeRow = Math.round(lakeNy * (height - 1));
     const inLake = lakeCol >= 0 && lakeCol < width && lakeRow >= 0 && lakeRow < height;
     const lakeIdx = inLake ? lakeRow * width + lakeCol : -1;
-    const depth = (lakeIdx >= 0 && values[lakeIdx]) ? values[lakeIdx]! : 0;
+    const depth = lakeIdx >= 0 && values[lakeIdx] ? values[lakeIdx] : 0;
     const isLakeCell = lakeIdx >= 0 && depth > 0.5;
 
     let yPos: number;

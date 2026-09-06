@@ -134,7 +134,10 @@ export function buildGeometryFromPoints(points: { x: number; y: number; z: numbe
 
   for (let i = 0; i < delaunay.triangles.length; i++) {
     const ptIdx = delaunay.triangles[i] as number;
-    const pt = normalizedPoints[ptIdx];
+    // normalizedPoints is a 1:1 .map() of the same points array Delaunator
+    // triangulated (via flatPoints), so every triangle vertex index it
+    // produces is guaranteed in-bounds here.
+    const pt = normalizedPoints[ptIdx]!;
     
     // Three.js coordinates: x=nx, y=Z value (up), z=-ny
     vertices[i * 3] = pt.nx;
