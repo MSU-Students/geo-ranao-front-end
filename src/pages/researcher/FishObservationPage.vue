@@ -361,7 +361,7 @@
               <div class="row q-col-gutter-md q-mb-lg">
                 <div class="col-12 col-md-6">
                   <q-input
-                    v-model="form.others.coordinates"
+                    v-model="form.coordinates"
                     label="Coordinates"
                     dark outlined class="form-field"
                     hint="e.g. 7.9900, 124.0700"
@@ -460,22 +460,10 @@
               </div>
               <div class="col-12 col-md-6" v-if="selectedCategory !== 'others'">
                 <q-input
-                  v-model.number="form.latitude"
-                  label="Latitude"
-                  type="number" step="0.000001"
+                  v-model="form.coordinates"
+                  label="Coordinates"
                   dark outlined class="form-field"
-                  hint="Optional — needed to show this observation on the map"
-                >
-                  <template #prepend><q-icon name="my_location" color="blue-4" /></template>
-                </q-input>
-              </div>
-              <div class="col-12 col-md-6" v-if="selectedCategory !== 'others'">
-                <q-input
-                  v-model.number="form.longitude"
-                  label="Longitude"
-                  type="number" step="0.000001"
-                  dark outlined class="form-field"
-                  hint="Optional — needed to show this observation on the map"
+                  hint="e.g. 7.9900, 124.0700 — optional, needed to show this observation on the map"
                 >
                   <template #prepend><q-icon name="my_location" color="blue-4" /></template>
                 </q-input>
@@ -619,7 +607,6 @@ const form = reactive({
     barangay: '',
   },
   others: {
-    coordinates: '',
     depth: null as number | null,
     weight: null as number | null,
     number: null as number | null,
@@ -627,8 +614,7 @@ const form = reactive({
   },
   dateObserved: '',
   conservationStatus: 'NOT_EVALUATED' as ConservationStatus,
-  latitude: null as number | null,
-  longitude: null as number | null,
+  coordinates: '',
   notes: '',
 });
 
@@ -653,7 +639,6 @@ function resetForm() {
     barangay: '',
   };
   form.others = {
-    coordinates: '',
     depth: null,
     weight: null,
     number: null,
@@ -661,8 +646,7 @@ function resetForm() {
   };
   form.dateObserved = '';
   form.conservationStatus = 'NOT_EVALUATED';
-  form.latitude = null;
-  form.longitude = null;
+  form.coordinates = '';
   form.notes = '';
 }
 
@@ -688,7 +672,7 @@ function loadSampleData() {
     form.conservationStatus = 'LEAST_CONCERN';
     form.notes = 'Dense aggregation observed near shoreline. Likely displacing endemic cyprinids in this zone.';
   } else if (selectedCategory.value === 'others') {
-    form.others.coordinates = '7.9823, 124.2701';
+    form.coordinates = '7.9823, 124.2701';
     form.others.depth = 4.5;
     form.others.weight = 520.0;
     form.others.number = 37;
@@ -704,17 +688,6 @@ function loadSampleData() {
   });
 }
 
-// "7.9823, 124.2701" -> { latitude, longitude } — best-effort, silently
-// leaves both undefined if the free-text field isn't in that shape.
-function parseCoordinates(text: string): { latitude?: number; longitude?: number } {
-  const parts = text.split(',').map((p) => Number(p.trim()));
-  const [lat, lng] = parts;
-  if (parts.length === 2 && lat !== undefined && lng !== undefined && Number.isFinite(lat) && Number.isFinite(lng)) {
-    return { latitude: lat, longitude: lng };
-  }
-  return {};
-}
-
 async function handleSubmit() {
   if (!form.dateObserved) {
     $q.notify({ type: 'negative', message: 'Date Observed is required.', position: 'top' });
@@ -724,6 +697,7 @@ async function handleSubmit() {
   const data = new FormData();
   data.append('dateObserved', form.dateObserved);
   if (form.notes) data.append('notes', form.notes);
+  if (form.coordinates) data.append('coordinates', form.coordinates);
 
   let photos: File[] | null = null;
 
@@ -737,8 +711,6 @@ async function handleSubmit() {
     if (form.endemic.weight !== null) data.append('weightG', String(form.endemic.weight));
     if (form.endemic.municipal) data.append('municipal', form.endemic.municipal);
     if (form.endemic.barangay) data.append('barangay', form.endemic.barangay);
-    if (form.latitude !== null) data.append('latitude', String(form.latitude));
-    if (form.longitude !== null) data.append('longitude', String(form.longitude));
     photos = form.endemic.photos;
   } else if (selectedCategory.value === 'invasive') {
     data.append('category', 'INVASIVE');
@@ -749,14 +721,9 @@ async function handleSubmit() {
     if (form.invasive.weight !== null) data.append('weightG', String(form.invasive.weight));
     if (form.invasive.municipal) data.append('municipal', form.invasive.municipal);
     if (form.invasive.barangay) data.append('barangay', form.invasive.barangay);
-    if (form.latitude !== null) data.append('latitude', String(form.latitude));
-    if (form.longitude !== null) data.append('longitude', String(form.longitude));
     photos = form.invasive.photos;
   } else if (selectedCategory.value === 'others') {
     data.append('category', 'GENERAL');
-    const { latitude, longitude } = parseCoordinates(form.others.coordinates);
-    if (latitude !== undefined) data.append('latitude', String(latitude));
-    if (longitude !== undefined) data.append('longitude', String(longitude));
     if (form.others.depth !== null) data.append('depthM', String(form.others.depth));
     if (form.others.weight !== null) data.append('weightG', String(form.others.weight));
     if (form.others.number !== null) data.append('count', String(form.others.number));
