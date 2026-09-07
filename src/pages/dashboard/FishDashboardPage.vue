@@ -378,13 +378,28 @@
           </q-card>
         </div>
       </div>
+
+      <!-- Footer Actions -->
+      <div class="row q-gutter-sm">
+        <q-btn
+          color="teal"
+          label="Record Fish Observation"
+          icon="add"
+          unelevated
+          rounded
+          @click="uploadDialogRef?.openFor('fish')"
+        />
+      </div>
     </div>
+
+    <UploadDataDialog ref="uploadDialogRef" />
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import BackButton from 'components/BackButton.vue';
+import UploadDataDialog from 'components/UploadDataDialog.vue';
 import ParameterTrendChart from 'components/charts/ParameterTrendChart.vue';
 import {
   fetchFishObservations,
@@ -396,6 +411,7 @@ import {
 const search = ref('');
 const activeFilter = ref('all');
 const loading = ref(false);
+const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 
 interface Fish {
   id: string;

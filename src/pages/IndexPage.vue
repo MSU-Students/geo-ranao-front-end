@@ -479,47 +479,33 @@
               <!-- ═══ MAP DATA TAB (ADMIN ONLY) ═══ -->
               <q-tab-panel v-if="isAdmin" name="map-data" class="q-pa-md">
                 <div class="text-subtitle2 text-teal-8 text-weight-bold q-mb-md">
-                  <q-icon name="cloud_upload" class="q-mr-xs" /> Depth Data Upload
+                  <q-icon name="terrain" class="q-mr-xs" /> Bathymetry Data
                 </div>
                 <q-card flat bordered class="q-pa-sm bg-grey-1 rounded-borders">
                   <q-card-section>
-                    <div class="text-caption text-grey-8 q-mb-sm">
-                      Upload an Excel file with real bathymetry soundings to replace the synthetic contour model.
-                    </div>
-                    
-                    <div class="column items-center justify-center q-pa-lg cursor-pointer bg-white rounded-borders"
-                         style="border: 2px dashed #ccc;"
-                         @click="!depthUploadFile && depthFileInput?.click()">
-                      <input type="file" ref="depthFileInput" accept=".xlsx,.xls" style="display: none" @change="onDepthFileUploaded" />
-                      
-                      <template v-if="!depthUploadFile">
-                        <q-icon name="cloud_upload" size="48px" color="teal-5" />
-                        <div class="text-subtitle2 text-grey-9 q-mt-sm text-center">Click to browse or drag file here</div>
-                        <div class="text-caption text-negative q-mt-sm" v-if="depthUploadError"><q-icon name="error" /> {{ depthUploadError }}</div>
-                      </template>
-                      <template v-else>
-                        <q-icon name="description" size="48px" color="teal-7" />
-                        <div class="text-subtitle2 text-grey-9 q-mt-sm text-center">{{ depthUploadFile.name }}</div>
-                        <div class="text-caption text-grey-6">{{ (depthUploadFile.size / 1024).toFixed(1) }} KB</div>
-                        <q-btn flat dense color="negative" icon="delete" label="Remove" class="q-mt-sm" @click.stop="depthUploadFile = null; depthUploadError = ''" />
-                      </template>
-                    </div>
-
-                    <div v-if="depthUploadStats" class="q-mt-md text-caption text-grey-8">
-                      <q-icon name="check_circle" color="positive" class="q-mr-xs" />
-                      Successfully parsed {{ depthUploadStats.total - depthUploadStats.skipped }} points.
-                      <span v-if="depthUploadStats.skipped > 0" class="text-warning">
-                        Skipped {{ depthUploadStats.skipped }} invalid rows.
-                      </span>
-                    </div>
-
+                    <template v-if="activeBathymetrySurvey">
+                      <div class="text-caption text-positive">
+                        <q-icon name="check_circle" class="q-mr-xs" /> Showing an approved survey on the map
+                      </div>
+                      <div class="text-subtitle2 text-grey-9 q-mt-sm">{{ activeBathymetrySurvey.label }}</div>
+                      <div class="text-caption text-grey-6">
+                        {{ activeBathymetrySurvey.pointCount }} soundings &middot; surveyed {{ activeBathymetrySurvey.surveyDate }}
+                        <span v-if="activeBathymetrySurvey.reviewedBy"> &middot; approved by {{ activeBathymetrySurvey.reviewedBy }}</span>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div class="text-caption text-grey-8">
+                        <q-icon name="info" color="grey-6" class="q-mr-xs" />
+                        No survey approved yet — the map is showing a synthetic placeholder, not real depth data.
+                      </div>
+                    </template>
                   </q-card-section>
                   <q-card-actions align="right">
-                    <q-btn flat color="grey-8" label="Reset to Default" @click="resetDepthData" :disable="!customDepthGrid" />
-                    <q-btn unelevated color="teal" label="Apply to Map" :loading="depthUploadLoading" :disable="!depthUploadFile" @click="applyDepthData" />
+                    <q-btn flat color="grey-8" label="Review Queue" icon="fact_check" to="/admin" />
+                    <q-btn unelevated color="teal" label="Upload Bathymetry Data" icon="cloud_upload" to="/researcher/upload/bathymetry" />
                   </q-card-actions>
                 </q-card>
-                
+
                 <div class="q-mt-md text-center">
                   <q-btn flat dense color="primary" icon="download" label="Download Template" href="/templates/depth-soundings-template.xlsx" target="_blank" />
                 </div>
@@ -830,7 +816,8 @@ import {
   CONTOUR_LABEL_MIN_ZOOM,
   CONTOUR_COLOR_STOPS
 } from 'src/composables/useBathymetry';
-import { parseDepthExcel, buildDepthGridFromPoints, uploadMapDataToBackend } from 'src/composables/useMapDataUpload';
+import { buildDepthGridFromPoints } from 'src/composables/useMapDataUpload';
+import { fetchActiveBathymetrySurvey, type BathymetrySurvey } from 'src/composables/useBathymetrySurveys';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -984,92 +971,23 @@ const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 // ═══ STATE ═══
 const activeTab = ref('fish');
 
-// ═══ ADMIN MAP DATA UPLOAD ═══
-const depthFileInput = ref<HTMLInputElement | null>(null);
+// ═══ BATHYMETRY — approved survey drives the real contour grid ═══
+// customDepthGrid used to hold an admin's own local-only upload preview;
+// it now holds the IDW grid built from whichever survey is APPROVED, so the
+// same buildContourLayers() below needs no changes — it already prefers
+// customDepthGrid over the synthetic buildDepthGrid() fallback.
 const customDepthGrid = ref<DepthGrid | null>(null);
-const depthUploadFile = ref<File | null>(null);
-const depthUploadError = ref('');
-const depthUploadLoading = ref(false);
-const depthUploadStats = ref<{ total: number; skipped: number } | null>(null);
+const activeBathymetrySurvey = ref<BathymetrySurvey | null>(null);
 
-function onDepthFileUploaded(event: Event) {
-  const target = event.target as HTMLInputElement;
-  if (!target.files?.length) return;
-  depthUploadFile.value = target.files[0]!;
-  depthUploadError.value = '';
-  depthUploadStats.value = null;
-  target.value = '';
-}
-
-async function applyDepthData() {
-  if (!depthUploadFile.value || !lakePolygonRings.length) return;
-  depthUploadLoading.value = true;
-  depthUploadError.value = '';
+async function loadActiveBathymetrySurvey() {
   try {
-    const parseResult = await parseDepthExcel(depthUploadFile.value);
-    depthUploadStats.value = { total: parseResult.totalRows, skipped: parseResult.skippedRows };
-    const grid = buildDepthGridFromPoints(parseResult.points, lakePolygonRings);
-    if (!grid) throw new Error('Failed to generate depth grid from the provided points.');
-    
-    customDepthGrid.value = grid;
-    if (contourLinesLayerGroup && map) map.removeLayer(contourLinesLayerGroup);
-    if (contourFilledLayerGroup && map) map.removeLayer(contourFilledLayerGroup);
-    if (contourLabelsLayerGroup && map) map.removeLayer(contourLabelsLayerGroup);
-    
-    contourLinesLayerGroup = null;
-    contourFilledLayerGroup = null;
-    contourLabelsLayerGroup = null;
-    
-    buildContourLayers();
-    
-    const linesActive = mapLayers.value.find((l) => l.id === 'contourLines')?.active;
-    const fillActive = mapLayers.value.find((l) => l.id === 'contourFilled')?.active;
-    if (linesActive && contourLinesLayerGroup && map) {
-      map.addLayer(contourLinesLayerGroup);
-      if (contourLabelsLayerGroup && map.getZoom() >= CONTOUR_LABEL_MIN_ZOOM) {
-        map.addLayer(contourLabelsLayerGroup);
-      }
-    }
-    if (fillActive && contourFilledLayerGroup && map) {
-      map.addLayer(contourFilledLayerGroup);
-    }
-    
-    await uploadMapDataToBackend(depthUploadFile.value, '2d-depth');
+    const survey = await fetchActiveBathymetrySurvey();
+    if (!survey) return;
+    activeBathymetrySurvey.value = survey;
+    const grid = buildDepthGridFromPoints(survey.points, lakePolygonRings);
+    if (grid) customDepthGrid.value = grid;
   } catch (err) {
-    depthUploadError.value = err instanceof Error ? err.message : String(err);
-    depthUploadFile.value = null;
-    depthUploadStats.value = null;
-  } finally {
-    depthUploadLoading.value = false;
-  }
-}
-
-function resetDepthData() {
-  customDepthGrid.value = null;
-  depthUploadFile.value = null;
-  depthUploadError.value = '';
-  depthUploadStats.value = null;
-  
-  if (contourLinesLayerGroup && map) map.removeLayer(contourLinesLayerGroup);
-  if (contourFilledLayerGroup && map) map.removeLayer(contourFilledLayerGroup);
-  if (contourLabelsLayerGroup && map) map.removeLayer(contourLabelsLayerGroup);
-  
-  contourLinesLayerGroup = null;
-  contourFilledLayerGroup = null;
-  contourLabelsLayerGroup = null;
-  
-  buildContourLayers();
-  
-  const linesActive = mapLayers.value.find((l) => l.id === 'contourLines')?.active;
-  const fillActive = mapLayers.value.find((l) => l.id === 'contourFilled')?.active;
-  if (linesActive && contourLinesLayerGroup && map) {
-    map.addLayer(contourLinesLayerGroup);
-    if (contourLabelsLayerGroup && map.getZoom() >= CONTOUR_LABEL_MIN_ZOOM) {
-      map.addLayer(contourLabelsLayerGroup);
-    }
-  }
-  if (fillActive && contourFilledLayerGroup && map) {
-    map.addLayer(contourFilledLayerGroup);
+    console.error('Failed to load active bathymetry survey:', err);
   }
 }
 
@@ -2110,7 +2028,7 @@ function initMap() {
   lakeBoundaryLayerGroup = L.layerGroup();
   fetch('/geo/lake-lanao.geojson')
     .then((res) => res.json())
-    .then((geojson: GeoJSON.FeatureCollection) => {
+    .then(async (geojson: GeoJSON.FeatureCollection) => {
       const boundaryLayer = L.geoJSON(geojson, {
         style: {
           color: '#0288D1',
@@ -2122,6 +2040,7 @@ function initMap() {
       });
       lakeBoundaryLayerGroup!.addLayer(boundaryLayer);
       lakePolygonRings = extractPolygonRings(geojson);
+      await loadActiveBathymetrySurvey();
       buildContourLayers();
       buildMunicipalZones();
       syncLayerVisibility();

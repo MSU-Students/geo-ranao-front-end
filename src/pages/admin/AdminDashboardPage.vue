@@ -300,7 +300,7 @@
                 <template #body-cell-category="props">
                   <q-td :props="props">
                     <q-badge
-                      :color="props.row.category === 'Fish Observation' ? 'blue' : 'teal'"
+                      :color="props.row.category === 'Fish Observation' ? 'blue' : props.row.category === 'Bathymetry' ? 'orange' : 'teal'"
                       :label="props.row.category"
                     />
                   </q-td>
@@ -327,6 +327,19 @@
                         <q-tooltip>All parameter values are within the expected range</q-tooltip>
                       </q-icon>
                     </template>
+                    <template v-else-if="props.row.category === 'Bathymetry'">
+                      <q-badge
+                        v-if="props.row.cleanedCount"
+                        color="orange" text-color="black"
+                        :label="`${props.row.cleanedCount} dropped while cleaning`"
+                        class="cursor-help"
+                      >
+                        <q-tooltip>Duplicate, out-of-lake, or statistically outlying soundings removed before submission</q-tooltip>
+                      </q-badge>
+                      <q-icon v-else name="check_circle" color="positive" size="20px">
+                        <q-tooltip>Nothing was dropped during cleaning</q-tooltip>
+                      </q-icon>
+                    </template>
                     <span v-else class="text-grey-6">—</span>
                   </q-td>
                 </template>
@@ -346,6 +359,13 @@
                       @click="openBatchDetail(props.row)"
                     >
                       <q-tooltip>View Rows ({{ props.row.rows.length }})</q-tooltip>
+                    </q-btn>
+                    <q-btn
+                      v-if="props.row.bathymetryPoints && props.row.bathymetryPoints.length"
+                      flat round dense icon="terrain" color="teal-4" size="sm"
+                      @click="openBatchDetail(props.row)"
+                    >
+                      <q-tooltip>View Soundings ({{ props.row.bathymetryPoints.length }})</q-tooltip>
                     </q-btn>
                     <q-btn
                       v-if="props.row.status === 'pending'"
@@ -612,7 +632,37 @@
           </div>
         </q-card-section>
         <q-separator />
-        <q-card-section style="max-height: 420px; overflow-y: auto">
+        <q-card-section v-if="batchDetailItem.type === 'bathymetry'" style="max-height: 420px; overflow-y: auto">
+          <div class="row q-col-gutter-sm q-mb-md">
+            <div class="col-4">
+              <div class="text-h6 text-teal-9">{{ batchDetailItem.bathymetryPoints?.length ?? 0 }}</div>
+              <div class="text-caption text-grey-7">Soundings kept</div>
+            </div>
+            <div class="col-4">
+              <div class="text-h6" :class="batchDetailItem.cleanedCount ? 'text-warning' : 'text-grey-6'">
+                {{ batchDetailItem.cleanedCount ?? 0 }}
+              </div>
+              <div class="text-caption text-grey-7">Dropped while cleaning</div>
+            </div>
+            <div class="col-4">
+              <div class="text-h6 text-teal-9">{{ bathymetryDepthRange }}</div>
+              <div class="text-caption text-grey-7">Depth range (m)</div>
+            </div>
+          </div>
+          <q-markup-table dense flat bordered>
+            <thead>
+              <tr><th class="text-left">Latitude</th><th class="text-left">Longitude</th><th class="text-left">Depth (m)</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="(pt, i) in batchDetailItem.bathymetryPoints ?? []" :key="i">
+                <td>{{ pt.lat.toFixed(6) }}</td>
+                <td>{{ pt.lng.toFixed(6) }}</td>
+                <td>{{ pt.depth.toFixed(1) }}</td>
+              </tr>
+            </tbody>
+          </q-markup-table>
+        </q-card-section>
+        <q-card-section v-else style="max-height: 420px; overflow-y: auto">
           <q-list bordered separator>
             <q-expansion-item
               v-for="(row, i) in batchDetailItem.rows ?? []"
@@ -921,6 +971,13 @@ function openBatchDetail(item: UploadReviewItem) {
   batchDetailItem.value = item;
   batchDetailShow.value = true;
 }
+
+const bathymetryDepthRange = computed(() => {
+  const points = batchDetailItem.value?.bathymetryPoints;
+  if (!points || points.length === 0) return '—';
+  const depths = points.map((p) => p.depth);
+  return `${Math.min(...depths).toFixed(1)}–${Math.max(...depths).toFixed(1)}`;
+});
 
 // ─── Site Coordinates Lookup (for batch GeoJSON export) ───
 const siteCoordsById = ref(new Map<string, { lat: number; lng: number }>());

@@ -18,6 +18,13 @@ import {
   rejectWaterQualityBatch,
   type WaterQualityReading,
 } from 'src/composables/useWaterQualityReadings';
+import {
+  fetchBathymetrySurveys,
+  approveBathymetrySurvey,
+  rejectBathymetrySurvey,
+  type BathymetrySurvey,
+} from 'src/composables/useBathymetrySurveys';
+import type { DepthPoint } from 'src/composables/useMapDataUpload';
 
 export type AccountStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
 
@@ -46,11 +53,11 @@ export interface ActivityLogEntry {
 }
 
 export type UploadReviewStatus = 'pending' | 'approved' | 'rejected';
-export type UploadCategory = 'Fish Observation' | 'Water Quality';
+export type UploadCategory = 'Fish Observation' | 'Water Quality' | 'Bathymetry';
 
 export interface UploadReviewItem {
   id: string;
-  type: 'fish' | 'water';
+  type: 'fish' | 'water' | 'bathymetry';
   /** Fish observation id, or single (non-batch) water quality reading id. */
   refId?: number;
   /** Present for bulk water-quality uploads — groups many readings reviewed as one unit. */
@@ -72,6 +79,10 @@ export interface UploadReviewItem {
    * concept doesn't apply.
    */
   warnings?: string[] | undefined;
+  /** Bathymetry only — the cleaned soundings, for an admin preview map. */
+  bathymetryPoints?: DepthPoint[] | undefined;
+  /** Bathymetry only — how many raw rows were dropped during client-side cleaning. */
+  cleanedCount?: number | undefined;
 }
 
 // ── Backend shapes (from geo-ranao-api) ──
@@ -259,17 +270,40 @@ export const useAdminStore = defineStore('admin', () => {
     return item;
   }
 
-  // Fish/water submissions are keyed to a researcher's *name*, so account
-  // names must be loaded first — fetchAccounts() is safe to call repeatedly
-  // (cheap) and keeps this self-sufficient regardless of call order.
+  function bathyToItem(s: BathymetrySurvey): UploadReviewItem {
+    const item: UploadReviewItem = {
+      id: `bathy-${s.id}`,
+      type: 'bathymetry',
+      refId: s.id,
+      researcher: researcherName(s.researcherId),
+      category: 'Bathymetry',
+      title: s.label,
+      location: `${s.pointCount} soundings`,
+      submittedDate: s.createdAt.slice(0, 10),
+      status: mapReviewStatus(s.reviewStatus),
+      bathymetryPoints: s.points,
+      cleanedCount: s.cleanedCount,
+    };
+    if (s.reviewNote) item.reviewNote = s.reviewNote;
+    return item;
+  }
+
+  // Fish/water/bathymetry submissions are keyed to a researcher's *name*, so
+  // account names must be loaded first — fetchAccounts() is safe to call
+  // repeatedly (cheap) and keeps this self-sufficient regardless of call order.
   async function fetchUploadReviews() {
     uploadReviewsLoading.value = true;
     try {
       if (researcherAccounts.value.length === 0) await fetchAccounts();
 
-      const [fishRows, waterRows] = await Promise.all([fetchFishObservations(), fetchWaterQualityReadings()]);
+      const [fishRows, waterRows, bathyRows] = await Promise.all([
+        fetchFishObservations(),
+        fetchWaterQualityReadings(),
+        fetchBathymetrySurveys(),
+      ]);
 
       const fishItems = fishRows.map(fishToItem);
+      const bathyItems = bathyRows.map(bathyToItem);
 
       const batches = new Map<string, WaterQualityReading[]>();
       const singleItems: UploadReviewItem[] = [];
@@ -284,7 +318,7 @@ export const useAdminStore = defineStore('admin', () => {
       }
       const batchItems = [...batches.entries()].map(([batchId, rows]) => waterBatchToItem(batchId, rows));
 
-      uploadReviews.value = [...fishItems, ...singleItems, ...batchItems].sort((a, b) =>
+      uploadReviews.value = [...fishItems, ...singleItems, ...batchItems, ...bathyItems].sort((a, b) =>
         b.submittedDate.localeCompare(a.submittedDate),
       );
     } finally {
@@ -359,6 +393,9 @@ export const useAdminStore = defineStore('admin', () => {
       if (item.type === 'fish') {
         if (status === 'approved') await approveFishObservation(item.refId!);
         else await rejectFishObservation(item.refId!, note);
+      } else if (item.type === 'bathymetry') {
+        if (status === 'approved') await approveBathymetrySurvey(item.refId!);
+        else await rejectBathymetrySurvey(item.refId!, note);
       } else if (item.batchId) {
         if (status === 'approved') await approveWaterQualityBatch(item.batchId);
         else await rejectWaterQualityBatch(item.batchId, note);

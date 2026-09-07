@@ -33,6 +33,10 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/researcher/WaterQualityPage.vue'),
       },
       {
+        path: '/researcher/upload/bathymetry',
+        component: () => import('pages/researcher/BathymetryUploadPage.vue'),
+      },
+      {
         path: '/admin',
         component: () => import('pages/admin/AdminDashboardPage.vue'),
       },
