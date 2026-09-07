@@ -311,10 +311,7 @@ onMounted(async () => {
         title,
         detail,
         reviewStatus: obs.reviewStatus,
-        location:
-          obs.latitude != null && obs.longitude != null
-            ? `${obs.latitude.toFixed(4)}, ${obs.longitude.toFixed(4)}`
-            : '—',
+        location: obs.coordinates ?? '—',
         date: obs.dateObserved,
       };
     });

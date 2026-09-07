@@ -32,8 +32,7 @@ export interface FishObservation {
   depthM?: number | null;
   count?: number | null;
   sizeCategory?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
+  coordinates?: string | null;
   municipal?: string | null;
   barangay?: string | null;
   dateObserved: string;
@@ -58,6 +57,16 @@ export interface FishObservationSummary {
 // directly without attaching a Bearer header.
 export function fishPhotoUrl(photo: Pick<FishObservationPhoto, 'id' | 'observationId'>): string {
   return `${import.meta.env.VITE_API_URL}/fish-observations/${photo.observationId}/photos/${photo.id}`;
+}
+
+// "7.9823, 124.2701" -> { lat, lng } — the API stores/validates this as one
+// free-text field (class-validator's @IsLatLong()); split it back out only
+// where a numeric pair is actually needed, e.g. placing a map marker.
+export function parseCoordinates(coordinates: string | null | undefined): { lat: number; lng: number } | null {
+  if (!coordinates) return null;
+  const [lat, lng] = coordinates.split(',').map((p) => Number(p.trim()));
+  if (lat === undefined || lng === undefined || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
 }
 
 export async function submitFishObservation(form: FormData): Promise<FishObservation> {

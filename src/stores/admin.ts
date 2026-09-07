@@ -208,10 +208,7 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   function fishToItem(f: FishObservation): UploadReviewItem {
-    const location =
-      f.latitude != null && f.longitude != null
-        ? `${f.latitude}, ${f.longitude}`
-        : f.municipal || 'Lake Lanao';
+    const location = f.coordinates || f.municipal || 'Lake Lanao';
     const item: UploadReviewItem = {
       id: `fish-${f.id}`,
       type: 'fish',
