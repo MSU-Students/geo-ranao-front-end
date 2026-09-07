@@ -490,19 +490,22 @@
                       <div class="text-subtitle2 text-grey-9 q-mt-sm">{{ activeBathymetrySurvey.label }}</div>
                       <div class="text-caption text-grey-6">
                         {{ activeBathymetrySurvey.pointCount }} soundings &middot; surveyed {{ activeBathymetrySurvey.surveyDate }}
-                        <span v-if="activeBathymetrySurvey.reviewedBy"> &middot; approved by {{ activeBathymetrySurvey.reviewedBy }}</span>
+                        <span v-if="activeBathymetrySurvey.reviewedBy"> &middot; published by {{ activeBathymetrySurvey.reviewedBy }}</span>
                       </div>
                     </template>
                     <template v-else>
                       <div class="text-caption text-grey-8">
                         <q-icon name="info" color="grey-6" class="q-mr-xs" />
-                        No survey approved yet — the map is showing a synthetic placeholder, not real depth data.
+                        No survey published yet — the map is showing a synthetic placeholder, not real depth data.
                       </div>
                     </template>
                   </q-card-section>
                   <q-card-actions align="right">
-                    <q-btn flat color="grey-8" label="Review Queue" icon="fact_check" to="/admin" />
-                    <q-btn unelevated color="teal" label="Upload Bathymetry Data" icon="cloud_upload" to="/researcher/upload/bathymetry" />
+                    <q-btn flat color="grey-8" label="Upload History" icon="history" to="/admin" />
+                    <q-btn
+                      unelevated color="teal" label="Upload Bathymetry Survey" icon="add"
+                      @click="uploadBathymetryDialogRef?.open()"
+                    />
                   </q-card-actions>
                 </q-card>
 
@@ -772,6 +775,7 @@
     </div>
 
     <UploadDataDialog ref="uploadDialogRef" />
+    <UploadBathymetryDialog ref="uploadBathymetryDialogRef" @published="loadActiveBathymetrySurvey" />
 
   </q-page>
 </template>
@@ -820,6 +824,7 @@ import {
 import { buildDepthGridFromPoints } from 'src/composables/useMapDataUpload';
 import { fetchActiveBathymetrySurvey, type BathymetrySurvey } from 'src/composables/useBathymetrySurveys';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
+import UploadBathymetryDialog from 'src/components/UploadBathymetryDialog.vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 // ═══ CONSERVATION STATUS COLORS (IUCN scale) ═══
@@ -968,6 +973,7 @@ let riverSitesLayerGroup: L.LayerGroup | null = null;
 const authStore = useAuthStore();
 const isAdmin = computed(() => authStore.user?.role === 'Admin');
 const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
+const uploadBathymetryDialogRef = ref<InstanceType<typeof UploadBathymetryDialog> | null>(null);
 
 // ═══ STATE ═══
 const activeTab = ref('fish');

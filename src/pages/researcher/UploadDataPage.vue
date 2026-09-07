@@ -25,7 +25,7 @@
       </div>
 
       <div class="row q-col-gutter-lg justify-center">
-        <div class="col-12 col-sm-4">
+        <div class="col-12 col-sm-6">
           <q-card class="glass-morph type-card cursor-pointer" flat bordered @click="router.push('/researcher/upload/fish')">
             <q-card-section class="column items-center q-pa-xl text-center">
               <div class="cat-icon-bg teal-bg q-mb-lg flex flex-center">
@@ -39,7 +39,7 @@
           </q-card>
         </div>
 
-        <div class="col-12 col-sm-4">
+        <div class="col-12 col-sm-6">
           <q-card class="glass-morph type-card cursor-pointer" flat bordered @click="router.push('/researcher/upload/water-quality')">
             <q-card-section class="column items-center q-pa-xl text-center">
               <div class="cat-icon-bg blue-bg q-mb-lg flex flex-center">
@@ -48,20 +48,6 @@
               <div class="text-h6 text-white">Water Quality</div>
               <div class="text-caption text-grey-5 q-mt-sm">
                 pH, temperature, dissolved oxygen, nutrients at a fixed sampling station
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
-
-        <div class="col-12 col-sm-4">
-          <q-card class="glass-morph type-card cursor-pointer" flat bordered @click="router.push('/researcher/upload/bathymetry')">
-            <q-card-section class="column items-center q-pa-xl text-center">
-              <div class="cat-icon-bg orange-bg q-mb-lg flex flex-center">
-                <q-icon name="terrain" size="36px" color="orange-4" />
-              </div>
-              <div class="text-h6 text-white">Bathymetry Survey</div>
-              <div class="text-caption text-grey-5 q-mt-sm">
-                Depth soundings — cleaned automatically, mapped as contours after admin review
               </div>
             </q-card-section>
           </q-card>
@@ -158,5 +144,4 @@ if (!authStore.isLoggedIn) {
 
 .teal-bg { background: rgba(38, 166, 154, 0.2); }
 .blue-bg { background: rgba(66, 165, 245, 0.2); }
-.orange-bg { background: rgba(255, 167, 38, 0.2); }
 </style>
