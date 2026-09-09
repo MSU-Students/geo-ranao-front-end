@@ -50,11 +50,14 @@ export function pointInRing(lat: number, lng: number, ring: [number, number][]):
 }
 
 export function pointInPolygon(lat: number, lng: number, rings: [number, number][][]): boolean {
-  let inside = false;
-  for (const ring of rings) {
-    if (pointInRing(lat, lng, ring)) inside = !inside;
+  if (rings.length === 0) return false;
+  // First ring is always the outer boundary
+  if (!pointInRing(lat, lng, rings[0]!)) return false;
+  // Subsequent rings are interior holes (islands)
+  for (let i = 1; i < rings.length; i++) {
+    if (pointInRing(lat, lng, rings[i]!)) return false; // Inside an island -> outside water
   }
-  return inside;
+  return true;
 }
 
 export function extractPolygonRings(geojson: FeatureCollection): [number, number][][] {
@@ -174,7 +177,10 @@ export function buildDepthGrid(lakePolygonRings: [number, number][][], forceRebu
   const lngSpan = maxLng - minLng;
   if (latSpan <= 0 || lngSpan <= 0) return null;
 
-  const simplifiedRings = lakePolygonRings.map((ring) => simplifyRing(ring, 0.0008));
+  // Simplify outer boundary for performance, but keep island holes intact (or very fine tolerance) so they don't collapse
+  const simplifiedRings = lakePolygonRings.map((ring, idx) =>
+    idx === 0 ? simplifyRing(ring, 0.0008) : simplifyRing(ring, 0.00005),
+  );
 
   const midLatRad = (((minLat + maxLat) / 2) * Math.PI) / 180;
   const lngCorrection = Math.max(Math.cos(midLatRad), 0.1);
