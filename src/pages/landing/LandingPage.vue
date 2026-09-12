@@ -337,9 +337,7 @@
       <div class="info-column">
         <!-- HERO TEXT — sits over the lake photo -->
         <div class="hero-block">
-          <q-avatar size="90px" class="hero-logo-avatar q-mb-lg">
-            <q-icon name="water_drop" size="50px" color="white" />
-          </q-avatar>
+          <img src="~assets/geo-ranao-logo.png" alt="Geo Ranao Logo" class="hero-logo q-mb-lg" />
 
           <h1 class="hero-title q-mb-none">GEO RANAO</h1>
           <div class="hero-divider q-mx-auto q-my-md" />
@@ -1099,9 +1097,11 @@ onUnmounted(() => {
   padding: 24px 8px;
 }
 
-.hero-logo-avatar {
-  background: linear-gradient(135deg, #00695c, #26a69a) !important;
-  box-shadow: 0 4px 30px rgba(38, 166, 154, 0.4);
+.hero-logo {
+  width: 180px;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.4));
 }
 
 .hero-title {

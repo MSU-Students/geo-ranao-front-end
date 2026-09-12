@@ -5,7 +5,7 @@
       <div v-if="isLoading" class="loading-overlay">
         <div class="loading-content">
           <div class="pulse-ring"></div>
-          <q-icon name="water_drop" class="loading-icon" size="48px" color="teal-3" />
+          <img src="~assets/geo-ranao-logo.png" alt="Geo Ranao" class="loading-icon" style="width: 56px; height: auto; object-fit: contain" />
           <p class="loading-text">{{ isCustomModel ? 'Building Custom Surfer Model…' : 'Building 3D Bathymetry Model…' }}</p>
           <p class="loading-sub">{{ isCustomModel ? 'Parsing KMZ and computing surface' : 'Fetching satellite imagery & terrain elevation data…' }}</p>
           <q-linear-progress

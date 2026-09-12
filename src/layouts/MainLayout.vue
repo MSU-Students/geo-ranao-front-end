@@ -9,7 +9,7 @@
           :class="{ 'brand-disabled': isAdminUser }"
           @click="handleBrandClick"
         >
-          <q-icon name="water_drop" color="teal-3" size="sm" class="q-mr-xs" />
+          <img src="~assets/geo-ranao-logo.png" alt="Geo Ranao" style="width: 26px; height: auto; object-fit: contain" class="q-mr-xs" />
           <span class="brand-text">Ranao FishNet</span>
         </div>
 
@@ -101,7 +101,7 @@
     <q-drawer v-model="leftDrawerOpen" bordered class="drawer-modern" :width="280">
       <q-list class="q-pt-lg">
         <q-item-label header class="drawer-header">
-          <q-icon name="water_drop" color="teal" class="q-mr-sm" size="sm" />
+          <img src="~assets/geo-ranao-logo.png" alt="Geo Ranao" style="width: 22px; height: auto; object-fit: contain" class="q-mr-sm" />
           Navigation
         </q-item-label>
 

@@ -47,13 +47,7 @@
           <!-- Panel Header -->
           <q-card-section class="q-pb-xs">
             <div class="row items-center no-wrap">
-              <q-avatar
-                size="36px"
-                class="q-mr-sm"
-                style="background: linear-gradient(135deg, #00897b, #26a69a)"
-              >
-                <q-icon name="water_drop" size="20px" color="white" />
-              </q-avatar>
+              <img src="~assets/geo-ranao-logo.png" alt="Geo Ranao" style="width: 32px; height: auto; object-fit: contain" class="q-mr-sm" />
               <div>
                 <div class="text-subtitle1 text-grey-9 text-weight-bold" style="line-height: 1.2">
                   Ranao FishNet
