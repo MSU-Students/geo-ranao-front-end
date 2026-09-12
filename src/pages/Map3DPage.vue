@@ -1217,7 +1217,7 @@ function onMouseMove(e: MouseEvent) {
     // Pan in camera's XZ plane
     const panSpeed = cam.radius * 0.001;
     cam.target.x -= dx * panSpeed;
-    cam.target.z += dy * panSpeed * 0.5;
+    cam.target.z -= dy * panSpeed * 0.5;
     updateCameraPosition();
   }
 }
