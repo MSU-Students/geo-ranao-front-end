@@ -528,6 +528,53 @@
               </q-card>
             </div>
 
+            <!-- Water Quality Summary Report -->
+            <div class="col-12 col-md-6">
+              <q-card class="glass-morph full-height">
+                <q-card-section>
+                  <div class="text-white text-h6 text-weight-bold q-mb-md">
+                    <q-icon name="water_drop" color="teal-3" class="q-mr-sm" />
+                    Water Quality Summary Report
+                  </div>
+                  <p class="text-grey-4 text-caption q-mb-md">
+                    A plain-language PDF: average parameter levels, status against normal ranges, and a station
+                    location diagram — for a municipality's water zone or the whole lake.
+                  </p>
+
+                  <q-select
+                    v-model="wqSummaryMunicipality"
+                    :options="wqSummaryMunicipalityOptions"
+                    label="Scope"
+                    dark
+                    outlined
+                    emit-value
+                    map-options
+                    class="form-field q-mb-md"
+                  />
+
+                  <q-select
+                    v-model="wqSummaryDateRange"
+                    :options="dateRangeOptions"
+                    label="Period"
+                    dark
+                    outlined
+                    class="form-field q-mb-md"
+                  />
+
+                  <q-btn
+                    color="teal"
+                    label="Generate PDF"
+                    icon="picture_as_pdf"
+                    unelevated
+                    rounded
+                    :loading="wqSummaryGenerating"
+                    class="full-width q-py-sm"
+                    @click="handleGenerateWaterQualitySummary"
+                  />
+                </q-card-section>
+              </q-card>
+            </div>
+
             <!-- Recent Exports -->
             <div class="col-12">
               <q-card class="glass-morph">
@@ -735,6 +782,9 @@ import {
   type ActivitySeverity,
 } from 'src/stores/admin';
 import { allWaterQualityParams, formatReading } from 'src/composables/useWaterQualityModel';
+import { toCsv, triggerDownload, withinDateRange, type DateRangeOption } from 'src/composables/useReportExport';
+import { loadMunicipalZones } from 'src/composables/useMunicipalZones';
+import { generateWaterQualitySummaryReport } from 'src/composables/useWaterQualitySummaryReport';
 
 const $q = useQuasar();
 const router = useRouter();
@@ -1179,18 +1229,6 @@ function handleBulkRejectUploads() {
   );
 }
 
-// ─── File Download Helper ───
-function triggerDownload(content: string, filename: string, mime: string) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
 
 function downloadUploadGeoJson(item: UploadReviewItem) {
   if (item.rows && item.rows.length) {
@@ -1256,45 +1294,10 @@ function downloadUploadGeoJson(item: UploadReviewItem) {
 
 // ─── Reports Tab ───
 const reportType = ref('Account Activity Summary');
-const dateRange = ref('All Time');
+const dateRange = ref<DateRangeOption>('All Time');
 
 const reportTypeOptions = ['Account Activity Summary', 'Researcher Roster', 'Upload Review Summary'];
-const dateRangeOptions = ['Last 30 Days', 'Last 6 Months', 'Year 2025', 'All Time'];
-
-// Actually filters export rows by the selected Date Range — the selector
-// used to be decorative (every option exported the same full dataset).
-function withinDateRange(dateStr: string | undefined): boolean {
-  if (!dateStr) return dateRange.value === 'All Time';
-  const d = new Date(dateStr);
-  switch (dateRange.value) {
-    case 'Last 30 Days': {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 30);
-      return d >= cutoff;
-    }
-    case 'Last 6 Months': {
-      const cutoff = new Date();
-      cutoff.setMonth(cutoff.getMonth() - 6);
-      return d >= cutoff;
-    }
-    case 'Year 2025':
-      return d.getFullYear() === 2025;
-    default:
-      return true; // All Time
-  }
-}
-
-function toCsv(rows: Record<string, unknown>[], headers: { label: string; field: string }[]): string {
-  const escape = (v: unknown) => {
-    const str = v === null || v === undefined ? '' : String(v as string | number | boolean);
-    return `"${str.replace(/"/g, '""')}"`;
-  };
-  const lines = [headers.map((h) => escape(h.label)).join(',')];
-  for (const row of rows) {
-    lines.push(headers.map((h) => escape(row[h.field])).join(','));
-  }
-  return lines.join('\n');
-}
+const dateRangeOptions: DateRangeOption[] = ['Last 30 Days', 'Last 6 Months', 'Year 2025', 'Year 2026', 'All Time'];
 
 function handleExportCsv() {
   let rows: Record<string, unknown>[];
@@ -1303,7 +1306,7 @@ function handleExportCsv() {
   let label: string;
 
   if (reportType.value === 'Researcher Roster') {
-    rows = adminStore.researcherAccounts.filter((a) => withinDateRange(a.submittedDate));
+    rows = adminStore.researcherAccounts.filter((a) => withinDateRange(a.submittedDate, dateRange.value));
     headers = [
       { label: 'Full Name', field: 'fullName' },
       { label: 'Email', field: 'email' },
@@ -1315,7 +1318,7 @@ function handleExportCsv() {
     filename = 'researcher-roster.csv';
     label = 'Researcher Roster (CSV)';
   } else if (reportType.value === 'Upload Review Summary') {
-    rows = adminStore.uploadReviews.filter((u) => withinDateRange(u.submittedDate));
+    rows = adminStore.uploadReviews.filter((u) => withinDateRange(u.submittedDate, dateRange.value));
     headers = [
       { label: 'Researcher', field: 'researcher' },
       { label: 'Category', field: 'category' },
@@ -1326,7 +1329,7 @@ function handleExportCsv() {
     filename = 'upload-review-summary.csv';
     label = 'Upload Review Summary (CSV)';
   } else {
-    rows = adminStore.activityLogs.filter((l) => withinDateRange(l.timestamp));
+    rows = adminStore.activityLogs.filter((l) => withinDateRange(l.timestamp, dateRange.value));
     headers = [
       { label: 'Timestamp', field: 'timestamp' },
       { label: 'Actor', field: 'actor' },
@@ -1361,6 +1364,50 @@ function handleGeneratePdf() {
     position: 'top',
     timeout: 4000,
   });
+}
+
+// ─── Water Quality Summary Report ───
+const wqSummaryMunicipality = ref<string | null>(null);
+const wqSummaryDateRange = ref<DateRangeOption>('All Time');
+const wqSummaryMunicipalityOptions = ref<{ label: string; value: string | null }[]>([
+  { label: 'Lake Lanao (All Municipalities)', value: null },
+]);
+const wqSummaryGenerating = ref(false);
+
+onMounted(() => {
+  loadMunicipalZones()
+    .then((zones) => {
+      wqSummaryMunicipalityOptions.value = [
+        { label: 'Lake Lanao (All Municipalities)', value: null },
+        ...zones.map((z) => ({ label: z.name, value: z.name })),
+      ];
+    })
+    .catch((err: unknown) => console.error('Failed to load municipal zones:', err));
+});
+
+async function handleGenerateWaterQualitySummary() {
+  wqSummaryGenerating.value = true;
+  try {
+    const result = await generateWaterQualitySummaryReport({
+      municipality: wqSummaryMunicipality.value,
+      dateRange: wqSummaryDateRange.value,
+      generatedBy: authStore.displayName,
+    });
+    adminStore.recordReportGenerated(authStore.displayName, result.label);
+    $q.notify({
+      type: 'positive',
+      message: `${result.filename} downloaded (${result.recordCount} readings).`,
+      position: 'top',
+    });
+  } catch (err) {
+    $q.notify({
+      type: 'warning',
+      message: err instanceof Error ? err.message : 'Failed to generate the report.',
+      position: 'top',
+    });
+  } finally {
+    wqSummaryGenerating.value = false;
+  }
 }
 
 function handleDownloadReviewedMap() {

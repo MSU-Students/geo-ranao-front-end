@@ -18,10 +18,10 @@
         <div>
           <h4 class="text-weight-bolder q-my-xs text-white drop-shadow">
             <q-icon name="assessment" class="q-mr-sm" color="teal-3" />
-            Reports &amp; Exports
+            Researcher Report
           </h4>
           <p class="text-grey-3 drop-shadow-soft q-mb-none q-ml-xs">
-            Generate and download research reports for Lake Lanao field data
+            Export approved Lake Lanao water quality and fish observation data for your own analysis
           </p>
         </div>
         <div v-if="authStore.isLoggedIn" class="researcher-badge glass-morph q-pa-sm q-px-md">
@@ -41,7 +41,7 @@
 
       <div class="row q-col-gutter-md">
         <!-- Generate Report -->
-        <div class="col-12 col-md-6">
+        <div class="col-12 col-md-7">
           <q-card class="glass-morph full-height">
             <q-card-section>
               <div class="text-white text-h6 text-weight-bold q-mb-md">
@@ -50,11 +50,24 @@
               </div>
 
               <q-select
-                v-model="reportType"
-                :options="reportTypeOptions"
-                label="Report Type"
+                v-model="dataset"
+                :options="datasetOptions"
+                label="Dataset"
                 dark
                 outlined
+                emit-value
+                map-options
+                class="form-field q-mb-md"
+              />
+
+              <q-select
+                v-model="scope"
+                :options="scopeOptions"
+                label="Scope"
+                dark
+                outlined
+                emit-value
+                map-options
                 class="form-field q-mb-md"
               />
 
@@ -67,28 +80,50 @@
                 class="form-field q-mb-md"
               />
 
-              <q-btn
-                color="teal"
-                label="Generate PDF Report"
-                icon="picture_as_pdf"
-                unelevated
-                rounded
-                class="full-width q-py-sm"
+              <q-select
+                v-if="dataset === 'water'"
+                v-model="selectedStations"
+                :options="stationOptions"
+                label="Stations"
+                hint="Leave empty for all stations"
+                dark
+                outlined
+                multiple
+                use-chips
+                class="form-field q-mb-md"
               />
+
+              <q-select
+                v-if="dataset === 'fish'"
+                v-model="selectedCategories"
+                :options="categoryOptions"
+                label="Categories"
+                hint="Leave empty for all categories"
+                dark
+                outlined
+                multiple
+                emit-value
+                map-options
+                use-chips
+                class="form-field q-mb-md"
+              />
+
               <q-btn
                 color="blue-7"
                 label="Export as CSV"
                 icon="table_chart"
                 unelevated
                 rounded
-                class="full-width q-py-sm q-mt-sm"
+                :loading="exporting"
+                class="full-width q-py-sm"
+                @click="handleExportCsv"
               />
             </q-card-section>
           </q-card>
         </div>
 
         <!-- Recent Reports -->
-        <div class="col-12 col-md-6">
+        <div class="col-12 col-md-5">
           <q-card class="glass-morph full-height">
             <q-card-section>
               <div class="text-white text-h6 text-weight-bold q-mb-md">
@@ -103,23 +138,16 @@
                   </q-item-section>
                   <q-item-section>
                     <q-item-label class="text-white text-weight-medium">
-                      {{ report.title }}
+                      {{ report.label }}
                     </q-item-label>
                     <q-item-label caption class="text-grey-4">
-                      {{ report.caption }}
+                      {{ formatTimestamp(report.timestamp) }}
                     </q-item-label>
                   </q-item-section>
-                  <q-item-section side>
-                    <q-btn
-                      flat
-                      round
-                      dense
-                      icon="download"
-                      color="teal"
-                      size="sm"
-                    >
-                      <q-tooltip>Download</q-tooltip>
-                    </q-btn>
+                </q-item>
+                <q-item v-if="recentReports.length === 0">
+                  <q-item-section class="text-grey-5">
+                    No reports generated yet on this device.
                   </q-item-section>
                 </q-item>
               </q-list>
@@ -132,36 +160,175 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
 import BackButton from 'src/components/BackButton.vue';
+import { fetchWaterQualityReadings, type WaterQualityReading } from 'src/composables/useWaterQualityReadings';
+import {
+  fetchFishObservations,
+  CONSERVATION_STATUS_LABELS,
+  type FishObservation,
+  type FishCategory,
+} from 'src/composables/useFishObservations';
+import { allWaterQualityParams } from 'src/composables/useWaterQualityModel';
+import { useStations, fetchStations } from 'src/composables/useStations';
+import {
+  toCsv,
+  triggerDownload,
+  withinDateRange,
+  loadRecentReports,
+  recordRecentReport,
+  type DateRangeOption,
+  type RecentReportEntry,
+} from 'src/composables/useReportExport';
 
+const $q = useQuasar();
 const authStore = useAuthStore();
 
-// ─── Reports Tab ───
-const reportType = ref(null);
-const dateRange = ref(null);
+const RECENT_REPORTS_KEY = 'researcher-report-recent';
 
-const reportTypeOptions = [
-  'Species Summary',
-  'Conservation Status Report',
-  'Invasive Species Alert',
-  'Water Quality Correlation',
+// ─── Filters ───
+const dataset = ref<'water' | 'fish'>('water');
+const datasetOptions = [
+  { label: 'Water Quality', value: 'water' },
+  { label: 'Fish Observation', value: 'fish' },
 ];
 
-const dateRangeOptions = [
-  'Last 30 Days',
-  'Last 6 Months',
-  'Year 2024',
-  'All Time',
+const scope = ref<'all' | 'mine'>('all');
+const scopeOptions = [
+  { label: 'All Approved Data', value: 'all' },
+  { label: 'My Submissions Only', value: 'mine' },
 ];
 
-const recentReports = [
-  { id: 1, title: 'Species Summary — June 2025', caption: 'Generated by Jollymar A. Mark' },
-  { id: 2, title: 'Conservation Status Report — Q2 2025', caption: 'Generated by Dr. Juan Dela Cruz' },
-  { id: 3, title: 'Invasive Species Alert — May 2025', caption: 'Generated by Maria S. Santos' },
-  { id: 4, title: 'Water Quality Correlation — 2024', caption: 'Generated by Dr. Juan Dela Cruz' },
+const dateRange = ref<DateRangeOption>('All Time');
+const dateRangeOptions: DateRangeOption[] = ['Last 30 Days', 'Last 6 Months', 'Year 2025', 'Year 2026', 'All Time'];
+
+const { stations } = useStations();
+const stationOptions = computed(() => stations.value.map((s) => s.siteId));
+const selectedStations = ref<string[]>([]);
+
+const categoryOptions: { label: string; value: FishCategory }[] = [
+  { label: 'Endemic', value: 'ENDEMIC' },
+  { label: 'Invasive', value: 'INVASIVE' },
+  { label: 'General', value: 'GENERAL' },
 ];
+const selectedCategories = ref<FishCategory[]>([]);
+
+const exporting = ref(false);
+const recentReports = ref<RecentReportEntry[]>([]);
+
+onMounted(() => {
+  fetchStations().catch((err) => console.error('Failed to load stations:', err));
+  recentReports.value = loadRecentReports(RECENT_REPORTS_KEY);
+});
+
+function formatTimestamp(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function buildWaterRows(readings: WaterQualityReading[]) {
+  const filtered = readings.filter(
+    (r) =>
+      withinDateRange(r.dateObserved, dateRange.value) &&
+      (selectedStations.value.length === 0 || selectedStations.value.includes(r.siteId)),
+  );
+  const rows = filtered.map((r) => {
+    const row: Record<string, unknown> = { siteId: r.siteId, dateObserved: r.dateObserved, depthM: r.depthM };
+    for (const p of allWaterQualityParams) row[p.key] = r[p.key as keyof WaterQualityReading] ?? '';
+    row['notes'] = r.notes ?? '';
+    return row;
+  });
+  const headers = [
+    { label: 'Station', field: 'siteId' },
+    { label: 'Date', field: 'dateObserved' },
+    { label: 'Depth (m)', field: 'depthM' },
+    ...allWaterQualityParams.map((p) => ({ label: p.unit ? `${p.label} (${p.unit})` : p.label, field: p.key })),
+    { label: 'Notes', field: 'notes' },
+  ];
+  return { rows, headers };
+}
+
+function buildFishRows(observations: FishObservation[]) {
+  const filtered = observations.filter(
+    (o) =>
+      withinDateRange(o.dateObserved, dateRange.value) &&
+      (selectedCategories.value.length === 0 || selectedCategories.value.includes(o.category)),
+  );
+  const rows = filtered.map((o) => ({
+    category: o.category,
+    speciesScientific: o.speciesScientific ?? '',
+    speciesCommon: o.speciesCommon ?? '',
+    conservationStatus: CONSERVATION_STATUS_LABELS[o.conservationStatus],
+    dateObserved: o.dateObserved,
+    coordinates: o.coordinates ?? '',
+    municipal: o.municipal ?? '',
+    barangay: o.barangay ?? '',
+    trueLengthCm: o.trueLengthCm ?? '',
+    bodyDepthCm: o.bodyDepthCm ?? '',
+    weightG: o.weightG ?? '',
+  }));
+  const headers = [
+    { label: 'Category', field: 'category' },
+    { label: 'Scientific Name', field: 'speciesScientific' },
+    { label: 'Common Name', field: 'speciesCommon' },
+    { label: 'Conservation Status', field: 'conservationStatus' },
+    { label: 'Date Observed', field: 'dateObserved' },
+    { label: 'Coordinates', field: 'coordinates' },
+    { label: 'Municipality', field: 'municipal' },
+    { label: 'Barangay', field: 'barangay' },
+    { label: 'True Length (cm)', field: 'trueLengthCm' },
+    { label: 'Body Depth (cm)', field: 'bodyDepthCm' },
+    { label: 'Weight (g)', field: 'weightG' },
+  ];
+  return { rows, headers };
+}
+
+async function handleExportCsv() {
+  exporting.value = true;
+  try {
+    const mine = scope.value === 'mine';
+    let rows: Record<string, unknown>[];
+    let headers: { label: string; field: string }[];
+    let datasetLabel: string;
+
+    if (dataset.value === 'water') {
+      const readings = await fetchWaterQualityReadings({ status: 'APPROVED', mine });
+      ({ rows, headers } = buildWaterRows(readings));
+      datasetLabel = 'Water Quality';
+    } else {
+      const observations = await fetchFishObservations({ status: 'APPROVED', mine });
+      ({ rows, headers } = buildFishRows(observations));
+      datasetLabel = 'Fish Observation';
+    }
+
+    if (rows.length === 0) {
+      $q.notify({ type: 'warning', message: `No records found for "${dateRange.value}".`, position: 'top' });
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    triggerDownload(toCsv(rows, headers), `researcher-report-${dataset.value}-${today}.csv`, 'text/csv');
+
+    const label = `Researcher Report — ${datasetLabel} — ${dateRange.value}`;
+    recentReports.value = recordRecentReport(RECENT_REPORTS_KEY, label);
+    $q.notify({ type: 'positive', message: `${label} downloaded (${rows.length} records).`, position: 'top' });
+  } catch (err) {
+    $q.notify({
+      type: 'negative',
+      message: err instanceof Error ? err.message : 'Failed to generate the report.',
+      position: 'top',
+    });
+  } finally {
+    exporting.value = false;
+  }
+}
 </script>
 
 <style scoped>

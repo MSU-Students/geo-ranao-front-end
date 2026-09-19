@@ -83,6 +83,31 @@
           Applies to the KPI cards, parameter overview, and charts below — the Vertical Depth
           Profile chart further down always shows every depth at once.
         </div>
+
+        <q-separator dark class="q-my-md" style="opacity: 0.15" />
+
+        <div class="row items-center justify-between q-mb-xs">
+          <span class="text-grey-3 text-caption">
+            <q-icon name="verified" size="14px" class="q-mr-xs" />
+            Water Quality Classification
+          </span>
+        </div>
+        <q-select
+          v-model="selectedWaterClass"
+          :options="waterClassOptions"
+          emit-value
+          map-options
+          dense
+          outlined
+          dark
+          class="form-field"
+          style="max-width: 260px"
+        />
+        <div class="text-caption text-grey-5 q-mt-sm">
+          <q-icon name="info" size="14px" class="q-mr-xs" />
+          The DENR limitation every status/color below is judged against. Class C (freshwater/fishery
+          protection) is the default.
+        </div>
       </q-card>
 
       <!-- Interactive Station Map -->
@@ -370,7 +395,7 @@
                     :unit="compareParamA.unit"
                     :decimals="compareParamA.decimals"
                     color="#4dd0e1"
-                    :guideline-value="compareParamA.guideline"
+                    :guideline-value="guidelineFor(compareParamA)"
                     guideline-label="DENR Guideline"
                   />
                 </div>
@@ -384,7 +409,7 @@
                     :unit="compareParamB.unit"
                     :decimals="compareParamB.decimals"
                     color="#ba68c8"
-                    :guideline-value="compareParamB.guideline"
+                    :guideline-value="guidelineFor(compareParamB)"
                     guideline-label="DENR Guideline"
                   />
                 </div>
@@ -441,7 +466,7 @@
                     :unit="depthProfileParamA.unit"
                     color="#ff8a65"
                     :decimals="depthProfileParamA.decimals"
-                    :guideline-value="depthProfileParamA.guideline"
+                    :guideline-value="guidelineFor(depthProfileParamA)"
                   />
                 </div>
                 <div class="col-6 text-center" v-if="depthProfileParamB">
@@ -453,7 +478,7 @@
                     :unit="depthProfileParamB.unit"
                     color="#4fc3f7"
                     :decimals="depthProfileParamB.decimals"
-                    :guideline-value="depthProfileParamB.guideline"
+                    :guideline-value="guidelineFor(depthProfileParamB)"
                   />
                 </div>
               </div>
@@ -478,7 +503,7 @@
                   :entries="stationComparisonEntries"
                   :unit="selectedParam?.unit ?? ''"
                   :decimals="selectedParam?.decimals ?? 1"
-                  :guideline-value="selectedParam?.guideline"
+                  :guideline-value="guidelineFor(selectedParam)"
                   :selected-site-id="selectedStationId"
                   @select-station="selectStation"
                 />
@@ -530,10 +555,16 @@ import {
   DEPTHS,
   TRIBUTARY_RIVER_SITES,
   TRIBUTARY_RIVER_SITE_IDS,
+  WATER_QUALITY_CLASSES,
+  WATER_QUALITY_CLASS_LABELS,
+  DEFAULT_WATER_QUALITY_CLASS,
+  getClassLimitReferenceValue,
   type WaterQualityParam,
   type StatusLevel,
   type DepthReadingPoint,
+  type WaterQualityClass,
 } from 'src/composables/useWaterQualityModel';
+import { selectedParamKey } from 'src/composables/useWaterQualityDashboardState';
 import {
   fetchWaterQualityReadings,
   buildReadingLookup,
@@ -557,6 +588,9 @@ interface Site {
 const sites = ref<Site[]>([]);
 const siteCount = computed(() => sites.value.length);
 const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
+
+const selectedWaterClass = ref<WaterQualityClass>(DEFAULT_WATER_QUALITY_CLASS);
+const waterClassOptions = WATER_QUALITY_CLASSES.map((c) => ({ label: WATER_QUALITY_CLASS_LABELS[c], value: c }));
 
 const readingsLookup = ref<ReadingLookup>(new Map());
 const readingsLoading = ref(false);
@@ -583,7 +617,6 @@ const selectedMonthIndex = computed(
   () => (selectedYear.value - READING_START_YEAR) * 12 + selectedMonthInYear.value,
 );
 
-const selectedParamKey = ref(allWaterQualityParams[0]!.key);
 const selectedStationId = ref<string | null>(null);
 const selectedDepthM = ref(0);
 
@@ -695,6 +728,12 @@ function lakeAverageCoverage(param: WaterQualityParam, monthIndex: number): numb
   ).length;
 }
 
+// Chart reference-line value for the currently selected classification —
+// null-safe so it can be bound directly to a possibly-unselected param.
+function guidelineFor(param: WaterQualityParam | null | undefined): number | undefined {
+  return param ? getClassLimitReferenceValue(param, selectedWaterClass.value) : undefined;
+}
+
 // The trend charts show a trailing 13-month window ending at the selected
 // Reading Period, not the whole (now multi-year) timeline.
 const trendIndices = computed(() => {
@@ -727,7 +766,7 @@ function sparklineValues(param: WaterQualityParam): number[] {
 
 function paramStatus(param: WaterQualityParam, monthIndex = selectedMonthIndex.value): StatusLevel | null {
   const value = lakeAverage(param, monthIndex);
-  return value !== null ? param.getStatus(value) : null;
+  return value !== null ? param.getStatus(value, selectedWaterClass.value) : null;
 }
 
 function paramColor(param: WaterQualityParam): string {
@@ -766,7 +805,7 @@ function statusCounts(param: WaterQualityParam, monthIndex: number): Record<Stat
   const counts: Record<StatusLevel, number> = { good: 0, warning: 0, serious: 0, critical: 0 };
   sites.value.forEach((site) => {
     const value = getReading(readingsLookup.value, site.siteId, monthIndex, param, depthForSite(site));
-    if (value !== null) counts[param.getStatus(value)]++;
+    if (value !== null) counts[param.getStatus(value, selectedWaterClass.value)]++;
   });
   return counts;
 }
@@ -777,7 +816,7 @@ const sitesNeedingAttention = computed(() => {
     const isFlagged = allWaterQualityParams.some((param) => {
       const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
       if (value === null) return false;
-      const status = param.getStatus(value);
+      const status = param.getStatus(value, selectedWaterClass.value);
       return status === 'serious' || status === 'critical';
     });
     if (isFlagged) flagged.add(site.siteId);
@@ -794,7 +833,7 @@ const overallStatus = computed<StatusLevel | null>(() => {
       const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
       if (value === null) return;
       total++;
-      if (param.getStatus(value) === 'good') goodCount++;
+      if (param.getStatus(value, selectedWaterClass.value) === 'good') goodCount++;
     });
   });
   if (total === 0) return null;
@@ -812,7 +851,7 @@ const sitesOfConcern = computed(() => {
   sites.value.forEach((site) => {
     const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
     if (value === null) return;
-    const status = param.getStatus(value);
+    const status = param.getStatus(value, selectedWaterClass.value);
     if (status === 'serious' || status === 'critical') results.push({ ...site, status });
   });
   return results
@@ -847,7 +886,7 @@ const statusColorBySite = computed<Record<string, string>>(() => {
   if (!param) return result;
   sites.value.forEach((site) => {
     const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
-    result[site.siteId] = value !== null ? mapStatusColor(param.getStatus(value)) : NO_DATA_COLOR;
+    result[site.siteId] = value !== null ? mapStatusColor(param.getStatus(value, selectedWaterClass.value)) : NO_DATA_COLOR;
   });
   return result;
 });
@@ -874,7 +913,7 @@ const attentionBySite = computed<Record<string, SiteAttention>>(() => {
     allWaterQualityParams.forEach((param) => {
       const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
       if (value === null) return;
-      const status = param.getStatus(value);
+      const status = param.getStatus(value, selectedWaterClass.value);
       if (worst === null || STATUS_LEVELS.indexOf(status) > STATUS_LEVELS.indexOf(worst.status)) {
         worst = { status, paramLabel: param.label, formattedValue: formatReading(value, param) };
       }
@@ -980,7 +1019,7 @@ const stationComparisonEntries = computed(() => {
   const entries: { siteId: string; value: number; status: StatusLevel; zone: Site['zone'] }[] = [];
   sites.value.forEach((site) => {
     const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
-    if (value !== null) entries.push({ siteId: site.siteId, value, status: param.getStatus(value), zone: site.zone });
+    if (value !== null) entries.push({ siteId: site.siteId, value, status: param.getStatus(value, selectedWaterClass.value), zone: site.zone });
   });
   return entries;
 });
