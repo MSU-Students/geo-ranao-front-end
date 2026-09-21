@@ -11,12 +11,23 @@ export interface BathymetrySurvey {
   points: DepthPoint[];
   pointCount: number;
   cleanedCount: number;
+  /** How many fixed grid points this survey actually updated after snapping/averaging — always <= the grid's total size. */
+  pointsUpdated: number;
   reviewStatus: ReviewStatus;
   reviewNote?: string | null;
   reviewedBy?: string | null;
   reviewedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// The fixed bathymetry grid's current state — what the 2D and 3D map both
+// render from (via buildDepthGridFromPoints), so they never disagree about
+// what the lake floor looks like. gridSize is every fixed point regardless
+// of coverage, for a "N of M points have data" indicator.
+export interface CurrentBathymetryPoints {
+  points: DepthPoint[];
+  gridSize: number;
 }
 
 export interface CreateBathymetrySurveyInput {
@@ -40,10 +51,8 @@ export async function fetchBathymetrySurveys(
   return data;
 }
 
-// The one survey the public map renders — null if nothing's been approved
-// yet, in which case the map falls back to the synthetic placeholder.
-export async function fetchActiveBathymetrySurvey(): Promise<BathymetrySurvey | null> {
-  const { data } = await api.get<BathymetrySurvey | null>('/bathymetry/surveys/active');
+export async function fetchCurrentBathymetryPoints(): Promise<CurrentBathymetryPoints> {
+  const { data } = await api.get<CurrentBathymetryPoints>('/bathymetry/points');
   return data;
 }
 

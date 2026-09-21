@@ -194,6 +194,14 @@
             <q-icon :name="colorMode === 'satellite' ? 'public' : 'water'" size="16px" class="q-mr-xs" />
             {{ colorMode === 'satellite' ? 'Google Earth Satellite' : (bathyScheme === 'blue' ? 'Classic Blue Depth (m)' : (bathyScheme === 'viridis' ? 'Viridis Topo Depth (m)' : 'Turbo Rainbow Depth (m)')) }}
           </div>
+          <div v-if="!isCustomModel" class="info-sub q-mb-sm">
+            <q-icon :name="bathymetryPoints.points.length > 0 ? 'verified' : 'info'" size="12px" class="q-mr-xs" />
+            {{
+              bathymetryPoints.points.length > 0
+                ? `Live data — ${bathymetryPoints.points.length} of ${bathymetryPoints.gridSize} points surveyed`
+                : 'Estimated — no survey data yet'
+            }}
+          </div>
           <div
             class="legend-gradient"
             :class="{
@@ -420,6 +428,8 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useAuthStore } from 'src/stores/auth';
 import * as THREE from 'three';
 import { buildDepthGrid, colorForDepth, extractPolygonRings, pointInRing, CONTOUR_MAX_DEPTH_M } from 'src/composables/useBathymetry';
+import { buildDepthGridFromPoints } from 'src/composables/useMapDataUpload';
+import { fetchCurrentBathymetryPoints, type CurrentBathymetryPoints } from 'src/composables/useBathymetrySurveys';
 import { parseKMZ, buildGeometryFromPoints } from 'src/composables/useSurfer3D';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -446,6 +456,11 @@ const legendMax = ref('110+');
 const isCustomModel = ref(false);
 const colorMode = ref<'satellite' | 'bathymetry'>('satellite');
 const bathyScheme = ref<'blue' | 'viridis' | 'rainbow'>('blue');
+
+// The fixed bathymetry grid's current data — same source the 2D map's
+// contours come from. Empty points means nothing's been surveyed yet, so
+// the terrain falls back to the synthetic shore/basin-decay placeholder.
+const bathymetryPoints = ref<CurrentBathymetryPoints>({ points: [], gridSize: 0 });
 
 // ─── Three.js state ──────────────────────────────────────────────────────────
 let renderer: THREE.WebGLRenderer | null = null;
@@ -580,9 +595,28 @@ async function buildScene() {
 
   loadProgress.value = 0.4;
 
+  // Same precedence the 2D map uses: the fixed grid's real data wins over
+  // the synthetic placeholder, so the two views never disagree about what
+  // the lake floor looks like. Unauthenticated viewers (no token) simply
+  // fail this fetch and fall through to the synthetic model, same as the
+  // 2D map.
+  try {
+    bathymetryPoints.value = await fetchCurrentBathymetryPoints();
+  } catch (err) {
+    console.error('Failed to load bathymetry points, using the synthetic model:', err);
+  }
+
   const grid = await new Promise<ReturnType<typeof buildDepthGrid>>((resolve) => {
     // Yield to the event loop so the loading UI can update
-    setTimeout(() => resolve(buildDepthGrid(rings, true)), 50);
+    setTimeout(
+      () =>
+        resolve(
+          bathymetryPoints.value.points.length > 0
+            ? buildDepthGridFromPoints(bathymetryPoints.value.points, rings)
+            : buildDepthGrid(rings, true),
+        ),
+      50,
+    );
   });
 
   if (!grid) throw new Error('Could not build depth grid');
@@ -916,20 +950,46 @@ function animate() {
     const hits = raycaster.intersectObject(lakeMesh);
     if (hits.length > 0 && hits[0]) {
       const face = hits[0].face;
-      if (face) {
-        const idx = face.a;
-        if (isCustomModel.value && lakeMesh.geometry.attributes.origZ) {
-          hoveredDepth.value = lakeMesh.geometry.attributes.origZ.getX(idx);
-        } else {
+      const positions = lakeMesh.geometry.attributes['position'] as THREE.BufferAttribute | undefined;
+      if (face && positions) {
+        // Barycentric-interpolate across the hit triangle's 3 vertices
+        // instead of snapping to face.a's value — the cursor can land
+        // anywhere inside the triangle, not just on its first corner, so
+        // reading only face.a made the tooltip jump between vertex values
+        // as you moved the mouse rather than tracking it smoothly.
+        const localPoint = lakeMesh.worldToLocal(hits[0].point.clone());
+        const vA = new THREE.Vector3().fromBufferAttribute(positions, face.a);
+        const vB = new THREE.Vector3().fromBufferAttribute(positions, face.b);
+        const vC = new THREE.Vector3().fromBufferAttribute(positions, face.c);
+        const bary = new THREE.Triangle(vA, vB, vC).getBarycoord(localPoint, new THREE.Vector3());
+
+        const origZ = lakeMesh.geometry.attributes['origZ'] as THREE.BufferAttribute | undefined;
+        if (!bary) {
+          hoveredDepth.value = null;
+        } else if (isCustomModel.value && origZ) {
+          hoveredDepth.value = origZ.getX(face.a) * bary.x + origZ.getX(face.b) * bary.y + origZ.getX(face.c) * bary.z;
+        } else if (vertexMetaList) {
           // vertexMetaList is indexed 1:1 with the rendered mesh's vertices
           // (built in the same loop as the geometry itself), unlike the raw
           // depth grid — that grid is un-padded, so a rendered vertex index
           // doesn't line up with a grid index directly once the terrain
-          // plane extends past the lake (PAD). Only report a reading over
-          // actual water; land/island vertices have no meaningful "depth".
-          const meta = vertexMetaList?.[idx];
-          hoveredDepth.value = meta?.isLake ? meta.depth : null;
+          // plane extends past the lake (PAD).
+          const metaA = vertexMetaList[face.a];
+          const metaB = vertexMetaList[face.b];
+          const metaC = vertexMetaList[face.c];
+          // Only report a reading when the whole triangle is water — a
+          // triangle straddling the shoreline has no single meaningful
+          // depth to blend (one or more corners are land/island).
+          if (metaA?.isLake && metaB?.isLake && metaC?.isLake) {
+            hoveredDepth.value = metaA.depth * bary.x + metaB.depth * bary.y + metaC.depth * bary.z;
+          } else {
+            hoveredDepth.value = null;
+          }
+        } else {
+          hoveredDepth.value = null;
         }
+      } else {
+        hoveredDepth.value = null;
       }
     } else {
       hoveredDepth.value = null;

@@ -275,7 +275,7 @@ export const useAdminStore = defineStore('admin', () => {
       researcher: researcherName(s.researcherId),
       category: 'Bathymetry',
       title: s.label,
-      location: `${s.pointCount} soundings`,
+      location: `${s.pointCount} soundings → ${s.pointsUpdated} fixed point${s.pointsUpdated === 1 ? '' : 's'}`,
       submittedDate: s.createdAt.slice(0, 10),
       status: mapReviewStatus(s.reviewStatus),
       bathymetryPoints: s.points,

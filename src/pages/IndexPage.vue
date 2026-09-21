@@ -477,20 +477,25 @@
                 </div>
                 <q-card flat bordered class="q-pa-sm bg-grey-1 rounded-borders">
                   <q-card-section>
-                    <template v-if="activeBathymetrySurvey">
-                      <div class="text-caption text-positive">
-                        <q-icon name="check_circle" class="q-mr-xs" /> Showing an approved survey on the map
+                    <template v-if="bathymetryPoints.gridSize === 0">
+                      <div class="text-caption text-negative">
+                        <q-icon name="warning" class="q-mr-xs" />
+                        The fixed bathymetry grid hasn't been generated yet — run
+                        <code>yarn seed:bathymetry-grid</code> on the backend first.
                       </div>
-                      <div class="text-subtitle2 text-grey-9 q-mt-sm">{{ activeBathymetrySurvey.label }}</div>
-                      <div class="text-caption text-grey-6">
-                        {{ activeBathymetrySurvey.pointCount }} soundings &middot; surveyed {{ activeBathymetrySurvey.surveyDate }}
-                        <span v-if="activeBathymetrySurvey.reviewedBy"> &middot; published by {{ activeBathymetrySurvey.reviewedBy }}</span>
+                    </template>
+                    <template v-else-if="bathymetryPoints.points.length > 0">
+                      <div class="text-caption text-positive">
+                        <q-icon name="check_circle" class="q-mr-xs" /> Showing real survey data on the map
+                      </div>
+                      <div class="text-subtitle2 text-grey-9 q-mt-sm">
+                        {{ bathymetryPoints.points.length }} of {{ bathymetryPoints.gridSize }} fixed points have data
                       </div>
                     </template>
                     <template v-else>
                       <div class="text-caption text-grey-8">
                         <q-icon name="info" color="grey-6" class="q-mr-xs" />
-                        No survey published yet — the map is showing a synthetic placeholder, not real depth data.
+                        No fixed points have data yet — the map is showing a synthetic placeholder, not real depth data.
                       </div>
                     </template>
                   </q-card-section>
@@ -769,7 +774,7 @@
     </div>
 
     <UploadDataDialog ref="uploadDialogRef" />
-    <UploadBathymetryDialog ref="uploadBathymetryDialogRef" @published="loadActiveBathymetrySurvey" />
+    <UploadBathymetryDialog ref="uploadBathymetryDialogRef" @published="loadBathymetryPoints" />
 
   </q-page>
 </template>
@@ -816,7 +821,7 @@ import {
   CONTOUR_COLOR_STOPS
 } from 'src/composables/useBathymetry';
 import { buildDepthGridFromPoints } from 'src/composables/useMapDataUpload';
-import { fetchActiveBathymetrySurvey, type BathymetrySurvey } from 'src/composables/useBathymetrySurveys';
+import { fetchCurrentBathymetryPoints, type CurrentBathymetryPoints } from 'src/composables/useBathymetrySurveys';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
 import UploadBathymetryDialog from 'src/components/UploadBathymetryDialog.vue';
 import L from 'leaflet';
@@ -972,23 +977,24 @@ const uploadBathymetryDialogRef = ref<InstanceType<typeof UploadBathymetryDialog
 // ═══ STATE ═══
 const activeTab = ref('fish');
 
-// ═══ BATHYMETRY — approved survey drives the real contour grid ═══
+// ═══ BATHYMETRY — the fixed grid's current data drives the real contour grid ═══
 // customDepthGrid used to hold an admin's own local-only upload preview;
-// it now holds the IDW grid built from whichever survey is APPROVED, so the
-// same buildContourLayers() below needs no changes — it already prefers
-// customDepthGrid over the synthetic buildDepthGrid() fallback.
+// it now holds the IDW grid built from the fixed bathymetry_points' current
+// depths, so the same buildContourLayers() below needs no changes — it
+// already prefers customDepthGrid over the synthetic buildDepthGrid()
+// fallback.
 const customDepthGrid = ref<DepthGrid | null>(null);
-const activeBathymetrySurvey = ref<BathymetrySurvey | null>(null);
+const bathymetryPoints = ref<CurrentBathymetryPoints>({ points: [], gridSize: 0 });
 
-async function loadActiveBathymetrySurvey() {
+async function loadBathymetryPoints() {
   try {
-    const survey = await fetchActiveBathymetrySurvey();
-    if (!survey) return;
-    activeBathymetrySurvey.value = survey;
-    const grid = buildDepthGridFromPoints(survey.points, lakePolygonRings);
+    const current = await fetchCurrentBathymetryPoints();
+    bathymetryPoints.value = current;
+    if (current.points.length === 0) return;
+    const grid = buildDepthGridFromPoints(current.points, lakePolygonRings);
     if (grid) customDepthGrid.value = grid;
   } catch (err) {
-    console.error('Failed to load active bathymetry survey:', err);
+    console.error('Failed to load bathymetry points:', err);
   }
 }
 
@@ -2042,7 +2048,7 @@ function initMap() {
       });
       lakeBoundaryLayerGroup!.addLayer(boundaryLayer);
       lakePolygonRings = extractPolygonRings(geojson);
-      await loadActiveBathymetrySurvey();
+      await loadBathymetryPoints();
       buildContourLayers();
       buildMunicipalZones();
       syncLayerVisibility();
