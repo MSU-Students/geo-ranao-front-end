@@ -475,7 +475,7 @@
                 <div class="text-subtitle2 text-teal-8 text-weight-bold q-mb-md">
                   <q-icon name="terrain" class="q-mr-xs" /> Bathymetry Data
                 </div>
-                <q-card flat bordered class="q-pa-sm bg-grey-1 rounded-borders">
+                <q-card flat bordered class="q-pa-sm bg-grey-1 rounded-borders q-mb-md">
                   <q-card-section>
                     <template v-if="bathymetryPoints.gridSize === 0">
                       <div class="text-caption text-negative">
@@ -499,16 +499,30 @@
                       </div>
                     </template>
                   </q-card-section>
-                  <q-card-actions align="right">
-                    <q-btn flat color="grey-8" label="Upload History" icon="history" to="/admin" />
-                    <q-btn
-                      unelevated color="teal" label="Upload Bathymetry Survey" icon="add"
-                      @click="uploadBathymetryDialogRef?.open()"
-                    />
-                  </q-card-actions>
                 </q-card>
 
-                <div class="q-mt-md text-center">
+                <!-- Separated upload action — same "pick what to do" tile the
+                     researcher upload page uses, instead of a plain button
+                     crammed into the status card's actions row. -->
+                <q-card
+                  flat bordered
+                  class="bathy-upload-card cursor-pointer q-mb-md"
+                  @click="uploadBathymetryDialogRef?.open()"
+                >
+                  <q-card-section class="row items-center q-pa-md">
+                    <div class="bathy-upload-icon-bg flex flex-center q-mr-md">
+                      <q-icon name="add_chart" size="26px" color="teal-7" />
+                    </div>
+                    <div class="col">
+                      <div class="text-subtitle1 text-grey-9 text-weight-bold">Upload Bathymetry Survey</div>
+                      <div class="text-caption text-grey-6">Submit new depth soundings — publishes straight to the map</div>
+                    </div>
+                    <q-icon name="chevron_right" color="grey-5" size="20px" />
+                  </q-card-section>
+                </q-card>
+
+                <div class="row items-center justify-center q-gutter-sm">
+                  <q-btn flat dense color="grey-8" label="Upload History" icon="history" to="/admin" />
                   <q-btn flat dense color="primary" icon="download" label="Download Template" href="/templates/depth-soundings-template.xlsx" target="_blank" />
                 </div>
               </q-tab-panel>
@@ -810,6 +824,7 @@ import {
   CONSERVATION_STATUS_SHORT,
   type FishObservation,
 } from 'src/composables/useFishObservations';
+import { mapLayers } from 'src/composables/useMapLayersState';
 import {
   buildDepthGrid,
   colorForDepth,
@@ -993,6 +1008,11 @@ async function loadBathymetryPoints() {
     if (current.points.length === 0) return;
     const grid = buildDepthGridFromPoints(current.points, lakePolygonRings);
     if (grid) customDepthGrid.value = grid;
+    // Refetching only updates the underlying ref — the Leaflet layers on the
+    // map are a snapshot from whenever they were last built, so a fresh
+    // upload never appears until we explicitly rebuild and re-add them.
+    buildContourLayers();
+    syncLayerVisibility();
   } catch (err) {
     console.error('Failed to load bathymetry points:', err);
   }
@@ -1566,11 +1586,23 @@ function marchContourLevel(grid: DepthGrid, level: number): [number, number][][]
   return segments;
 }
 
-// Builds both toggleable contour layers once (cheap to leave built even when
-// Builds both toggleable contour layers once (cheap to leave built even when
-// hidden — toggling them just adds/removes the pre-built layer group).
+// Builds both toggleable contour layers — cheap to leave built even when
+// hidden, toggling them just adds/removes the pre-built layer group. Tears
+// down any previous build first, so this doubles as the initial build (first
+// call, nothing to tear down) and a rebuild after fresh bathymetry data
+// arrives (loadBathymetryPoints calling this again after an upload) — without
+// that teardown, a rebuild would leave the old contours on the map forever
+// since new L.layerGroup() objects are never the same reference as the old
+// ones map.hasLayer()/removeLayer() were tracking.
 function buildContourLayers() {
-  if (!map || contourLinesLayerGroup) return;
+  if (!map) return;
+  if (contourLinesLayerGroup) map.removeLayer(contourLinesLayerGroup);
+  if (contourFilledLayerGroup) map.removeLayer(contourFilledLayerGroup);
+  if (contourLabelsLayerGroup) map.removeLayer(contourLabelsLayerGroup);
+  contourLinesLayerGroup = null;
+  contourFilledLayerGroup = null;
+  contourLabelsLayerGroup = null;
+
   const grid = customDepthGrid.value ?? buildDepthGrid(lakePolygonRings);
   if (!grid) return;
 
@@ -1830,87 +1862,8 @@ function setBaseLayer(id: string) {
 
 watch(selectedBaseLayer, (id) => setBaseLayer(id));
 
-interface MapLayer {
-  id: string;
-  name: string;
-  description: string;
-  active: boolean;
-}
-
-const mapLayers = ref<MapLayer[]>([
-  {
-    id: 'fish',
-    name: 'Fish Observations',
-    description: 'Endemic & invasive species markers',
-    active: true,
-  },
-  {
-    id: 'lakeBoundary',
-    name: 'Lake Lanao Boundary',
-    description: 'Official OSM outline of Lake Lanao',
-    active: false,
-  },
-  {
-    id: 'wqAll',
-    name: 'All Water Quality Sites',
-    description: 'Every water quality sampling point',
-    active: true,
-  },
-  {
-    id: 'wqAbove40',
-    name: 'Sites Above 40m Depth',
-    description: 'Sampling points deeper than 40m',
-    active: false,
-  },
-  {
-    id: 'wqBelow40',
-    name: 'Sites Below 40m Depth',
-    description: 'Sampling points shallower than 40m',
-    active: false,
-  },
-  {
-    id: 'wqTributary',
-    name: 'Tributary Sampling Sites',
-    description: 'Sampling points along tributaries',
-    active: false,
-  },
-  {
-    id: 'lakeStations',
-    name: 'Lake Monitoring Stations',
-    description: 'Lake zone boundaries (hover for details)',
-    active: false,
-  },
-  {
-    id: 'tributaries',
-    name: 'Lake Tributaries',
-    description: 'Rivers feeding into Lake Lanao',
-    active: false,
-  },
-  {
-    id: 'contourLines',
-    name: 'Bathymetry Contours (Lines)',
-    description: 'Modeled depth contours — 20/40/60/80/100m, lines only',
-    active: false,
-  },
-  {
-    id: 'contourFilled',
-    name: 'Bathymetry Contours (Filled)',
-    description: 'Modeled depth contours — filled color bands + lines',
-    active: false,
-  },
-  {
-    id: 'municipalWaters',
-    name: 'Municipal Water Zones (~15km)',
-    description: 'Illustrative median-line division among lakeshore LGUs',
-    active: false,
-  },
-  {
-    id: 'municipalityMarkers',
-    name: 'Municipality Markers',
-    description: 'Clickable city markers — one per lakeside municipality',
-    active: true,
-  },
-]);
+// mapLayers comes from useMapLayersState now — session-persisted toggle
+// state, not reset every time you navigate back to this page.
 
 // Layers shown in the "Layers" tab (kept separate from the Water tab's own layer controls).
 const exceptionLayerIds = ['fish', 'lakeBoundary', 'wqAll', 'contourLines', 'contourFilled'];
@@ -2754,6 +2707,35 @@ function buildMunicipalityMarkers() {
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.04),
     0 4px 16px rgba(13, 148, 136, 0.06);
+}
+
+/* ═══════════════════════════════════ */
+/* BATHYMETRY UPLOAD TILE              */
+/* ═══════════════════════════════════ */
+.bathy-upload-card {
+  background: rgba(240, 253, 250, 0.6);
+  border: 1px solid rgba(13, 148, 136, 0.18) !important;
+  border-radius: 14px !important;
+  transition:
+    transform 0.2s ease-out,
+    box-shadow 0.2s ease-out,
+    border-color 0.2s ease-out;
+}
+
+.bathy-upload-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(13, 148, 136, 0.4) !important;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    0 6px 18px rgba(13, 148, 136, 0.12);
+}
+
+.bathy-upload-icon-bg {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(13, 148, 136, 0.12);
+  flex-shrink: 0;
 }
 
 .species-item--active {

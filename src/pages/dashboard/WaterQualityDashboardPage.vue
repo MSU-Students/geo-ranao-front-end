@@ -546,7 +546,6 @@ import {
   months,
   MONTH_NAMES,
   READING_YEARS,
-  READING_START_YEAR,
   formatReading,
   STATUS_COLORS,
   STATUS_LABELS,
@@ -557,14 +556,24 @@ import {
   TRIBUTARY_RIVER_SITE_IDS,
   WATER_QUALITY_CLASSES,
   WATER_QUALITY_CLASS_LABELS,
-  DEFAULT_WATER_QUALITY_CLASS,
   getClassLimitReferenceValue,
   type WaterQualityParam,
   type StatusLevel,
   type DepthReadingPoint,
-  type WaterQualityClass,
 } from 'src/composables/useWaterQualityModel';
-import { selectedParamKey } from 'src/composables/useWaterQualityDashboardState';
+import {
+  selectedParamKey,
+  selectedWaterClass,
+  selectedYear,
+  selectedMonthInYear,
+  selectedStationId,
+  selectedDepthM,
+  compareParamKeyA,
+  compareParamKeyB,
+  depthProfileParamKeyA,
+  depthProfileParamKeyB,
+  readingMonthIndex,
+} from 'src/composables/useWaterQualityDashboardState';
 import {
   fetchWaterQualityReadings,
   buildReadingLookup,
@@ -589,7 +598,6 @@ const sites = ref<Site[]>([]);
 const siteCount = computed(() => sites.value.length);
 const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 
-const selectedWaterClass = ref<WaterQualityClass>(DEFAULT_WATER_QUALITY_CLASS);
 const waterClassOptions = WATER_QUALITY_CLASSES.map((c) => ({ label: WATER_QUALITY_CLASS_LABELS[c], value: c }));
 
 const readingsLookup = ref<ReadingLookup>(new Map());
@@ -606,33 +614,11 @@ onMounted(async () => {
   }
 });
 
-// Reading Period: pick a year (2025 onward), then a month within that year.
-const now = new Date();
-const defaultReadingYear = READING_YEARS.includes(now.getFullYear())
-  ? now.getFullYear()
-  : READING_YEARS[READING_YEARS.length - 1]!;
-const selectedYear = ref(defaultReadingYear);
-const selectedMonthInYear = ref(defaultReadingYear === now.getFullYear() ? now.getMonth() : 0);
-const selectedMonthIndex = computed(
-  () => (selectedYear.value - READING_START_YEAR) * 12 + selectedMonthInYear.value,
-);
-
-const selectedStationId = ref<string | null>(null);
-const selectedDepthM = ref(0);
-
-const compareParamKeyA = ref(
-  allWaterQualityParams.find((p) => p.key === 'chlorophyll')?.key ?? allWaterQualityParams[0]!.key,
-);
-const compareParamKeyB = ref(
-  allWaterQualityParams.find((p) => p.key === 'nitrate')?.key ?? allWaterQualityParams[1]!.key,
-);
-
-const depthProfileParamKeyA = ref(
-  allWaterQualityParams.find((p) => p.key === 'temperature')?.key ?? allWaterQualityParams[0]!.key,
-);
-const depthProfileParamKeyB = ref(
-  allWaterQualityParams.find((p) => p.key === 'dissolvedOxygen')?.key ?? allWaterQualityParams[1]!.key,
-);
+// selectedWaterClass/selectedYear/selectedMonthInYear/selectedStationId/
+// selectedDepthM/compareParamKeyA-B/depthProfileParamKeyA-B are all imported
+// from useWaterQualityDashboardState now — session-persisted filters, not
+// reset every time you navigate back to this page.
+const selectedMonthIndex = computed(() => readingMonthIndex(selectedYear.value, selectedMonthInYear.value));
 
 const paramSelectOptions = allWaterQualityParams.map((p) => ({ label: p.label, value: p.key }));
 

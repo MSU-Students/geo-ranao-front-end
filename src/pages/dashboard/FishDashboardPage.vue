@@ -407,9 +407,22 @@ import {
   type FishObservation,
   type ConservationStatus,
 } from 'src/composables/useFishObservations';
+import {
+  activeFilter,
+  distYear,
+  distMunicipality,
+  distCategory,
+  timelineAYear,
+  timelineBYear,
+  timelineAMuni,
+  timelineBMuni,
+  timelineASpecies,
+  timelineAMetric,
+  timelineBSpecies,
+  timelineBMetric,
+} from 'src/composables/useFishDashboardState';
 
 const search = ref('');
-const activeFilter = ref('all');
 const loading = ref(false);
 const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 
@@ -522,10 +535,8 @@ function selectFish(fish: Fish) {
 }
 
 // --- Distribution Explorer Logic ---
-const distYear = ref<string>('All Years');
-const distMunicipality = ref<string>('All Municipalities');
-const distCategory = ref<string>('All');
-
+// distYear/distMunicipality/distCategory come from useFishDashboardState now
+// (session-persisted, see that file).
 const distCategoryOptions = [
   { label: 'All Categories', value: 'All' },
   { label: 'Endemic', value: 'ENDEMIC' },
@@ -605,16 +616,9 @@ const timelineYearOptions = computed(() => {
   return sorted;
 });
 
-const timelineAYear = ref(String(new Date().getFullYear()));
-const timelineBYear = ref(String(new Date().getFullYear()));
-
-const timelineAMuni = ref('All Municipalities');
-const timelineBMuni = ref('All Municipalities');
-
-const timelineASpecies = ref('All Species');
-const timelineAMetric = ref('count');
-const timelineBSpecies = ref('All Species');
-const timelineBMetric = ref('depthM');
+// timelineAYear/timelineBYear/timelineAMuni/timelineBMuni/timelineASpecies/
+// timelineAMetric/timelineBSpecies/timelineBMetric come from
+// useFishDashboardState now (session-persisted, see that file).
 
 function computeTimelineSeries(targetSpecies: string, targetMetric: string, targetYear: string, targetMuni: string) {
   const months: string[] = [];

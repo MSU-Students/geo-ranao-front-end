@@ -165,6 +165,8 @@ export interface WaterQualityParam {
   typical: number;
   /** Fallback single-value reference line for parameters with no classLimits (e.g. Turbidity). */
   guideline?: number;
+  /** 0 is a legitimate "non-detect" reading for this parameter, not a sensor fault — skip the out-of-range warning for it even though it's below `min`. */
+  allowZero?: boolean;
   /** DENR Class A/B/C regulatory limitation, per class — absent for parameters the source table doesn't cover. */
   classLimits?: ClassLimits;
   getStatus: (value: number, waterClass?: WaterQualityClass) => StatusLevel;
@@ -260,24 +262,28 @@ export const waterQualityParameterGroups: WaterQualityParamGroup[] = [
     params: [
       {
         key: 'phosphate', label: 'Phosphate', unit: 'mg/L', min: 0.01, max: 0.5, decimals: 2, typical: 0.05,
+        allowZero: true,
         // DENR classification: A ≤0.025, B ≤0.025, C ≤0.025
         classLimits: { A: maxLimit(0.025), B: maxLimit(0.025), C: maxLimit(0.025) },
         getStatus: classBasedStatus({ A: maxLimit(0.025), B: maxLimit(0.025), C: maxLimit(0.025) }),
       },
       {
         key: 'ammonia', label: 'Ammonia', unit: 'mg/L', min: 0.01, max: 0.3, decimals: 2, typical: 0.025,
+        allowZero: true,
         // DENR classification: A ≤0.06, B ≤0.06, C ≤0.06
         classLimits: { A: maxLimit(0.06), B: maxLimit(0.06), C: maxLimit(0.06) },
         getStatus: classBasedStatus({ A: maxLimit(0.06), B: maxLimit(0.06), C: maxLimit(0.06) }),
       },
       {
         key: 'nitrate', label: 'Nitrate', unit: 'mg/L', min: 0.1, max: 2, decimals: 2, typical: 0.25,
+        allowZero: true,
         // DENR classification: A ≤7, B ≤7, C ≤7
         classLimits: { A: maxLimit(7), B: maxLimit(7), C: maxLimit(7) },
         getStatus: classBasedStatus({ A: maxLimit(7), B: maxLimit(7), C: maxLimit(7) }),
       },
       {
         key: 'nitrite', label: 'Nitrite', unit: 'mg/L', min: 0.01, max: 0.1, decimals: 3, typical: 0.015,
+        allowZero: true,
         // DENR classification: A ≤1, B ≤1, C ≤0 (Class C requires none detectable)
         classLimits: { A: maxLimit(1), B: maxLimit(1), C: maxLimit(0) },
         getStatus: classBasedStatus({ A: maxLimit(1), B: maxLimit(1), C: maxLimit(0) }),
@@ -387,6 +393,7 @@ export function formatReading(value: number, param: WaterQualityParam): string {
 // auto-rejected. Shared by the bulk-upload parser and the admin review table
 // so "unusual" means the same thing in both places.
 export function getParamWarning(param: WaterQualityParam, value: number): string | null {
+  if (value === 0 && param.allowZero) return null;
   if (value < param.min || value > param.max) {
     return `${param.label} (${value}${param.unit}) is outside the expected range ${param.min}–${param.max}${param.unit}`;
   }

@@ -6,8 +6,8 @@
         <div class="loading-content">
           <div class="pulse-ring"></div>
           <img src="~assets/geo-ranao-logo.png" alt="Geo Ranao" class="loading-icon" style="width: 56px; height: auto; object-fit: contain" />
-          <p class="loading-text">{{ isCustomModel ? 'Building Custom Surfer Model…' : 'Building 3D Bathymetry Model…' }}</p>
-          <p class="loading-sub">{{ isCustomModel ? 'Parsing KMZ and computing surface' : 'Fetching satellite imagery & terrain elevation data…' }}</p>
+          <p class="loading-text">Building 3D Bathymetry Model…</p>
+          <p class="loading-sub">Fetching satellite imagery &amp; terrain elevation data…</p>
           <q-linear-progress
             :value="loadProgress"
             color="teal"
@@ -67,21 +67,22 @@
               </q-btn>
             </div>
 
-            <!-- KMZ upload — admin only -->
+            <!-- Bathymetry survey upload — admin only, same upload flow (and
+                 same fixed-grid backend) as the 2D map, so a survey uploaded
+                 from either page updates both. -->
             <template v-if="isAdmin">
-              <input type="file" ref="fileInput" accept=".kmz,.kml" style="display: none" @change="onFileUploaded" />
               <q-btn
-                id="btn-upload-kmz"
+                id="btn-upload-bathymetry"
                 unelevated
                 rounded
                 dense
                 color="primary"
                 icon="upload"
-                label="Upload KMZ"
+                label="Upload Bathymetry"
                 class="drawer-btn"
-                @click="triggerFileUpload"
+                @click="uploadBathymetryDialogRef?.open()"
               >
-                <q-tooltip anchor="center right" self="center left">Upload custom KMZ/KML bathymetry model (Admin only)</q-tooltip>
+                <q-tooltip anchor="center right" self="center left">Upload a bathymetry survey (Admin only)</q-tooltip>
               </q-btn>
             </template>
             <q-btn
@@ -194,7 +195,7 @@
             <q-icon :name="colorMode === 'satellite' ? 'public' : 'water'" size="16px" class="q-mr-xs" />
             {{ colorMode === 'satellite' ? 'Google Earth Satellite' : (bathyScheme === 'blue' ? 'Classic Blue Depth (m)' : (bathyScheme === 'viridis' ? 'Viridis Topo Depth (m)' : 'Turbo Rainbow Depth (m)')) }}
           </div>
-          <div v-if="!isCustomModel" class="info-sub q-mb-sm">
+          <div class="info-sub q-mb-sm">
             <q-icon :name="bathymetryPoints.points.length > 0 ? 'verified' : 'info'" size="12px" class="q-mr-xs" />
             {{
               bathymetryPoints.points.length > 0
@@ -209,13 +210,11 @@
               'legend-gradient--rainbow': colorMode === 'bathymetry' && bathyScheme === 'rainbow',
               'legend-gradient--satellite': colorMode === 'satellite'
             }"
-            :style="customLegendStyle"
           />
           <div class="legend-labels">
-            <span>{{ legendMin }}</span>
-            <span v-if="!isCustomModel">55</span>
-            <span v-if="isCustomModel">{{ legendMid }}</span>
-            <span>{{ legendMax }}</span>
+            <span>0</span>
+            <span>55</span>
+            <span>110+</span>
           </div>
         </div>
 
@@ -418,8 +417,10 @@
     <!-- Info tooltip on hover -->
     <div v-if="hoveredDepth !== null && !isLoading" class="depth-tooltip" :style="tooltipStyle">
       <q-icon name="water_drop" size="14px" class="q-mr-xs" />
-      ~{{ isCustomModel ? hoveredDepth.toFixed(1) : Math.round(hoveredDepth) }} m
+      ~{{ Math.round(hoveredDepth) }} m
     </div>
+
+    <UploadBathymetryDialog ref="uploadBathymetryDialogRef" @published="handleBathymetryPublished" />
   </q-page>
 </template>
 
@@ -430,7 +431,7 @@ import * as THREE from 'three';
 import { buildDepthGrid, colorForDepth, extractPolygonRings, pointInRing, CONTOUR_MAX_DEPTH_M } from 'src/composables/useBathymetry';
 import { buildDepthGridFromPoints } from 'src/composables/useMapDataUpload';
 import { fetchCurrentBathymetryPoints, type CurrentBathymetryPoints } from 'src/composables/useBathymetrySurveys';
-import { parseKMZ, buildGeometryFromPoints } from 'src/composables/useSurfer3D';
+import UploadBathymetryDialog from 'src/components/UploadBathymetryDialog.vue';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 const authStore = useAuthStore();
@@ -448,12 +449,7 @@ const drawerOpen = ref(false);
 const navPadOpen = ref(false);
 const showInstructions = ref(false);
 
-const fileInput = ref<HTMLInputElement | null>(null);
-const customLegendStyle = ref('');
-const legendMin = ref('0');
-const legendMid = ref('55');
-const legendMax = ref('110+');
-const isCustomModel = ref(false);
+const uploadBathymetryDialogRef = ref<InstanceType<typeof UploadBathymetryDialog> | null>(null);
 const colorMode = ref<'satellite' | 'bathymetry'>('satellite');
 const bathyScheme = ref<'blue' | 'viridis' | 'rainbow'>('blue');
 
@@ -467,11 +463,6 @@ let renderer: THREE.WebGLRenderer | null = null;
 let scene: THREE.Scene | null = null;
 let camera: THREE.PerspectiveCamera | null = null;
 let lakeMesh: THREE.Mesh | null = null;
-// Islands currently render as displaced/colored vertices on lakeMesh itself
-// (see isIslandVertex/islandWeight below), not as separate objects — this
-// stays null, so the cleanup in onFileUploaded() is a safe no-op rather
-// than a dangling reference.
-const islandGroup: THREE.Group | null = null;
 let waterMesh: THREE.Mesh | null = null;
 let satelliteMaterial: THREE.MeshStandardMaterial | null = null;
 let bathymetryMaterial: THREE.MeshStandardMaterial | null = null;
@@ -496,9 +487,19 @@ let lastMouse = { x: 0, y: 0 };
 const CAM_DEFAULT = { phi: 0.9, theta: 0.0, radius: 6.5, target: new THREE.Vector3(0, 0, 0) };
 const cam = { ...CAM_DEFAULT, target: new THREE.Vector3() };
 
+// W/A/S/D pan continuously for as long as they're held, driven every render
+// frame with a delta-time-scaled step (see animate()) — rather than once per
+// keydown event, which only re-fires at the OS's keyboard auto-repeat rate
+// (a ~500ms initial delay, then a slow, uneven interval), producing the
+// stepped "1 pixel at a time" movement this replaces.
+const heldKeys = new Set<string>();
+let lastFrameTime = 0;
+
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
 onMounted(async () => {
   window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('blur', onWindowBlur);
   try {
     await buildScene();
   } catch (e) {
@@ -514,6 +515,8 @@ onBeforeUnmount(() => {
   renderer?.dispose();
   window.removeEventListener('resize', onResize);
   window.removeEventListener('keydown', onKeyDown);
+  window.removeEventListener('keyup', onKeyUp);
+  window.removeEventListener('blur', onWindowBlur);
 });
 
 // ─── Scene construction ──────────────────────────────────────────────────────
@@ -940,6 +943,22 @@ function addStars() {
 function animate() {
   animId = requestAnimationFrame(animate);
 
+  // Continuous W/A/S/D pan — scaled by delta-time so speed stays consistent
+  // regardless of the display's refresh rate, capped so a tab coming back
+  // from background (a huge gap since the last frame) can't fling the camera.
+  const now = performance.now();
+  const dt = lastFrameTime ? Math.min((now - lastFrameTime) / 1000, 0.1) : 0;
+  lastFrameTime = now;
+  if (heldKeys.size > 0) {
+    const step = PAN_SPEED * dt;
+    let moved = false;
+    if (heldKeys.has('w')) { cam.target.z -= step; moved = true; }
+    if (heldKeys.has('s')) { cam.target.z += step; moved = true; }
+    if (heldKeys.has('a')) { cam.target.x -= step; moved = true; }
+    if (heldKeys.has('d')) { cam.target.x += step; moved = true; }
+    if (moved) updateCameraPosition();
+  }
+
   // Subtle water shimmer
   const t = Date.now() * 0.001;
   if (lakeMesh) lakeMesh.rotation.y = Math.sin(t * 0.08) * 0.003;
@@ -963,11 +982,8 @@ function animate() {
         const vC = new THREE.Vector3().fromBufferAttribute(positions, face.c);
         const bary = new THREE.Triangle(vA, vB, vC).getBarycoord(localPoint, new THREE.Vector3());
 
-        const origZ = lakeMesh.geometry.attributes['origZ'] as THREE.BufferAttribute | undefined;
         if (!bary) {
           hoveredDepth.value = null;
-        } else if (isCustomModel.value && origZ) {
-          hoveredDepth.value = origZ.getX(face.a) * bary.x + origZ.getX(face.b) * bary.y + origZ.getX(face.c) * bary.z;
         } else if (vertexMetaList) {
           // vertexMetaList is indexed 1:1 with the rendered mesh's vertices
           // (built in the same loop as the geometry itself), unlike the raw
@@ -1142,7 +1158,8 @@ function cycleColorStyle() {
 const ROT_STEP  = 0.08;  // radians per button click (rotate)
 const TILT_STEP = 0.06;  // radians per button click (tilt)
 const ZOOM_STEP = 0.35;  // scene units per zoom click
-const PAN_STEP  = 0.06;  // scene units per pan click
+const PAN_STEP  = 0.06;  // scene units per pan click (discrete D-pad buttons)
+const PAN_SPEED = 1.4;   // scene units per second (continuous W/A/S/D — see animate())
 
 function rotateLeft()     { cam.theta += ROT_STEP;  updateCameraPosition(); }
 function rotateRight()    { cam.theta -= ROT_STEP;  updateCameraPosition(); }
@@ -1168,10 +1185,10 @@ function onKeyDown(e: KeyboardEvent) {
     case 'ArrowDown':  rotateTiltDown(); e.preventDefault(); break;
     case '+': case '=': zoomIn();        break;
     case '-': case '_': zoomOut();       break;
-    case 'a': case 'A': panLeft();       break;
-    case 'd': case 'D': panRight();      break;
-    case 'w': case 'W': panForward();    break;
-    case 's': case 'S': panBack();       break;
+    case 'a': case 'A': case 'd': case 'D': case 'w': case 'W': case 's': case 'S':
+      heldKeys.add(e.key.toLowerCase());
+      e.preventDefault();
+      break;
     case 'r': case 'R': resetCamera();   break;
     case 'f': case 'F': toggleWireframe(); break;
     case 'c': case 'C': cycleColorStyle(); break;
@@ -1179,65 +1196,61 @@ function onKeyDown(e: KeyboardEvent) {
   }
 }
 
-// ─── Event handlers ───────────────────────────────────────────────────────────
-function triggerFileUpload() {
-  fileInput.value?.click();
+function onKeyUp(e: KeyboardEvent) {
+  heldKeys.delete(e.key.toLowerCase());
 }
 
-async function onFileUploaded(event: Event) {
-  const target = event.target as HTMLInputElement;
-  if (!target.files?.length) return;
-  const file = target.files[0];
-  if (!file) return;
+// If the window loses focus mid-press (alt-tab, clicking outside the page),
+// no keyup ever arrives — without this the camera would pan forever in
+// whatever direction was last held.
+function onWindowBlur() {
+  heldKeys.clear();
+}
+
+// ─── Event handlers ───────────────────────────────────────────────────────────
+// Fires after a bathymetry survey upload (from this page's own drawer button,
+// same dialog/backend as the 2D map). The new depth data changes the lake
+// mesh at every vertex, and that geometry is built once, inline, deep inside
+// buildScene() alongside the satellite texture and terrain tiles it also
+// depends on — so rather than trying to patch it in place, this tears down
+// and reruns buildScene() exactly like a fresh page load would (see
+// onBeforeUnmount for the same teardown). The big GPU-held resources
+// (lake/water geometry, materials, satellite texture) are disposed first
+// since — unlike a real unmount — the canvas itself stays alive across this,
+// so anything not explicitly disposed here would otherwise leak on every
+// re-upload within the same session.
+async function handleBathymetryPublished() {
+  drawerOpen.value = false;
+
+  if (animId !== null) { cancelAnimationFrame(animId); animId = null; }
+  if (lakeMesh) {
+    lakeMesh.geometry.dispose();
+    const mat = lakeMesh.material as THREE.MeshStandardMaterial;
+    mat.map?.dispose();
+    mat.dispose();
+  }
+  if (waterMesh) {
+    waterMesh.geometry.dispose();
+    (waterMesh.material as THREE.Material).dispose();
+  }
+  renderer?.dispose();
+  renderer = null;
 
   isLoading.value = true;
-  loadProgress.value = 0.2;
+  loadProgress.value = 0;
   errorMsg.value = '';
   try {
-    const points = await parseKMZ(file);
-    loadProgress.value = 0.5;
-    const { geometry, minZ, maxZ } = buildGeometryFromPoints(points);
-    loadProgress.value = 0.9;
-
-    if (lakeMesh) {
-      scene?.remove(lakeMesh);
-      lakeMesh.geometry.dispose();
-      (lakeMesh.material as THREE.Material).dispose();
-    }
-
-    if (islandGroup) {
-      scene?.remove(islandGroup);
-      islandGroup.clear();
-    }
-
-    const material = new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      roughness: 0.55,
-      metalness: 0.1,
-      side: THREE.DoubleSide,
-      wireframe: showWireframe.value,
-    });
-
-    lakeMesh = new THREE.Mesh(geometry, material);
-    lakeMesh.receiveShadow = true;
-    lakeMesh.castShadow = false;
-    scene?.add(lakeMesh);
-
-    isCustomModel.value = true;
-    customLegendStyle.value = 'background: linear-gradient(to right, #0D47A1, #E3F2FD);';
-    legendMin.value = minZ.toFixed(1);
-    legendMid.value = ((minZ + maxZ) / 2).toFixed(1);
-    legendMax.value = maxZ.toFixed(1);
-
-    resetCamera();
-    drawerOpen.value = false;
+    await buildScene();
   } catch (e) {
-    errorMsg.value = 'Failed to load custom 3D model. ' + (e as Error).message;
+    errorMsg.value = 'Failed to rebuild the 3D model. Please try refreshing.';
+    console.error(e);
   } finally {
-    loadProgress.value = 1.0;
-    setTimeout(() => { isLoading.value = false; }, 300);
-    target.value = '';
+    isLoading.value = false;
   }
+}
+
+function onContextMenu(e: MouseEvent) {
+  e.preventDefault();
 }
 
 function attachEvents(canvas: HTMLCanvasElement) {
@@ -1246,7 +1259,7 @@ function attachEvents(canvas: HTMLCanvasElement) {
   canvas.addEventListener('mouseup',    onMouseUp);
   canvas.addEventListener('mouseleave', onMouseUp);
   canvas.addEventListener('wheel',      onWheel, { passive: false });
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  canvas.addEventListener('contextmenu', onContextMenu);
 }
 
 function onMouseDown(e: MouseEvent) {
@@ -1309,7 +1322,11 @@ function onResize() {
 .map3d-page {
   position: relative;
   width: 100%;
-  height: calc(100vh - 52px);
+  /* The header is a floating overlay (q-page-container has padding-top: 0),
+     not layout space this page needs to make room for — see MainLayout.vue
+     and IndexPage.vue's plain 100vh. Subtracting the header's height here
+     left the bottom of the viewport blank instead of covered by the canvas. */
+  height: 100vh;
   overflow: hidden;
   background: #0a1628;
   font-family: 'Inter', 'Roboto', sans-serif;
