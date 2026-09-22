@@ -513,20 +513,7 @@
         </div>
       </div>
 
-      <!-- Footer Actions -->
-      <div class="row q-gutter-sm">
-        <q-btn
-          color="teal"
-          label="Record Water Quality Data"
-          icon="add"
-          unelevated
-          rounded
-          @click="uploadDialogRef?.openFor('water')"
-        />
-      </div>
     </div>
-
-    <UploadDataDialog ref="uploadDialogRef" />
   </q-page>
 </template>
 
@@ -539,7 +526,6 @@ import StatusDistributionBar from 'src/components/charts/StatusDistributionBar.v
 import StationMap from 'src/components/charts/StationMap.vue';
 import DepthProfileChart from 'src/components/charts/DepthProfileChart.vue';
 import StationComparisonChart from 'src/components/charts/StationComparisonChart.vue';
-import UploadDataDialog from 'src/components/UploadDataDialog.vue';
 import {
   waterQualityParameterGroups,
   allWaterQualityParams,
@@ -596,7 +582,6 @@ interface Site {
 
 const sites = ref<Site[]>([]);
 const siteCount = computed(() => sites.value.length);
-const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 
 const waterClassOptions = WATER_QUALITY_CLASSES.map((c) => ({ label: WATER_QUALITY_CLASS_LABELS[c], value: c }));
 
