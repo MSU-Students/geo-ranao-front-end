@@ -65,3 +65,11 @@ export async function rejectBathymetrySurvey(id: number, reason?: string): Promi
   const { data } = await api.patch<BathymetrySurvey>(`/bathymetry/surveys/${id}/reject`, { reason });
   return data;
 }
+
+// Permanently retracts a bad upload — e.g. one approved without a proper QC
+// pass. Every fixed point this survey touched reverts to whatever the next
+// most recent survey left there (or back to "no data" if this was the only
+// one) — see BathymetryService.remove on the backend.
+export async function deleteBathymetrySurvey(id: number, reason?: string): Promise<void> {
+  await api.delete(`/bathymetry/surveys/${id}`, { data: { reason } });
+}

@@ -103,6 +103,16 @@ export async function rejectWaterQualityBatch(batchId: string, reason?: string):
   return data;
 }
 
+// Permanently retracts a bad upload — e.g. one approved without a proper QC
+// pass. Unlike reject (which keeps the record, just marked rejected), this
+// removes it entirely.
+export async function deleteWaterQualityReading(id: number, reason?: string): Promise<void> {
+  await api.delete(`/water-quality/readings/${id}`, { data: { reason } });
+}
+export async function deleteWaterQualityBatch(batchId: string, reason?: string): Promise<void> {
+  await api.delete(`/water-quality/readings/batch/${batchId}`, { data: { reason } });
+}
+
 // ─── Reading lookup (siteId|monthIndex|paramKey|depthM -> averaged value) ───
 export type ReadingLookup = Map<string, number[]>;
 

@@ -163,7 +163,7 @@
               </div>
               <p class="text-caption text-grey-5 q-mt-xs q-mb-0">
                 Pulsing ring = Serious &nbsp;·&nbsp; <strong>!</strong> badge = Warning &nbsp;·&nbsp;
-                both = Critical — on <em>any</em> parameter, not just {{ selectedParam?.label ?? 'the one shown' }}
+                both = Critical — for {{ selectedParam?.label ?? 'the selected parameter' }} only
               </p>
             </q-card-section>
           </q-card>
@@ -851,61 +851,46 @@ function mapStatusColor(status: StatusLevel): string {
   return STATUS_COLORS.critical;
 }
 
-const statusColorBySite = computed<Record<string, string>>(() => {
+// Per-site status for the currently selected parameter (4-tier:
+// good/warning/serious/critical) — the single source the map's fill color,
+// pulse ring, and "!" badge are all derived from below, so a station is
+// never flagged over a parameter you didn't choose to look at. Previously
+// the ring/badge scanned every parameter for the worst one regardless of
+// selection, which meant a station could pulse red while colored green
+// (fine on the parameter shown, bad on some other one) — confusing, since
+// nothing on screen explained the mismatch unless you hovered the tooltip.
+const statusBySite = computed<Record<string, StatusLevel>>(() => {
   const param = selectedParam.value;
-  const result: Record<string, string> = {};
+  const result: Record<string, StatusLevel> = {};
   if (!param) return result;
   sites.value.forEach((site) => {
     const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
-    result[site.siteId] = value !== null ? mapStatusColor(param.getStatus(value, selectedWaterClass.value)) : NO_DATA_COLOR;
+    if (value !== null) result[site.siteId] = param.getStatus(value, selectedWaterClass.value);
   });
   return result;
 });
 
-// Worst status across ALL parameters per site — separate from
-// statusColorBySite's single-parameter quick-glance color, and deliberately
-// NOT scoped to selectedParam. Drives the map's pulse/badge attention cues,
-// same scope as sitesNeedingAttention: a site with one bad parameter should
-// stay flagged on the map no matter which parameter is currently selected.
-// attentionDetailBySite carries WHICH parameter earned that status, so the
-// map tooltip can say why a site is flagged instead of just showing an
-// unexplained badge (easy to assume it's about whichever parameter the map
-// happens to be colored by, when it's actually a different one).
-interface SiteAttention {
-  status: StatusLevel;
-  paramLabel: string;
-  formattedValue: string;
-}
-
-const attentionBySite = computed<Record<string, SiteAttention>>(() => {
-  const result: Record<string, SiteAttention> = {};
+// Marker fill color — same 3-tier collapse (good/warning/critical) as
+// before, just now derived from statusBySite instead of a separate lookup,
+// so it can never disagree with the ring/badge decoration on top of it.
+const statusColorBySite = computed<Record<string, string>>(() => {
+  const result: Record<string, string> = {};
   sites.value.forEach((site) => {
-    let worst: SiteAttention | null = null;
-    allWaterQualityParams.forEach((param) => {
-      const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
-      if (value === null) return;
-      const status = param.getStatus(value, selectedWaterClass.value);
-      if (worst === null || STATUS_LEVELS.indexOf(status) > STATUS_LEVELS.indexOf(worst.status)) {
-        worst = { status, paramLabel: param.label, formattedValue: formatReading(value, param) };
-      }
-    });
-    if (worst !== null) result[site.siteId] = worst;
+    const status = statusBySite.value[site.siteId];
+    result[site.siteId] = status ? mapStatusColor(status) : NO_DATA_COLOR;
   });
   return result;
 });
 
-const statusBySite = computed<Record<string, StatusLevel>>(() => {
-  const result: Record<string, StatusLevel> = {};
-  Object.entries(attentionBySite.value).forEach(([siteId, a]) => {
-    result[siteId] = a.status;
-  });
-  return result;
-});
-
+// The selected parameter's actual reading at each flagged site, so the map
+// tooltip can show the number behind the badge instead of just the color.
 const attentionDetailBySite = computed<Record<string, { paramLabel: string; formattedValue: string }>>(() => {
+  const param = selectedParam.value;
   const result: Record<string, { paramLabel: string; formattedValue: string }> = {};
-  Object.entries(attentionBySite.value).forEach(([siteId, a]) => {
-    result[siteId] = { paramLabel: a.paramLabel, formattedValue: a.formattedValue };
+  if (!param) return result;
+  sites.value.forEach((site) => {
+    const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
+    if (value !== null) result[site.siteId] = { paramLabel: param.label, formattedValue: formatReading(value, param) };
   });
   return result;
 });

@@ -281,19 +281,26 @@
                 class="submissions-table"
               >
                 <template #top-left>
-                  <div v-if="selectedPendingUploadsCount" class="row items-center q-gutter-sm">
+                  <div v-if="selectedUploads.length" class="row items-center q-gutter-sm">
                     <span class="text-grey-3 text-caption">
-                      {{ selectedPendingUploadsCount }} pending selected
+                      {{ selectedUploads.length }} selected
                     </span>
                     <q-btn
+                      v-if="selectedPendingUploadsCount"
                       unelevated dense rounded size="sm" color="positive"
                       :label="`Approve Selected (${selectedPendingUploadsCount})`"
                       @click="handleBulkApproveUploads"
                     />
                     <q-btn
+                      v-if="selectedPendingUploadsCount"
                       flat dense rounded size="sm" color="negative"
                       :label="`Reject Selected (${selectedPendingUploadsCount})`"
                       @click="handleBulkRejectUploads"
+                    />
+                    <q-btn
+                      flat dense rounded size="sm" color="negative"
+                      :label="`Delete Selected (${selectedUploads.length})`"
+                      @click="handleBulkDeleteUploads"
                     />
                   </div>
                 </template>
@@ -386,6 +393,12 @@
                       @click="downloadUploadGeoJson(props.row)"
                     >
                       <q-tooltip>Download Map Data</q-tooltip>
+                    </q-btn>
+                    <q-btn
+                      flat round dense icon="delete_forever" color="negative" size="sm"
+                      @click="handleDeleteUpload(props.row)"
+                    >
+                      <q-tooltip>Delete{{ props.row.batchId ? ' Batch' : '' }} — retract this upload entirely</q-tooltip>
                     </q-btn>
                   </q-td>
                 </template>
@@ -1180,6 +1193,26 @@ function handleRejectUpload(item: UploadReviewItem) {
   });
 }
 
+// Retracts an upload entirely — including one that's already approved, since
+// the whole point is undoing something that slipped past QC, not just
+// catching it during the initial review (that's what Reject is for).
+function handleDeleteUpload(item: UploadReviewItem) {
+  const noun = item.batchId ? `the batch "${item.title}" (${item.rows?.length ?? 0} readings)` : `"${item.title}"`;
+  openReasonDialog(
+    `Permanently delete ${noun}? This cannot be undone${item.type === 'bathymetry' ? ' — affected map points will revert to their prior value' : ''}.`,
+    'Delete',
+    'negative',
+    (reason) => {
+      adminStore
+        .deleteUpload(item, reason)
+        .then(() => {
+          $q.notify({ type: 'negative', message: 'Upload deleted.', position: 'top' });
+        })
+        .catch((err: unknown) => notifyActionError(err, 'Failed to delete upload.'));
+    },
+  );
+}
+
 // ─── Bulk Upload Review Actions (Review History tab) ───
 async function handleBulkApproveUploads() {
   const targets = selectedUploads.value.filter((u) => u.status === 'pending');
@@ -1229,6 +1262,33 @@ function handleBulkRejectUploads() {
   );
 }
 
+function handleBulkDeleteUploads() {
+  const targets = [...selectedUploads.value];
+  openReasonDialog(
+    `Permanently delete ${targets.length} selected upload${targets.length === 1 ? '' : 's'}? This cannot be undone.`,
+    'Delete',
+    'negative',
+    (reason) => {
+      selectedUploads.value = [];
+      void Promise.allSettled(targets.map((u) => adminStore.deleteUpload(u, reason))).then((results) => {
+        const failed = results.filter((r) => r.status === 'rejected').length;
+        if (failed) {
+          $q.notify({
+            type: 'warning',
+            message: `${targets.length - failed} deleted, ${failed} failed.`,
+            position: 'top',
+          });
+        } else {
+          $q.notify({
+            type: 'negative',
+            message: `${targets.length} upload${targets.length === 1 ? '' : 's'} deleted.`,
+            position: 'top',
+          });
+        }
+      });
+    },
+  );
+}
 
 function downloadUploadGeoJson(item: UploadReviewItem) {
   if (item.rows && item.rows.length) {

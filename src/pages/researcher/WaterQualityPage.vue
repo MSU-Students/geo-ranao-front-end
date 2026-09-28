@@ -163,7 +163,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional"
+                :hint="fieldWarning('dissolvedOxygen') ?? 'Optional'"
+                :hint-class="fieldWarning('dissolvedOxygen') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="bubble_chart" color="blue-4" />
@@ -184,7 +185,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional"
+                :hint="fieldWarning('temperature') ?? 'Optional'"
+                :hint-class="fieldWarning('temperature') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="thermostat" color="blue-4" />
@@ -207,7 +209,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional (0–14)"
+                :hint="fieldWarning('ph') ?? 'Optional (0–14)'"
+                :hint-class="fieldWarning('ph') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="science" color="blue-4" />
@@ -229,7 +232,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional"
+                :hint="fieldWarning('turbidity') ?? 'Optional'"
+                :hint-class="fieldWarning('turbidity') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="water" color="blue-4" />
@@ -251,7 +255,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional"
+                :hint="fieldWarning('conductivity') ?? 'Optional'"
+                :hint-class="fieldWarning('conductivity') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="electric_bolt" color="blue-4" />
@@ -273,7 +278,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional"
+                :hint="fieldWarning('tds') ?? 'Optional'"
+                :hint-class="fieldWarning('tds') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="grain" color="blue-4" />
@@ -295,7 +301,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional"
+                :hint="fieldWarning('tss') ?? 'Optional'"
+                :hint-class="fieldWarning('tss') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="filter_drama" color="blue-4" />
@@ -336,7 +343,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional"
+                :hint="fieldWarning('phosphate') ?? 'Optional'"
+                :hint-class="fieldWarning('phosphate') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="hexagon" color="green-4" />
@@ -358,7 +366,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional"
+                :hint="fieldWarning('ammonia') ?? 'Optional'"
+                :hint-class="fieldWarning('ammonia') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="hexagon" color="green-4" />
@@ -380,7 +389,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional"
+                :hint="fieldWarning('nitrate') ?? 'Optional'"
+                :hint-class="fieldWarning('nitrate') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="hexagon" color="green-4" />
@@ -402,7 +412,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional"
+                :hint="fieldWarning('nitrite') ?? 'Optional'"
+                :hint-class="fieldWarning('nitrite') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="hexagon" color="green-4" />
@@ -424,7 +435,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional"
+                :hint="fieldWarning('sulfate') ?? 'Optional'"
+                :hint-class="fieldWarning('sulfate') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="hexagon" color="green-4" />
@@ -463,7 +475,8 @@
                 dark
                 outlined
                 class="form-field"
-                hint="Optional — phytoplankton biomass proxy"
+                :hint="fieldWarning('chlorophyll') ?? 'Optional — phytoplankton biomass proxy'"
+                :hint-class="fieldWarning('chlorophyll') ? 'field-warning-hint' : ''"
               >
                 <template #prepend>
                   <q-icon name="eco" color="amber-4" />
@@ -545,7 +558,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 import BackButton from 'src/components/BackButton.vue';
 import { fetchStations, useStations } from 'src/composables/useStations';
-import { DEPTH_OPTIONS } from 'src/composables/useWaterQualityModel';
+import { DEPTH_OPTIONS, allWaterQualityParams, getParamWarning } from 'src/composables/useWaterQualityModel';
 import { submitWaterQualityReading } from 'src/composables/useWaterQualityReadings';
 
 const $q = useQuasar();
@@ -619,6 +632,23 @@ const form = reactive({
 });
 
 const selectedStation = computed(() => stations.value.find((s) => s.siteId === form.siteId) ?? null);
+
+// Live "what and why" feedback as you type — same plausibility check the
+// bulk-upload path and admin review already flag values against, just
+// surfaced immediately here instead of only after an admin looks at it.
+// Never blocks submission (these fields stay optional/non-erroring); it's a
+// heads-up to double-check a value, not a validation failure.
+type WaterFormParamKey =
+  | 'dissolvedOxygen' | 'temperature' | 'ph' | 'turbidity' | 'conductivity' | 'tds' | 'tss'
+  | 'phosphate' | 'ammonia' | 'nitrate' | 'nitrite' | 'sulfate' | 'chlorophyll';
+
+function fieldWarning(paramKey: WaterFormParamKey): string | null {
+  const value = form[paramKey];
+  if (value === null || Number.isNaN(value)) return null;
+  const param = allWaterQualityParams.find((p) => p.key === paramKey);
+  if (!param) return null;
+  return getParamWarning(param, value);
+}
 
 function resetForm() {
   form.dateObserved = '';
@@ -777,6 +807,14 @@ async function handleSubmit() {
 
 .form-field :deep(.q-field__hint) {
   color: rgba(255, 255, 255, 0.3);
+}
+
+/* A flagged-but-still-valid value (see fieldWarning) — orange to read as
+   "double check this," distinct from Quasar's red error state, since the
+   field isn't actually invalid and submission is never blocked by it. */
+.form-field :deep(.field-warning-hint) {
+  color: #ffb74d !important;
+  font-weight: 500;
 }
 
 .unit-label {

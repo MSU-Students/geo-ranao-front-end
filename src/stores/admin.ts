@@ -8,6 +8,7 @@ import {
   fetchFishObservations,
   approveFishObservation,
   rejectFishObservation,
+  deleteFishObservation,
   type FishObservation,
 } from 'src/composables/useFishObservations';
 import {
@@ -16,12 +17,15 @@ import {
   rejectWaterQualityReading,
   approveWaterQualityBatch,
   rejectWaterQualityBatch,
+  deleteWaterQualityReading,
+  deleteWaterQualityBatch,
   type WaterQualityReading,
 } from 'src/composables/useWaterQualityReadings';
 import {
   fetchBathymetrySurveys,
   approveBathymetrySurvey,
   rejectBathymetrySurvey,
+  deleteBathymetrySurvey,
   type BathymetrySurvey,
 } from 'src/composables/useBathymetrySurveys';
 import type { DepthPoint } from 'src/composables/useMapDataUpload';
@@ -406,6 +410,28 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
+  // Permanently retracts an upload — approved, rejected, or still pending —
+  // e.g. one that turns out to be wrong after the fact, not just caught
+  // during the initial review. Unlike reviewUpload, there's no status to
+  // move to afterward: the record (or, for a batch, every record in it) is
+  // gone, and any bathymetry points it touched revert to their prior value.
+  async function deleteUpload(item: UploadReviewItem, reason?: string) {
+    try {
+      if (item.type === 'fish') {
+        await deleteFishObservation(item.refId!, reason);
+      } else if (item.type === 'bathymetry') {
+        await deleteBathymetrySurvey(item.refId!, reason);
+      } else if (item.batchId) {
+        await deleteWaterQualityBatch(item.batchId, reason);
+      } else {
+        await deleteWaterQualityReading(item.refId!, reason);
+      }
+      await Promise.all([fetchUploadReviews(), fetchActivityLogs()]);
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, 'Failed to delete upload.'));
+    }
+  }
+
   function recordReportGenerated(actor: string, reportLabel: string) {
     logActivity(actor, 'Generated Report', reportLabel);
   }
@@ -431,6 +457,7 @@ export const useAdminStore = defineStore('admin', () => {
     reinstateAccount,
     deleteAccount,
     reviewUpload,
+    deleteUpload,
     recordReportGenerated,
     recordMapDownload,
   };

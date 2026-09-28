@@ -129,6 +129,13 @@ export async function rejectFishObservation(id: number, reason?: string): Promis
   return data;
 }
 
+// Permanently retracts a bad upload — e.g. one approved without a proper QC
+// pass. Unlike reject (which keeps the record, just marked rejected), this
+// removes it entirely.
+export async function deleteFishObservation(id: number, reason?: string): Promise<void> {
+  await api.delete(`/fish-observations/${id}`, { data: { reason } });
+}
+
 export const CONSERVATION_STATUS_LABELS: Record<ConservationStatus, string> = {
   CRITICALLY_ENDANGERED: 'Critically Endangered',
   ENDANGERED: 'Endangered',
