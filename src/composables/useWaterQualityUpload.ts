@@ -5,6 +5,7 @@
 // three mandatory fields already make the row meaningful on their own.
 import * as XLSX from 'xlsx';
 import { allWaterQualityParams, getParamWarning } from './useWaterQualityModel';
+import { fetchStations } from './useStations';
 
 export interface WaterQualityUploadRow {
   siteId: string;
@@ -44,14 +45,31 @@ const COLUMN_TO_PARAM_KEY: Record<string, string> = {
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Was reading a static /geo/WQ-All-Sampling-Sites.geojson (24 coded sites,
+// e.g. "S1A") that never got updated when the 6 named tributary rivers
+// (e.g. "Masiu Tail (Sawir)") were added to the real station registry —
+// every bulk upload against a river site failed with "Unknown site_id" even
+// though the manual entry form and the backend both already accept them.
+// Reading the live /stations endpoint instead means there's only one
+// registry to keep in sync, not two.
 export async function fetchValidSiteIds(): Promise<Set<string>> {
-  const res = await fetch('/geo/WQ-All-Sampling-Sites.geojson');
-  const geojson = (await res.json()) as GeoJSON.FeatureCollection;
-  const ids = geojson.features.map((feature) => {
-    const props = feature.properties as unknown as { SITE_ID: string };
-    return props.SITE_ID;
-  });
-  return new Set(ids);
+  const stations = await fetchStations();
+  return new Set(stations.map((s) => s.siteId));
+}
+
+// A spreadsheet's site_id is free-typed by a person, unlike the coded IDs —
+// case differences ("masiu river" vs "Masiu River") are a likely typo, not a
+// different site, so this resolves case-insensitively and returns the
+// registry's own canonical casing (never invents a match: an unrelated or
+// misspelled name, like "Poona Bayabao" instead of "Poona Bayabao River",
+// still correctly fails).
+function resolveSiteId(validSiteIds: Set<string>, raw: string): string | null {
+  if (validSiteIds.has(raw)) return raw;
+  const lower = raw.toLowerCase();
+  for (const id of validSiteIds) {
+    if (id.toLowerCase() === lower) return id;
+  }
+  return null;
 }
 
 function cellToString(value: unknown): string {
@@ -118,11 +136,17 @@ export async function parseWaterQualityWorkbook(file: File): Promise<WaterQualit
     const row = normalizeRowKeys(rawRow);
     const reasons: string[] = [];
 
-    const siteId = cellToString(row['site_id']).trim();
-    if (!siteId) {
+    const siteIdRaw = cellToString(row['site_id']).trim();
+    let siteId = siteIdRaw;
+    if (!siteIdRaw) {
       reasons.push('Missing site_id');
-    } else if (!validSiteIds.has(siteId)) {
-      reasons.push(`Unknown site_id "${siteId}" — not one of the registered sites`);
+    } else {
+      const resolved = resolveSiteId(validSiteIds, siteIdRaw);
+      if (!resolved) {
+        reasons.push(`Unknown site_id "${siteIdRaw}" — not one of the registered sites`);
+      } else {
+        siteId = resolved;
+      }
     }
 
     const { iso: date, error: dateError } = parseDateCell(row['date']);

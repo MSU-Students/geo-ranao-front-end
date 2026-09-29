@@ -339,16 +339,31 @@ export const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
-// Reading Period now picks a year, then a month within that year (Jan–Dec) —
-// the year list starts at 2025, runs through at least 2030, and keeps
-// extending one year past whatever year it currently is after that.
+// Reading Period picks a year, then a month within that year (Jan–Dec).
+// READING_YEARS/months are grown in place (never reassigned) rather than
+// precomputed to some fixed end year — the YearPicker component calls
+// ensureReadingYearsCoverage() as soon as it lets someone pick a year beyond
+// what's already generated, so the year range has no real upper bound
+// without needing to precompute an arbitrarily long list up front. Existing
+// imports of READING_YEARS/months keep working unchanged, since both stay
+// the same array reference — they just get longer over time.
 export const READING_START_YEAR = 2025;
-const READING_END_YEAR = Math.max(2030, new Date().getFullYear() + 1);
 export const READING_YEARS: number[] = [];
-for (let y = READING_START_YEAR; y <= READING_END_YEAR; y++) READING_YEARS.push(y);
-
 // Flat Jan-2025..Dec-<latest> timeline — index = (year - READING_START_YEAR) * 12 + monthInYear.
-export const months = READING_YEARS.flatMap((year) => MONTH_NAMES.map((m) => `${m} ${year}`));
+export const months: string[] = [];
+
+export function ensureReadingYearsCoverage(uptoYear: number): void {
+  let lastYear = READING_YEARS.length ? READING_YEARS[READING_YEARS.length - 1]! : READING_START_YEAR - 1;
+  while (lastYear < uptoYear) {
+    lastYear += 1;
+    READING_YEARS.push(lastYear);
+    MONTH_NAMES.forEach((m) => months.push(`${m} ${lastYear}`));
+  }
+}
+
+// Seed a reasonable initial range so every existing call site has data to
+// read before anyone opens the year picker.
+ensureReadingYearsCoverage(new Date().getFullYear() + 10);
 
 // Deterministic pseudo-random in [0, 1), seeded by string so the same
 // site + month + parameter always yields the same simulated reading.

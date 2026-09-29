@@ -320,14 +320,11 @@
                         color="orange"
                         text-color="black"
                         :label="`⚠ ${props.row.warnings.length} unusual`"
-                        class="cursor-help"
+                        class="cursor-pointer"
+                        @click="openWarningsDetail(props.row)"
                       >
                         <q-tooltip class="text-caption" style="max-width: 340px;">
-                          <div class="text-weight-bold q-mb-xs">Values outside the expected range:</div>
-                          <div v-for="(w, i) in props.row.warnings.slice(0, 8)" :key="i">{{ w }}</div>
-                          <div v-if="props.row.warnings.length > 8" class="text-grey-5 q-mt-xs">
-                            +{{ props.row.warnings.length - 8 }} more
-                          </div>
+                          Click to see what and why — {{ props.row.warnings.length }} value{{ props.row.warnings.length === 1 ? '' : 's' }} outside the expected range
                         </q-tooltip>
                       </q-badge>
                       <q-icon v-else name="check_circle" color="positive" size="20px">
@@ -777,6 +774,31 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Warnings Detail Dialog — the full "what and why" behind a Water
+         Quality upload's "⚠ N unusual" badge, so an admin doesn't have to
+         guess from a truncated hover tooltip. -->
+    <q-dialog v-model="warningsDialogShow">
+      <q-card style="min-width: 420px; max-width: 90vw; width: 560px" v-if="warningsDialogItem">
+        <q-card-section class="bg-orange-1 text-orange-9">
+          <div class="text-h6"><q-icon name="warning" class="q-mr-xs" />Why this was flagged</div>
+          <div class="text-caption">{{ warningsDialogItem.title }}</div>
+        </q-card-section>
+        <q-card-section style="max-height: 400px; overflow-y: auto">
+          <q-list dense separator>
+            <q-item v-for="(w, i) in warningsDialogItem.warnings ?? []" :key="i">
+              <q-item-section avatar top>
+                <q-icon name="warning" color="orange-7" size="18px" />
+              </q-item-section>
+              <q-item-section>{{ w }}</q-item-section>
+            </q-item>
+          </q-list>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Close" color="grey-7" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -1041,6 +1063,17 @@ const bathymetryDepthRange = computed(() => {
   const depths = points.map((p) => p.depth);
   return `${Math.min(...depths).toFixed(1)}–${Math.max(...depths).toFixed(1)}`;
 });
+
+// ─── Warnings Detail Dialog ───
+// Full, untruncated "what and why" for a Water Quality upload's flagged
+// values — a click-to-open dialog instead of a hover tooltip, which was
+// both capped at 8 entries and unreliable on touch devices admins may use.
+const warningsDialogItem = ref<UploadReviewItem | null>(null);
+const warningsDialogShow = ref(false);
+function openWarningsDetail(item: UploadReviewItem) {
+  warningsDialogItem.value = item;
+  warningsDialogShow.value = true;
+}
 
 // ─── Site Coordinates Lookup (for batch GeoJSON export) ───
 const siteCoordsById = ref(new Map<string, { lat: number; lng: number }>());

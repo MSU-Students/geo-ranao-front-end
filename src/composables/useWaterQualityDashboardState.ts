@@ -3,7 +3,6 @@ import {
   allWaterQualityParams,
   DEFAULT_WATER_QUALITY_CLASS,
   READING_START_YEAR,
-  READING_YEARS,
   type WaterQualityClass,
 } from 'src/composables/useWaterQualityModel';
 
@@ -20,30 +19,30 @@ export const selectedParamKey = ref(allWaterQualityParams[0]!.key);
 export const selectedWaterClass = ref<WaterQualityClass>(DEFAULT_WATER_QUALITY_CLASS);
 
 // Reading Period: pick a year (2025 onward), then a month within that year.
-// Computed once at module load (first visit this session), not per-mount —
-// which is the right behavior here anyway: "today" doesn't change mid-session.
-const now = new Date();
-const defaultReadingYear = READING_YEARS.includes(now.getFullYear())
-  ? now.getFullYear()
-  : READING_YEARS[READING_YEARS.length - 1]!;
-export const selectedYear = ref(defaultReadingYear);
-export const selectedMonthInYear = ref(defaultReadingYear === now.getFullYear() ? now.getMonth() : 0);
+// Defaults to July 2025 — the start of this platform's real sampling record,
+// not "today" — so a fresh session lands on a period with actual data rather
+// than whichever month happens to be current (which usually has nothing
+// recorded yet). Shared with the 2D map's own Reading Period control
+// (IndexPage.vue imports these same refs), so picking a period on either one
+// updates both.
+export const selectedYear = ref(2025);
+export const selectedMonthInYear = ref(6); // July — MONTH_NAMES is 0-indexed Jan..Dec
 
 export const selectedStationId = ref<string | null>(null);
 export const selectedDepthM = ref(0);
-
-export const compareParamKeyA = ref(
-  allWaterQualityParams.find((p) => p.key === 'chlorophyll')?.key ?? allWaterQualityParams[0]!.key,
-);
-export const compareParamKeyB = ref(
-  allWaterQualityParams.find((p) => p.key === 'nitrate')?.key ?? allWaterQualityParams[1]!.key,
-);
 
 export const depthProfileParamKeyA = ref(
   allWaterQualityParams.find((p) => p.key === 'temperature')?.key ?? allWaterQualityParams[0]!.key,
 );
 export const depthProfileParamKeyB = ref(
   allWaterQualityParams.find((p) => p.key === 'dissolvedOxygen')?.key ?? allWaterQualityParams[1]!.key,
+);
+
+export const timeLagParamKeyA = ref(
+  allWaterQualityParams.find((p) => p.key === 'phosphate')?.key ?? allWaterQualityParams[0]!.key,
+);
+export const timeLagParamKeyB = ref(
+  allWaterQualityParams.find((p) => p.key === 'chlorophyll')?.key ?? allWaterQualityParams[1]!.key,
 );
 
 // selectedMonthIndex depends on READING_START_YEAR, kept here (rather than

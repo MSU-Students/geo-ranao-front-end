@@ -226,18 +226,14 @@
                   <span class="text-weight-bold text-teal-8">{{ selectedMonthLabel }}</span>
                 </div>
                 <div class="q-px-sm q-mb-lg">
-                  <q-btn-toggle
-                    v-model="selectedYear"
-                    spread
-                    dense
-                    no-caps
-                    unelevated
-                    toggle-color="teal"
-                    color="white"
-                    text-color="grey-8"
-                    class="year-toggle q-mb-md"
-                    :options="READING_YEARS.map((y) => ({ label: String(y), value: y }))"
-                  />
+                  <div class="q-mb-md">
+                    <YearPicker
+                      :model-value="selectedYear"
+                      :min-year="READING_START_YEAR"
+                      @update:model-value="selectedYear = $event"
+                      @need-coverage="ensureReadingYearsCoverage"
+                    />
+                  </div>
                   <q-slider
                     v-model="selectedMonthInYear"
                     :min="0"
@@ -717,12 +713,12 @@
                       </q-item-label>
                       <q-item-label
                         :class="
-                          generateReading(selectedWaterSite.siteId, selectedMonthIndex, p, effectiveDepthFor(selectedWaterSite.siteId)) !== null
+                          lakeReading(selectedWaterSite.siteId, selectedMonthIndex, p, effectiveDepthFor(selectedWaterSite.siteId)) !== null
                             ? 'text-grey-9 text-weight-medium'
                             : 'text-grey-5 text-italic'
                         "
                       >
-                        {{ mockReading(selectedWaterSite.siteId, selectedMonthIndex, p, effectiveDepthFor(selectedWaterSite.siteId)) }}
+                        {{ formatReadingOrNoData(selectedWaterSite.siteId, selectedMonthIndex, p, effectiveDepthFor(selectedWaterSite.siteId)) }}
                       </q-item-label>
                     </q-item-section>
                   </q-item>
@@ -801,8 +797,9 @@ import {
   TRIBUTARY_RIVER_SITES,
   TRIBUTARY_RIVER_SITE_IDS,
   MONTH_NAMES,
-  READING_YEARS,
   READING_START_YEAR,
+  ensureReadingYearsCoverage,
+  months,
   STATUS_COLORS,
   STATUS_LABELS,
   STATUS_LEVELS,
@@ -811,6 +808,7 @@ import {
   type WaterQualityParam,
   type StatusLevel,
 } from 'src/composables/useWaterQualityModel';
+import { selectedYear, selectedMonthInYear, readingMonthIndex } from 'src/composables/useWaterQualityDashboardState';
 import {
   fetchWaterQualityReadings,
   buildReadingLookup,
@@ -839,6 +837,7 @@ import { buildDepthGridFromPoints } from 'src/composables/useMapDataUpload';
 import { fetchCurrentBathymetryPoints, type CurrentBathymetryPoints } from 'src/composables/useBathymetrySurveys';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
 import UploadBathymetryDialog from 'src/components/UploadBathymetryDialog.vue';
+import YearPicker from 'src/components/YearPicker.vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 // ═══ CONSERVATION STATUS COLORS (IUCN scale) ═══
@@ -1275,20 +1274,10 @@ const selectedWaterZone = computed(() =>
 // Reserved status palette — never reused for categorical series, always paired
 // with an icon/label (never color alone).
 // ── Monthly Time Slider (real approved readings; coverage varies by month) ──
-// Reading Period picks a year (2025 onward, same range as the Water Quality
-// Dashboard), then a month within that year.
-const months = READING_YEARS.flatMap((year) => MONTH_NAMES.map((m) => `${m} ${year}`));
-const nowForReadingPeriod = new Date();
-const defaultReadingYear = READING_YEARS.includes(nowForReadingPeriod.getFullYear())
-  ? nowForReadingPeriod.getFullYear()
-  : READING_YEARS[READING_YEARS.length - 1]!;
-const selectedYear = ref(defaultReadingYear);
-const selectedMonthInYear = ref(
-  defaultReadingYear === nowForReadingPeriod.getFullYear() ? nowForReadingPeriod.getMonth() : 0,
-);
-const selectedMonthIndex = computed(
-  () => (selectedYear.value - READING_START_YEAR) * 12 + selectedMonthInYear.value,
-);
+// selectedYear/selectedMonthInYear come from useWaterQualityDashboardState
+// now — shared, session-persisted state with the Water Quality Dashboard
+// page, so picking a period here also updates it (and vice versa).
+const selectedMonthIndex = computed(() => readingMonthIndex(selectedYear.value, selectedMonthInYear.value));
 const selectedMonthLabel = computed(() => months[selectedMonthIndex.value]);
 
 // ─── DEPTH MODEL (mirrors src/composables/useWaterQualityModel.ts) ───
@@ -1328,7 +1317,11 @@ onMounted(async () => {
   }
 });
 
-function generateReading(
+// Renamed from the old generateReading()/mockReading() simulator names —
+// this is a thin wrapper over the real getReading() lookup above, not a
+// generator/mock of anything; the old names were leftover from before the
+// real-data migration and read as if this were still fabricating values.
+function lakeReading(
   siteId: string,
   monthIndex: number,
   param: WaterQualityParam,
@@ -1341,8 +1334,8 @@ function formatReading(value: number, param: WaterQualityParam): string {
   return `${value.toFixed(param.decimals)}${param.unit ? ' ' + param.unit : ''}`;
 }
 
-function mockReading(siteId: string, monthIndex: number, param: WaterQualityParam, depthM = 0): string {
-  const value = generateReading(siteId, monthIndex, param, depthM);
+function formatReadingOrNoData(siteId: string, monthIndex: number, param: WaterQualityParam, depthM = 0): string {
+  const value = lakeReading(siteId, monthIndex, param, depthM);
   return value !== null ? formatReading(value, param) : 'No data';
 }
 
@@ -1372,7 +1365,7 @@ function isRiverSite(siteId: string): boolean {
 function siteStatusBadge(siteId: string): { label: string; background: string } {
   const param = selectedColorParam.value;
   if (!param) return { label: 'No data yet', background: '#9e9e9e' };
-  const value = generateReading(siteId, selectedMonthIndex.value, param, effectiveDepthFor(siteId));
+  const value = lakeReading(siteId, selectedMonthIndex.value, param, effectiveDepthFor(siteId));
   if (value === null) return { label: 'No Data', background: NO_DATA_COLOR };
   const status = param.getStatus(value);
   return {
@@ -1384,7 +1377,7 @@ function siteStatusBadge(siteId: string): { label: string; background: string } 
 function getMarkerColor(siteId: string, defaultColor: string): string {
   const param = selectedColorParam.value;
   if (!param) return defaultColor;
-  const value = generateReading(siteId, selectedMonthIndex.value, param, effectiveDepthFor(siteId));
+  const value = lakeReading(siteId, selectedMonthIndex.value, param, effectiveDepthFor(siteId));
   return value !== null ? STATUS_COLORS[param.getStatus(value)] : NO_DATA_COLOR;
 }
 
@@ -1404,7 +1397,7 @@ interface SiteAttentionInfo {
 function siteAttention(siteId: string): SiteAttentionInfo | null {
   let worst: SiteAttentionInfo | null = null;
   for (const param of allWaterParams.value) {
-    const value = generateReading(siteId, selectedMonthIndex.value, param, effectiveDepthFor(siteId));
+    const value = lakeReading(siteId, selectedMonthIndex.value, param, effectiveDepthFor(siteId));
     if (value === null) continue;
     const status = param.getStatus(value);
     if (worst === null || STATUS_LEVELS.indexOf(status) > STATUS_LEVELS.indexOf(worst.status)) {
@@ -1447,7 +1440,7 @@ function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
   const param = selectedColorParam.value;
   let paramLine = '';
   if (param) {
-    const value = generateReading(props.SITE_ID, selectedMonthIndex.value, param, selectedDepthM.value);
+    const value = lakeReading(props.SITE_ID, selectedMonthIndex.value, param, selectedDepthM.value);
     if (value !== null) {
       const status = param.getStatus(value);
       paramLine = `<br><span style="color:${STATUS_COLORS[status]}; font-weight:bold;">${param.label} @ ${depthLabel(selectedDepthM.value)}: ${formatReading(value, param)} (${STATUS_LABELS[status]})</span>`;
@@ -2521,18 +2514,6 @@ function buildMunicipalityMarkers() {
   font-size: 11px;
   line-height: 1.2;
   letter-spacing: 0.01em;
-}
-
-.year-toggle {
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.year-toggle :deep(.q-btn) {
-  font-size: 11px;
-  font-weight: 600;
-  min-height: 26px;
-  padding: 0 2px;
 }
 
 .month-tick-row span {
