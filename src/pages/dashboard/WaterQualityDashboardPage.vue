@@ -9,7 +9,7 @@
 
     <BackButton to="/map" />
 
-    <div class="page-content full-width q-pa-md" style="max-width: 1300px">
+    <div class="page-content full-width q-pa-md">
       <!-- Header -->
       <div class="text-center q-mb-md">
         <h4 class="text-weight-bolder q-my-xs text-white drop-shadow">Water Quality Dashboard</h4>
@@ -770,38 +770,33 @@
          positioning (not q-page-sticky) with an explicit high z-index —
          BackButton alone is already at z-index 2100, and q-page-sticky
          doesn't reliably out-rank fixed-position elements like that. -->
-    <div class="sticky-controls-anchor">
-      <q-btn
-        v-if="!controlsPanelOpen"
-        round
-        unelevated
-        color="teal"
-        icon="tune"
-        size="lg"
-        class="sticky-controls-fab"
-        @click="controlsPanelOpen = true"
+    <!-- Reading Controls — docked as a full-width bar along the bottom of the
+         viewport instead of a small floating card. Every control lays out in
+         a wrapping row so nothing needs an internal scrollbar to reach, and
+         the bar is open by default so there's no button to hunt for and
+         click first. The handle (always visible) can still minimize it down
+         to a thin strip if it's covering something below. -->
+    <div class="controls-bar" :class="{ 'controls-bar--collapsed': !controlsPanelOpen }">
+      <button
+        type="button"
+        class="controls-bar__handle"
+        @click="controlsPanelOpen = !controlsPanelOpen"
       >
-        <q-tooltip anchor="top middle" self="bottom middle">Reading Period, Parameter, Depth, Classification &amp; Station</q-tooltip>
-      </q-btn>
+        <q-icon name="tune" size="16px" class="q-mr-xs" />
+        <span>Reading Controls</span>
+        <span class="controls-bar__handle-summary">
+          {{ MONTH_NAMES[selectedMonthInYear] }} {{ selectedYear }} · {{ selectedParam?.label }} · {{ depthLabel(selectedDepthM) }}
+        </span>
+        <q-icon :name="controlsPanelOpen ? 'expand_more' : 'expand_less'" size="18px" class="q-ml-xs" />
+      </button>
 
-      <q-card v-else class="glass-morph sticky-controls-card">
-        <q-card-section class="q-pb-none">
-          <div class="row items-center justify-between">
-            <span class="text-white text-subtitle2 text-weight-bold">
-              <q-icon name="tune" class="q-mr-xs" />Reading Controls
-            </span>
-            <q-btn flat round dense size="sm" icon="close" color="grey-4" @click="controlsPanelOpen = false" />
+      <div v-show="controlsPanelOpen" class="controls-bar__body">
+        <div class="controls-bar__field controls-bar__field--period">
+          <div class="controls-bar__label">
+            <q-icon name="event" size="14px" class="q-mr-xs" />Reading Period
+            <q-tooltip>Showing approved field readings — coverage varies by month and station.</q-tooltip>
           </div>
-        </q-card-section>
-        <q-card-section class="sticky-controls-body">
-          <div class="row items-center justify-between q-mb-sm">
-            <span class="text-grey-3 text-caption">Reading Period</span>
-            <span class="text-white text-weight-bold">
-              {{ MONTH_NAMES[selectedMonthInYear] }} {{ selectedYear }}
-            </span>
-          </div>
-
-          <div class="q-mb-md">
+          <div class="row items-center q-gutter-sm no-wrap">
             <YearPicker
               :model-value="selectedYear"
               :min-year="READING_START_YEAR"
@@ -809,35 +804,33 @@
               @update:model-value="selectedYear = $event"
               @need-coverage="ensureReadingYearsCoverage"
             />
+            <div class="controls-bar__month-slider">
+              <q-slider
+                v-model="selectedMonthInYear"
+                :min="0"
+                :max="11"
+                :step="1"
+                snap
+                markers
+                color="teal"
+                track-size="4px"
+                thumb-size="16px"
+                dark
+              />
+              <div class="row justify-between text-caption text-grey-5 month-tick-row">
+                <span v-for="(label, i) in MONTH_NAMES" :key="i">{{ label }}</span>
+              </div>
+            </div>
           </div>
+        </div>
 
-          <q-slider
-            v-model="selectedMonthInYear"
-            :min="0"
-            :max="11"
-            :step="1"
-            snap
-            markers
-            color="teal"
-            track-size="4px"
-            thumb-size="16px"
-            dark
-          />
-          <div class="row justify-between text-caption text-grey-5 month-tick-row">
-            <span v-for="(label, i) in MONTH_NAMES" :key="i">{{ label }}</span>
-          </div>
-          <div class="text-caption text-grey-5 q-mt-sm q-mb-md">
-            <q-icon name="info" size="14px" class="q-mr-xs" />
-            Showing approved field readings — coverage varies by month and station.
-          </div>
-
-          <q-separator dark class="q-mb-md" style="opacity: 0.15" />
-
-          <div class="row items-center justify-between q-mb-xs">
-            <span class="text-grey-3 text-caption">
-              <q-icon name="science" size="14px" class="q-mr-xs" />
-              Parameter
-            </span>
+        <div class="controls-bar__field">
+          <div class="controls-bar__label">
+            <q-icon name="science" size="14px" class="q-mr-xs" />Parameter
+            <q-tooltip>
+              Drives Parameter Overview, the 13-Month Trend, Sites of Concern, the Station Map's
+              color, and most of the analytics visualizations below.
+            </q-tooltip>
           </div>
           <q-select
             v-model="selectedParamKey"
@@ -847,21 +840,13 @@
             dense
             outlined
             dark
-            class="form-field q-mb-sm"
+            class="form-field"
           />
-          <div class="text-caption text-grey-5 q-mt-xs q-mb-md">
-            <q-icon name="info" size="14px" class="q-mr-xs" />
-            Drives Parameter Overview, the 13-Month Trend, Sites of Concern, the Station Map's color,
-            and most of the analytics visualizations below.
-          </div>
+        </div>
 
-          <q-separator dark class="q-mb-md" style="opacity: 0.15" />
-
-          <div class="row items-center justify-between q-mb-xs">
-            <span class="text-grey-3 text-caption">
-              <q-icon name="vertical_align_bottom" size="14px" class="q-mr-xs" />
-              Depth
-            </span>
+        <div class="controls-bar__field">
+          <div class="controls-bar__label">
+            <q-icon name="vertical_align_bottom" size="14px" class="q-mr-xs" />Depth
           </div>
           <q-select
             v-model="selectedDepthM"
@@ -871,33 +856,18 @@
             dense
             outlined
             dark
-            class="form-field q-mb-sm"
-          />
-
-          <div class="row items-center justify-between q-mb-xs">
-            <span class="text-grey-3 text-caption">
-              <q-icon name="verified" size="14px" class="q-mr-xs" />
-              Water Quality Classification
-            </span>
-          </div>
-          <q-select
-            v-model="selectedWaterClass"
-            :options="waterClassOptions"
-            emit-value
-            map-options
-            dense
-            outlined
-            dark
             class="form-field"
           />
+        </div>
 
-          <q-separator dark class="q-my-md" style="opacity: 0.15" />
-
-          <div class="row items-center justify-between q-mb-xs">
-            <span class="text-grey-3 text-caption">
-              <q-icon name="place" size="14px" class="q-mr-xs" />
-              Station (for depth-based views)
-            </span>
+        <div class="controls-bar__field">
+          <div class="controls-bar__label">
+            <q-icon name="place" size="14px" class="q-mr-xs" />Station
+            <q-tooltip>
+              Drives Vertical Depth Profile, Faceted Profiles, Multi-Depth Time-Series, Depth-Time
+              Isopleth, the 3D Surface Plot, and (when set) the Stoichiometric Ratio — same as
+              clicking a station on the map below.
+            </q-tooltip>
           </div>
           <q-select
             v-model="stationPickerModel"
@@ -909,14 +879,8 @@
             dark
             class="form-field"
           />
-          <div class="text-caption text-grey-5 q-mt-xs">
-            <q-icon name="info" size="14px" class="q-mr-xs" />
-            Drives Vertical Depth Profile, Faceted Profiles, Multi-Depth Time-Series, Depth-Time
-            Isopleth, the 3D Surface Plot, and (when set) the Stoichiometric Ratio — same as clicking
-            a station on the map below.
-          </div>
-        </q-card-section>
-      </q-card>
+        </div>
+      </div>
     </div>
   </q-page>
 </template>
@@ -955,8 +919,6 @@ import {
   depthLabel,
   TRIBUTARY_RIVER_SITES,
   TRIBUTARY_RIVER_SITE_IDS,
-  WATER_QUALITY_CLASSES,
-  WATER_QUALITY_CLASS_LABELS,
   getClassLimitReferenceValue,
   type WaterQualityParam,
   type StatusLevel,
@@ -964,7 +926,6 @@ import {
 } from 'src/composables/useWaterQualityModel';
 import {
   selectedParamKey,
-  selectedWaterClass,
   selectedYear,
   selectedMonthInYear,
   selectedStationId,
@@ -1000,8 +961,6 @@ interface Site {
 const sites = ref<Site[]>([]);
 const siteCount = computed(() => sites.value.length);
 
-const waterClassOptions = WATER_QUALITY_CLASSES.map((c) => ({ label: WATER_QUALITY_CLASS_LABELS[c], value: c }));
-
 const readingsLookup = ref<ReadingLookup>(new Map());
 // Kept alongside the lookup (not just discarded after building it) for the
 // Correlation Heatmap — a correlation needs each reading's parameters paired
@@ -1021,10 +980,10 @@ onMounted(async () => {
   }
 });
 
-// selectedWaterClass/selectedYear/selectedMonthInYear/selectedStationId/
-// selectedDepthM/depthProfileParamKeyA-B are all imported from
-// useWaterQualityDashboardState now — session-persisted filters, not
-// reset every time you navigate back to this page.
+// selectedYear/selectedMonthInYear/selectedStationId/selectedDepthM/
+// depthProfileParamKeyA-B are all imported from useWaterQualityDashboardState
+// now — session-persisted filters, not reset every time you navigate back to
+// this page.
 const selectedMonthIndex = computed(() => readingMonthIndex(selectedYear.value, selectedMonthInYear.value));
 
 const paramSelectOptions = allWaterQualityParams.map((p) => ({ label: p.label, value: p.key }));
@@ -1040,12 +999,12 @@ const activeView = ref<'overview' | 'advanced'>('overview');
 // here, unlike an actual filter selection.
 const parameterOverviewExpanded = ref(false);
 
-// Floating Reading Period/Depth/Classification panel — collapsed by default
-// so it doesn't sit permanently over page content (same reasoning as
-// parameterOverviewExpanded above); the toggle button is always reachable
-// via fixed positioning regardless of scroll position (see
-// .sticky-controls-anchor).
-const controlsPanelOpen = ref(false);
+// Reading Period/Parameter/Depth/Classification/Station bar, docked to the
+// bottom of the viewport (see .controls-bar) — open by default so every
+// control is laid out and visible without an extra click, which a floating
+// FAB used to require. The handle still lets it be minimized if it's in the
+// way of the chart below it.
+const controlsPanelOpen = ref(true);
 
 // ═══ TYPE OF ANALYTICS VISUALIZATION ═══
 // Only 'vertical-depth-profile' renders a real chart right now (the rest of
@@ -1205,7 +1164,7 @@ function lakeAverageCoverage(param: WaterQualityParam, monthIndex: number): numb
 // Chart reference-line value for the currently selected classification —
 // null-safe so it can be bound directly to a possibly-unselected param.
 function guidelineFor(param: WaterQualityParam | null | undefined): number | undefined {
-  return param ? getClassLimitReferenceValue(param, selectedWaterClass.value) : undefined;
+  return param ? getClassLimitReferenceValue(param) : undefined;
 }
 
 // The trend charts show a trailing 13-month window ending at the selected
@@ -1240,7 +1199,7 @@ function sparklineValues(param: WaterQualityParam): number[] {
 
 function paramStatus(param: WaterQualityParam, monthIndex = selectedMonthIndex.value): StatusLevel | null {
   const value = lakeAverage(param, monthIndex);
-  return value !== null ? param.getStatus(value, selectedWaterClass.value) : null;
+  return value !== null ? param.getStatus(value) : null;
 }
 
 function paramColor(param: WaterQualityParam): string {
@@ -1279,7 +1238,7 @@ function statusCounts(param: WaterQualityParam, monthIndex: number): Record<Stat
   const counts: Record<StatusLevel, number> = { good: 0, warning: 0, serious: 0, critical: 0 };
   sites.value.forEach((site) => {
     const value = getReading(readingsLookup.value, site.siteId, monthIndex, param, depthForSite(site));
-    if (value !== null) counts[param.getStatus(value, selectedWaterClass.value)]++;
+    if (value !== null) counts[param.getStatus(value)]++;
   });
   return counts;
 }
@@ -1290,7 +1249,7 @@ const sitesNeedingAttention = computed(() => {
     const isFlagged = allWaterQualityParams.some((param) => {
       const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
       if (value === null) return false;
-      const status = param.getStatus(value, selectedWaterClass.value);
+      const status = param.getStatus(value);
       return status === 'serious' || status === 'critical';
     });
     if (isFlagged) flagged.add(site.siteId);
@@ -1307,7 +1266,7 @@ const overallStatus = computed<StatusLevel | null>(() => {
       const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
       if (value === null) return;
       total++;
-      if (param.getStatus(value, selectedWaterClass.value) === 'good') goodCount++;
+      if (param.getStatus(value) === 'good') goodCount++;
     });
   });
   if (total === 0) return null;
@@ -1325,7 +1284,7 @@ const sitesOfConcern = computed(() => {
   sites.value.forEach((site) => {
     const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
     if (value === null) return;
-    const status = param.getStatus(value, selectedWaterClass.value);
+    const status = param.getStatus(value);
     if (status === 'serious' || status === 'critical') results.push({ ...site, status });
   });
   return results
@@ -1364,7 +1323,7 @@ const statusBySite = computed<Record<string, StatusLevel>>(() => {
   if (!param) return result;
   sites.value.forEach((site) => {
     const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
-    if (value !== null) result[site.siteId] = param.getStatus(value, selectedWaterClass.value);
+    if (value !== null) result[site.siteId] = param.getStatus(value);
   });
   return result;
 });
@@ -1876,7 +1835,12 @@ const pcaResult = computed<PCAResult | null>(() => {
 .page-content {
   position: relative;
   z-index: 1;
-  padding-top: 88px;
+  padding-top: 120px;
+  /* Clears the docked controls bar at the bottom so it doesn't permanently
+     bury the last section of content — sized for the bar's expanded height
+     on a typical desktop width (it can wrap taller on narrow viewports; the
+     handle can still minimize it if that overlaps). */
+  padding-bottom: 210px;
 }
 
 .view-tabs {
@@ -1889,33 +1853,87 @@ const pcaResult = computed<PCAResult | null>(() => {
   background: transparent;
 }
 
-/* Explicit fixed positioning + high z-index rather than q-page-sticky —
-   BackButton alone already sits at z-index 2100 (position: fixed), and this
-   needs to render above every card, the Leaflet station map, and any other
-   fixed-position element on the page, not just whatever q-page-sticky
-   happens to default to. */
-.sticky-controls-anchor {
+/* Docked full-width bar instead of a small floating card in the corner —
+   explicit fixed positioning + high z-index rather than q-page-sticky, since
+   BackButton alone already sits at z-index 2100 (position: fixed) and this
+   needs to render above every card and the Leaflet station map too. */
+.controls-bar {
   position: fixed;
-  bottom: 18px;
-  left: 18px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 5000;
-}
-
-.sticky-controls-fab {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-}
-
-.sticky-controls-card {
-  width: 320px;
-  max-width: 85vw;
-  max-height: 80vh;
+  background: rgba(20, 24, 28, 0.82);
+  backdrop-filter: blur(14px);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.45);
+  max-height: 70vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
 }
 
-.sticky-controls-body {
+.controls-bar--collapsed {
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.controls-bar__handle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: white;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 10px 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.controls-bar__handle-summary {
+  margin-left: 10px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.6);
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.controls-bar__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 0 16px 16px;
   overflow-y: auto;
+}
+
+.controls-bar__field {
+  flex: 1 1 170px;
+  min-width: 150px;
+  max-width: 240px;
+}
+
+.controls-bar__field--period {
+  flex: 1 1 340px;
+  max-width: 460px;
+}
+
+.controls-bar__label {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.controls-bar__month-slider {
+  flex: 1;
+  min-width: 180px;
 }
 
 .time-lag-bars {

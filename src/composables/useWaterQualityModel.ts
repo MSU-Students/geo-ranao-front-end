@@ -63,31 +63,24 @@ function descendingStatus(
   return 'critical';
 }
 
-// ─── DENR WATER QUALITY CLASSIFICATION (A / B / C) ───
-// The regulatory "limitation" a reading is judged against — distinct from
-// min/max below, which stay a much wider *sensor-plausibility* range used
-// only for data-entry-mistake warnings and simulator bounds. Class C is the
-// default everywhere a caller doesn't pick one (freshwater/fishery
-// protection — the most relevant class for this platform's purpose).
-export type WaterQualityClass = 'A' | 'B' | 'C';
-export const WATER_QUALITY_CLASSES: WaterQualityClass[] = ['A', 'B', 'C'];
-export const DEFAULT_WATER_QUALITY_CLASS: WaterQualityClass = 'C';
-export const WATER_QUALITY_CLASS_LABELS: Record<WaterQualityClass, string> = {
-  A: 'Class A',
-  B: 'Class B',
-  C: 'Class C',
-};
+// ─── DENR WATER QUALITY CLASSIFICATION ───
+// This platform judges every reading against a single regulatory limitation
+// — DENR Class C (freshwater/fishery protection) — rather than offering a
+// choice of Class A/B/C. The three-tier picker was more complexity than the
+// standardization needed to convey, and Class C is the class the source
+// limitation table covers most completely. Distinct from min/max below,
+// which stay a much wider *sensor-plausibility* range used only for
+// data-entry-mistake warnings and simulator bounds.
+export const WATER_QUALITY_CLASS_LABEL = 'Class C';
 
-// One class's limit for one parameter — 'max'/'min' are one-sided ("must not
+// One parameter's regulatory limit — 'max'/'min' are one-sided ("must not
 // exceed" / "must not fall below"), 'range' is two-sided (e.g. temperature,
-// pH). null means the source table left that class blank for this parameter.
+// pH). null means the source table doesn't cover this parameter at all.
 export type ParamLimit =
   | { kind: 'max'; value: number }
   | { kind: 'min'; value: number }
   | { kind: 'range'; min: number; max: number }
   | null;
-
-export type ClassLimits = Record<WaterQualityClass, ParamLimit>;
 
 function maxLimit(value: number): ParamLimit {
   return { kind: 'max', value };
@@ -97,19 +90,6 @@ function minLimit(value: number): ParamLimit {
 }
 function rangeLimit(min: number, max: number): ParamLimit {
   return { kind: 'range', min, max };
-}
-
-// A class left blank in the source table falls back to the nearest class
-// that does define a limit, preferring the stricter/more-protective classes
-// first (C, then B, then A) — never silently invented, always a real class's
-// real number.
-const LIMIT_FALLBACK_ORDER: WaterQualityClass[] = ['C', 'B', 'A'];
-function resolveClassLimit(classLimits: ClassLimits, waterClass: WaterQualityClass): ParamLimit {
-  if (classLimits[waterClass]) return classLimits[waterClass];
-  for (const fallback of LIMIT_FALLBACK_ORDER) {
-    if (classLimits[fallback]) return classLimits[fallback];
-  }
-  return null;
 }
 
 // Turns one class's limit into the same 3-tier boundaries
@@ -123,7 +103,7 @@ const WARNING_FRACTION = 0.85;
 const RANGE_BUFFER_FRACTION = 0.15; // per tier, as a fraction of the acceptable range's width
 
 function statusFromLimit(value: number, limit: ParamLimit): StatusLevel {
-  if (!limit) return 'good'; // no class defines this parameter at all — nothing to judge against
+  if (!limit) return 'good'; // this parameter has no regulatory limit at all — nothing to judge against
   if (limit.kind === 'max') {
     return ascendingStatus(value, limit.value * GOOD_FRACTION, limit.value * WARNING_FRACTION, limit.value);
   }
@@ -143,14 +123,12 @@ function statusFromLimit(value: number, limit: ParamLimit): StatusLevel {
   );
 }
 
-// Builds a getStatus() for a parameter that has real classification data —
-// captures classLimits via closure so each param's getStatus stays a plain
-// (value, waterClass?) => StatusLevel function, consistent with parameters
-// that don't have classification data (e.g. Turbidity) and just ignore the
-// second argument.
-function classBasedStatus(classLimits: ClassLimits) {
-  return (value: number, waterClass: WaterQualityClass = DEFAULT_WATER_QUALITY_CLASS): StatusLevel =>
-    statusFromLimit(value, resolveClassLimit(classLimits, waterClass));
+// Builds a getStatus() for a parameter that has a real regulatory limit —
+// captures it via closure so each param's getStatus stays a plain
+// (value) => StatusLevel function, consistent with parameters that have no
+// limit at all (e.g. Turbidity, judged on its own fixed thresholds instead).
+function classBasedStatus(limit: ParamLimit) {
+  return (value: number): StatusLevel => statusFromLimit(value, limit);
 }
 
 export interface WaterQualityParam {
@@ -163,23 +141,22 @@ export interface WaterQualityParam {
   decimals: number;
   /** Realistic baseline reading (within the "good" band) that simulated values cluster around. */
   typical: number;
-  /** Fallback single-value reference line for parameters with no classLimits (e.g. Turbidity). */
+  /** Fallback single-value reference line for parameters with no `limit` (e.g. Turbidity). */
   guideline?: number;
   /** 0 is a legitimate "non-detect" reading for this parameter, not a sensor fault — skip the out-of-range warning for it even though it's below `min`. */
   allowZero?: boolean;
-  /** DENR Class A/B/C regulatory limitation, per class — absent for parameters the source table doesn't cover. */
-  classLimits?: ClassLimits;
-  getStatus: (value: number, waterClass?: WaterQualityClass) => StatusLevel;
+  /** DENR Class C regulatory limitation — absent for parameters the source table doesn't cover. */
+  limit?: ParamLimit;
+  getStatus: (value: number) => StatusLevel;
 }
 
-// Human-readable form of a parameter's regulatory limit for the selected
-// class — "Normal Range" columns, tooltips, etc. Falls back to the old
-// sensor-plausibility min–max for parameters with no classLimits.
-export function formatClassLimit(param: WaterQualityParam, waterClass: WaterQualityClass = DEFAULT_WATER_QUALITY_CLASS): string {
+// Human-readable form of a parameter's regulatory limit — "Normal Range"
+// columns, tooltips, etc. Falls back to the sensor-plausibility min–max for
+// parameters with no `limit`.
+export function formatClassLimit(param: WaterQualityParam): string {
   const unit = param.unit ? ` ${param.unit}` : '';
-  if (!param.classLimits) return `${param.min}–${param.max}${unit}`;
-  const limit = resolveClassLimit(param.classLimits, waterClass);
-  if (!limit) return 'Not specified';
+  if (!param.limit) return `${param.min}–${param.max}${unit}`;
+  const limit = param.limit;
   if (limit.kind === 'max') return `≤ ${limit.value}${unit}`;
   if (limit.kind === 'min') return `≥ ${limit.value}${unit}`;
   return `${limit.min}–${limit.max}${unit}`;
@@ -187,15 +164,10 @@ export function formatClassLimit(param: WaterQualityParam, waterClass: WaterQual
 
 // Single-number reference for a chart's guideline line — the upper bound
 // for range-type limits, since a two-sided band can't be drawn as one line.
-// Falls back to the old static `guideline` for parameters with no classLimits.
-export function getClassLimitReferenceValue(
-  param: WaterQualityParam,
-  waterClass: WaterQualityClass = DEFAULT_WATER_QUALITY_CLASS,
-): number | undefined {
-  if (!param.classLimits) return param.guideline;
-  const limit = resolveClassLimit(param.classLimits, waterClass);
-  if (!limit) return undefined;
-  return limit.kind === 'range' ? limit.max : limit.value;
+// Falls back to the static `guideline` for parameters with no `limit`.
+export function getClassLimitReferenceValue(param: WaterQualityParam): number | undefined {
+  if (!param.limit) return param.guideline;
+  return param.limit.kind === 'range' ? param.limit.max : param.limit.value;
 }
 
 export interface WaterQualityParamGroup {
@@ -213,15 +185,15 @@ export const waterQualityParameterGroups: WaterQualityParamGroup[] = [
     params: [
       {
         key: 'temperature', label: 'Temperature', unit: '°C', min: 24, max: 30, decimals: 1, typical: 26.5,
-        // DENR classification: A 26–30, B 26–30, C 25–31
-        classLimits: { A: rangeLimit(26, 30), B: rangeLimit(26, 30), C: rangeLimit(25, 31) },
-        getStatus: classBasedStatus({ A: rangeLimit(26, 30), B: rangeLimit(26, 30), C: rangeLimit(25, 31) }),
+        // DENR Class C limit: 25–31°C
+        limit: rangeLimit(25, 31),
+        getStatus: classBasedStatus(rangeLimit(25, 31)),
       },
       {
         key: 'ph', label: 'pH', unit: '', min: 6.5, max: 8.5, decimals: 1, typical: 7.3,
-        // DENR classification: A 6.5–8.5, B 6.5–8.5, C 6.0–9.0
-        classLimits: { A: rangeLimit(6.5, 8.5), B: rangeLimit(6.5, 8.5), C: rangeLimit(6.0, 9.0) },
-        getStatus: classBasedStatus({ A: rangeLimit(6.5, 8.5), B: rangeLimit(6.5, 8.5), C: rangeLimit(6.0, 9.0) }),
+        // DENR Class C limit: 6.0–9.0
+        limit: rangeLimit(6.0, 9.0),
+        getStatus: classBasedStatus(rangeLimit(6.0, 9.0)),
       },
       {
         key: 'turbidity', label: 'Turbidity', unit: 'NTU', min: 2, max: 25, decimals: 1, typical: 4,
@@ -231,27 +203,30 @@ export const waterQualityParameterGroups: WaterQualityParamGroup[] = [
       },
       {
         key: 'dissolvedOxygen', label: 'Dissolved Oxygen', unit: 'ppm', min: 1, max: 10, decimals: 1, typical: 7,
-        // DENR classification (minimum required): A 5, B 5, C 5
-        classLimits: { A: minLimit(5), B: minLimit(5), C: minLimit(5) },
-        getStatus: classBasedStatus({ A: minLimit(5), B: minLimit(5), C: minLimit(5) }),
+        // DENR Class C limit (minimum required): 5 ppm
+        limit: minLimit(5),
+        getStatus: classBasedStatus(minLimit(5)),
       },
       {
         key: 'conductivity', label: 'Conductivity', unit: 'µS/cm', min: 100, max: 400, decimals: 0, typical: 140,
-        // DENR classification: A ≤1000, B acceptable band 150–500, C not specified (falls back to B)
-        classLimits: { A: maxLimit(1000), B: rangeLimit(150, 500), C: null },
-        getStatus: classBasedStatus({ A: maxLimit(1000), B: rangeLimit(150, 500), C: null }),
+        // DENR leaves Class C blank for conductivity — this platform used to
+        // fall back to Class B's acceptable band (150–500) for it, and keeps
+        // doing so here (just without the A/B/C picker) rather than silently
+        // going unjudged, which dropping it outright would do.
+        limit: rangeLimit(150, 500),
+        getStatus: classBasedStatus(rangeLimit(150, 500)),
       },
       {
         key: 'tds', label: 'TDS', unit: 'mg/L', min: 50, max: 250, decimals: 0, typical: 75,
-        // DENR classification: A ≤500, B not specified (falls back to C), C ≤400
-        classLimits: { A: maxLimit(500), B: null, C: maxLimit(400) },
-        getStatus: classBasedStatus({ A: maxLimit(500), B: null, C: maxLimit(400) }),
+        // DENR Class C limit: ≤400 mg/L
+        limit: maxLimit(400),
+        getStatus: classBasedStatus(maxLimit(400)),
       },
       {
         key: 'tss', label: 'TSS', unit: 'mg/L', min: 5, max: 40, decimals: 1, typical: 8,
-        // DENR classification: A ≤50, B ≤65, C ≤80
-        classLimits: { A: maxLimit(50), B: maxLimit(65), C: maxLimit(80) },
-        getStatus: classBasedStatus({ A: maxLimit(50), B: maxLimit(65), C: maxLimit(80) }),
+        // DENR Class C limit: ≤80 mg/L
+        limit: maxLimit(80),
+        getStatus: classBasedStatus(maxLimit(80)),
       },
     ],
   },
@@ -263,36 +238,36 @@ export const waterQualityParameterGroups: WaterQualityParamGroup[] = [
       {
         key: 'phosphate', label: 'Phosphate', unit: 'mg/L', min: 0.01, max: 0.5, decimals: 2, typical: 0.05,
         allowZero: true,
-        // DENR classification: A ≤0.025, B ≤0.025, C ≤0.025
-        classLimits: { A: maxLimit(0.025), B: maxLimit(0.025), C: maxLimit(0.025) },
-        getStatus: classBasedStatus({ A: maxLimit(0.025), B: maxLimit(0.025), C: maxLimit(0.025) }),
+        // DENR Class C limit: ≤0.025 mg/L
+        limit: maxLimit(0.025),
+        getStatus: classBasedStatus(maxLimit(0.025)),
       },
       {
         key: 'ammonia', label: 'Ammonia', unit: 'mg/L', min: 0.01, max: 0.3, decimals: 2, typical: 0.025,
         allowZero: true,
-        // DENR classification: A ≤0.06, B ≤0.06, C ≤0.06
-        classLimits: { A: maxLimit(0.06), B: maxLimit(0.06), C: maxLimit(0.06) },
-        getStatus: classBasedStatus({ A: maxLimit(0.06), B: maxLimit(0.06), C: maxLimit(0.06) }),
+        // DENR Class C limit: ≤0.06 mg/L
+        limit: maxLimit(0.06),
+        getStatus: classBasedStatus(maxLimit(0.06)),
       },
       {
         key: 'nitrate', label: 'Nitrate', unit: 'mg/L', min: 0.1, max: 2, decimals: 2, typical: 0.25,
         allowZero: true,
-        // DENR classification: A ≤7, B ≤7, C ≤7
-        classLimits: { A: maxLimit(7), B: maxLimit(7), C: maxLimit(7) },
-        getStatus: classBasedStatus({ A: maxLimit(7), B: maxLimit(7), C: maxLimit(7) }),
+        // DENR Class C limit: ≤7 mg/L
+        limit: maxLimit(7),
+        getStatus: classBasedStatus(maxLimit(7)),
       },
       {
         key: 'nitrite', label: 'Nitrite', unit: 'mg/L', min: 0.01, max: 0.1, decimals: 3, typical: 0.015,
         allowZero: true,
-        // DENR classification: A ≤1, B ≤1, C ≤0 (Class C requires none detectable)
-        classLimits: { A: maxLimit(1), B: maxLimit(1), C: maxLimit(0) },
-        getStatus: classBasedStatus({ A: maxLimit(1), B: maxLimit(1), C: maxLimit(0) }),
+        // DENR Class C limit: none detectable
+        limit: maxLimit(0),
+        getStatus: classBasedStatus(maxLimit(0)),
       },
       {
         key: 'sulfate', label: 'Sulfate', unit: 'mg/L', min: 5, max: 50, decimals: 1, typical: 10,
-        // DENR classification: A ≤0.5, B ≤0.5, C ≤0.75
-        classLimits: { A: maxLimit(0.5), B: maxLimit(0.5), C: maxLimit(0.75) },
-        getStatus: classBasedStatus({ A: maxLimit(0.5), B: maxLimit(0.5), C: maxLimit(0.75) }),
+        // DENR Class C limit: ≤0.75 mg/L
+        limit: maxLimit(0.75),
+        getStatus: classBasedStatus(maxLimit(0.75)),
       },
     ],
   },
@@ -303,9 +278,9 @@ export const waterQualityParameterGroups: WaterQualityParamGroup[] = [
     params: [
       {
         key: 'chlorophyll', label: 'Chlorophyll-a', unit: 'µg/L', min: 1, max: 15, decimals: 2, typical: 2.5,
-        // DENR classification: A ≤10, B ≤25, C ≤40
-        classLimits: { A: maxLimit(10), B: maxLimit(25), C: maxLimit(40) },
-        getStatus: classBasedStatus({ A: maxLimit(10), B: maxLimit(25), C: maxLimit(40) }),
+        // DENR Class C limit: ≤40 µg/L
+        limit: maxLimit(40),
+        getStatus: classBasedStatus(maxLimit(40)),
       },
     ],
   },

@@ -1,10 +1,5 @@
 import { ref } from 'vue';
-import {
-  allWaterQualityParams,
-  DEFAULT_WATER_QUALITY_CLASS,
-  READING_START_YEAR,
-  type WaterQualityClass,
-} from 'src/composables/useWaterQualityModel';
+import { allWaterQualityParams, READING_START_YEAR } from 'src/composables/useWaterQualityModel';
 
 // Module-level, not component-level — a ref declared inside the dashboard
 // page's <script setup> gets re-created (and reset to its initial value)
@@ -15,8 +10,6 @@ import {
 // back — reuses this same ref, so the selection survives the trip. Every
 // other filter/selection on this dashboard follows the same reasoning below.
 export const selectedParamKey = ref(allWaterQualityParams[0]!.key);
-
-export const selectedWaterClass = ref<WaterQualityClass>(DEFAULT_WATER_QUALITY_CLASS);
 
 // Reading Period: pick a year (2025 onward), then a month within that year.
 // Defaults to July 2025 — the start of this platform's real sampling record,

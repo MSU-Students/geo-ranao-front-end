@@ -15,8 +15,7 @@ import {
   formatClassLimit,
   STATUS_LABELS,
   STATUS_COLORS,
-  DEFAULT_WATER_QUALITY_CLASS,
-  WATER_QUALITY_CLASS_LABELS,
+  WATER_QUALITY_CLASS_LABEL,
   type StatusLevel,
 } from 'src/composables/useWaterQualityModel';
 import { withinDateRange, type DateRangeOption } from 'src/composables/useReportExport';
@@ -232,11 +231,7 @@ export async function generateWaterQualitySummaryReport(
   doc.setTextColor(70, 70, 70);
   doc.text(scopeLabel, margin, 32);
   doc.text(`Period: ${options.dateRange}`, margin, 38);
-  doc.text(
-    `Judged against DENR ${WATER_QUALITY_CLASS_LABELS[DEFAULT_WATER_QUALITY_CLASS]} limitations`,
-    margin,
-    44,
-  );
+  doc.text(`Judged against DENR ${WATER_QUALITY_CLASS_LABEL} limitations`, margin, 44);
   doc.text(`Generated ${new Date().toLocaleDateString()} by ${options.generatedBy}`, margin, 50);
 
   doc.setDrawColor(200, 200, 200);
@@ -260,7 +255,7 @@ export async function generateWaterQualitySummaryReport(
     body: paramStats.map((p) => [
       p.param.label,
       p.avg !== null ? formatReading(p.avg, p.param) : '—',
-      formatClassLimit(p.param, DEFAULT_WATER_QUALITY_CLASS),
+      formatClassLimit(p.param),
       p.status ? STATUS_LABELS[p.status] : 'No data',
       String(p.count),
     ]),
