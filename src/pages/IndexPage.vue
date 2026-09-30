@@ -167,47 +167,6 @@
                     </q-item-section>
                   </q-item>
                 </q-list>
-
-                <q-separator class="q-my-md" />
-
-                <!-- Fisheries Jurisdiction Layer -->
-                <div class="text-caption text-grey-6 q-mb-xs">
-                  <q-icon name="gavel" size="14px" class="q-mr-xs" />Fisheries Jurisdiction
-                </div>
-                <q-item tag="label" class="species-item rounded-borders q-mb-xs">
-                  <q-item-section avatar>
-                    <q-toggle v-model="municipalWaterLayer.active" color="teal" />
-                  </q-item-section>
-                  <q-item-section>
-                    <q-item-label class="text-grey-9" style="font-size: 0.8rem">
-                      Municipal Water Zones (~15km)
-                    </q-item-label>
-                    <q-item-label caption class="text-grey-6" style="font-size: 0.7rem">
-                      Illustrative median-line division among lakeshore LGUs
-                    </q-item-label>
-                  </q-item-section>
-                </q-item>
-                <div class="text-caption text-grey-5" style="font-size: 0.68rem; line-height: 1.4">
-                  Modeled using RA 8550's 15km / equidistant-line method for adjacent municipal
-                  waters, from real town coordinates — but Lake Lanao has no official municipal
-                  water boundaries today, and this is a simplified nearest-town model, not a
-                  cadastral survey. Treat it as a discussion starting point, not a legal
-                  determination.
-                </div>
-
-                <q-item tag="label" class="species-item rounded-borders q-mt-sm">
-                  <q-item-section avatar>
-                    <q-toggle v-model="municipalityMarkerLayer.active" color="amber-8" />
-                  </q-item-section>
-                  <q-item-section>
-                    <q-item-label class="text-grey-9" style="font-size: 0.8rem">
-                      Municipality Markers
-                    </q-item-label>
-                    <q-item-label caption class="text-grey-6" style="font-size: 0.7rem">
-                      Click a marker to view endemic &amp; invasive fish per municipality
-                    </q-item-label>
-                  </q-item-section>
-                </q-item>
               </q-tab-panel>
 
               <!-- ═══ WATER QUALITY TAB ═══ -->
@@ -329,24 +288,6 @@
                   </template>
                 </q-select>
 
-                <!-- Sampling Zone Layer Toggles -->
-                <div class="text-caption text-grey-6 q-mb-xs">Sampling Zone Layers</div>
-                <div class="row q-gutter-xs q-mb-md">
-                  <q-chip
-                    v-for="layer in waterDepthLayers"
-                    :key="layer.id"
-                    :color="layer.active ? waterZoneColors[layer.id] : 'grey-3'"
-                    :text-color="layer.active ? 'white' : 'grey-8'"
-                    size="sm"
-                    clickable
-                    class="filter-chip"
-                    @click="layer.active = !layer.active"
-                  >
-                    <q-icon :name="waterZoneIcons[layer.id]" size="14px" class="q-mr-xs" />
-                    {{ layer.name }}
-                  </q-chip>
-                </div>
-
                 <!-- Additional Reference Layers -->
                 <div class="text-caption text-grey-6 q-mb-xs">Additional Layers</div>
                 <q-list class="q-mb-md q-gutter-y-xs">
@@ -464,6 +405,48 @@
                     </q-item-section>
                   </q-item>
                 </q-list>
+                <q-separator class="q-my-md" />
+
+                <!-- Fisheries Jurisdiction Layer — moved here from the Fish tab so it's
+                     always reachable without scrolling past a (potentially long) fish list. -->
+                <div class="text-caption text-grey-6 q-mb-xs">
+                  <q-icon name="gavel" size="14px" class="q-mr-xs" />Fisheries Jurisdiction
+                </div>
+                <q-item tag="label" class="species-item rounded-borders q-mb-xs">
+                  <q-item-section avatar>
+                    <q-toggle v-model="municipalWaterLayer.active" color="teal" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label class="text-grey-9" style="font-size: 0.8rem">
+                      Municipal Water Zones (~15km)
+                    </q-item-label>
+                    <q-item-label caption class="text-grey-6" style="font-size: 0.7rem">
+                      Illustrative median-line division among lakeshore LGUs
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+                <div class="text-caption text-grey-5" style="font-size: 0.68rem; line-height: 1.4">
+                  Modeled using RA 8550's 15km / equidistant-line method for adjacent municipal
+                  waters, from real town coordinates — but Lake Lanao has no official municipal
+                  water boundaries today, and this is a simplified nearest-town model, not a
+                  cadastral survey. Treat it as a discussion starting point, not a legal
+                  determination.
+                </div>
+
+                <q-item tag="label" class="species-item rounded-borders q-mt-sm">
+                  <q-item-section avatar>
+                    <q-toggle v-model="municipalityMarkerLayer.active" color="amber-8" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label class="text-grey-9" style="font-size: 0.8rem">
+                      Municipality Markers
+                    </q-item-label>
+                    <q-item-label caption class="text-grey-6" style="font-size: 0.7rem">
+                      Click a marker to view endemic &amp; invasive fish per municipality —
+                      automatically, based on which water zone each sighting falls in
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
               </q-tab-panel>
 
               <!-- ═══ MAP DATA TAB (ADMIN ONLY) ═══ -->
@@ -823,6 +806,7 @@ import {
   type FishObservation,
 } from 'src/composables/useFishObservations';
 import { mapLayers } from 'src/composables/useMapLayersState';
+import { loadMunicipalZones, findMunicipalityForPoint, type MunicipalZone } from 'src/composables/useMunicipalZones';
 import {
   buildDepthGrid,
   colorForDepth,
@@ -840,6 +824,9 @@ import UploadBathymetryDialog from 'src/components/UploadBathymetryDialog.vue';
 import YearPicker from 'src/components/YearPicker.vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 // ═══ CONSERVATION STATUS COLORS (IUCN scale) ═══
 const STATUS_PIN_COLORS: Record<string, string> = {
   CR: '#D32F2F', // Critically Endangered — red
@@ -850,15 +837,17 @@ const STATUS_PIN_COLORS: Record<string, string> = {
 };
 
 // ═══ INLINE SVG MAP-PIN BUILDERS ═══
-// Fish marker: circle with a small fish inside
+// Fish marker: same circle size/proportions/drop-shadow as the water-quality
+// pins below (36 viewBox, r=16, 24px icon) — a small fish glyph stands in for
+// the droplet/wave glyph so the two marker families read as one visual system.
 function fishPinSvg(color: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 36 36">
     <filter id="fs" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
     </filter>
-    <circle cx="20" cy="20" r="18"
+    <circle cx="18" cy="18" r="16"
             fill="${color}" stroke="#fff" stroke-width="2" filter="url(#fs)"/>
-    <g transform="translate(20,20)" fill="#fff">
+    <g transform="translate(18,18) scale(0.85)" fill="#fff">
       <ellipse rx="7" ry="4" />
       <polygon points="7,-1 11,-4 11,4 7,1" />
       <circle cx="-3" cy="-1" r="1" fill="${color}"/>
@@ -866,16 +855,46 @@ function fishPinSvg(color: string): string {
   </svg>`;
 }
 
+const fishPinIconCache = new Map<string, L.DivIcon>();
+
 function makeFishIcon(statusShort: string): L.DivIcon {
   const color = STATUS_PIN_COLORS[statusShort] ?? '#78909C';
-  return L.divIcon({
+  let icon = fishPinIconCache.get(color);
+  if (icon) return icon;
+
+  icon = L.divIcon({
     className: '',
     html: fishPinSvg(color),
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
-    popupAnchor: [0, -13],
-    tooltipAnchor: [0, -13],
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12],
+    tooltipAnchor: [0, -12],
   });
+  fishPinIconCache.set(color, icon);
+  return icon;
+}
+
+// Cluster bubble shown in place of overlapping fish markers when zoomed out —
+// same circle/drop-shadow language as the pins, in the app's teal accent so a
+// cluster never gets mistaken for one specific conservation-status color.
+// leaflet.markercluster automatically breaks clusters apart as you zoom in
+// (recomputed per zoom level from on-screen pixel distance, not geographic
+// distance) and spiderfies any that are still coincident at max zoom.
+function makeFishClusterIcon(cluster: L.MarkerCluster): L.DivIcon {
+  const count = cluster.getChildCount();
+  const size = count < 10 ? 30 : count < 25 ? 38 : 46;
+  const r = size / 2 - 2;
+  const fontSize = count < 10 ? 12 : count < 25 ? 13 : 14;
+  const html = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <filter id="cs" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.35"/>
+    </filter>
+    <circle cx="${size / 2}" cy="${size / 2}" r="${r}"
+            fill="#26a69a" stroke="#fff" stroke-width="2" filter="url(#cs)"/>
+    <text x="${size / 2}" y="${size / 2}" text-anchor="middle" dominant-baseline="central"
+          font-family="Roboto, sans-serif" font-size="${fontSize}" font-weight="700" fill="#fff">${count}</text>
+  </svg>`;
+  return L.divIcon({ html, className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
 }
 
 // "Needs attention" decoration shared by water + river pins: a pulsing ring
@@ -1022,12 +1041,12 @@ const mapContainer = ref<HTMLElement | null>(null);
 let map: L.Map | null = null;
 
 // ═══ LAYER GROUPS (for toggling markers on/off) ═══
-let fishLayerGroup: L.LayerGroup | null = null;
+// Fish sightings are dense around a handful of coordinates (many
+// observations logged at/near the same site), so this is a cluster group
+// rather than a plain layer group — see makeFishClusterIcon above.
+let fishLayerGroup: L.MarkerClusterGroup | null = null;
 let lakeBoundaryLayerGroup: L.LayerGroup | null = null;
 let wqAllLayerGroup: L.GeoJSON | null = null;
-let wqAbove40LayerGroup: L.GeoJSON | null = null;
-let wqBelow40LayerGroup: L.GeoJSON | null = null;
-let wqTributaryLayerGroup: L.GeoJSON | null = null;
 let lakeStationsLayerGroup: L.GeoJSON | null = null;
 let tributariesLayerGroup: L.GeoJSON | null = null;
 let currentBaseTileLayer: L.TileLayer | null = null;
@@ -1063,6 +1082,12 @@ interface Fish {
   municipal?: string;
   barangay?: string;
   photos?: string;
+  /** Municipality whose water-zone polygon actually contains this sighting's
+   *  coordinates (see useMunicipalZones.ts) — computed automatically, not
+   *  typed in by the researcher. This is what municipality markers use to
+   *  decide which fish belong to them; `municipal` above is only a fallback
+   *  for the rare point that misses every zone (e.g. right on the shoreline). */
+  zoneMunicipality?: string;
 }
 
 const selectedFish = ref<Fish | null>(null);
@@ -1073,7 +1098,7 @@ const selectedFish = ref<Fish | null>(null);
 // skipped here, not fabricated a position.
 const species = ref<Fish[]>([]);
 
-function toMapFish(obs: FishObservation): Fish | null {
+function toMapFish(obs: FishObservation, zones: MunicipalZone[]): Fish | null {
   const coords = parseCoordinates(obs.coordinates);
   if (!coords) return null;
   const type: Fish['type'] =
@@ -1093,6 +1118,8 @@ function toMapFish(obs: FishObservation): Fish | null {
     lat: coords.lat,
     lng: coords.lng,
   };
+  const zoneMunicipality = findMunicipalityForPoint(coords.lat, coords.lng, zones);
+  if (zoneMunicipality) fish.zoneMunicipality = zoneMunicipality;
   if (type === 'general') {
     if (obs.depthM != null) fish.depth = `${obs.depthM} m`;
     if (obs.count != null) fish.number = String(obs.count);
@@ -1107,9 +1134,15 @@ function toMapFish(obs: FishObservation): Fish | null {
 
 onMounted(async () => {
   try {
-    const observations = await fetchFishObservations({ status: 'APPROVED' });
+    const [observations, zones] = await Promise.all([
+      fetchFishObservations({ status: 'APPROVED' }),
+      loadMunicipalZones().catch((err: unknown) => {
+        console.error('Failed to load municipal water zones for fish attribution:', err);
+        return [] as MunicipalZone[];
+      }),
+    ]);
     species.value = observations
-      .map(toMapFish)
+      .map((obs) => toMapFish(obs, zones))
       .filter((f): f is Fish => f !== null);
   } catch (err) {
     console.error('Failed to load fish observations:', err);
@@ -1348,7 +1381,12 @@ const colorParamOptions = computed(() => [
     value: p.key as string | null,
   })),
 ]);
-const selectedColorParamKey = ref<string | null>(null);
+// Defaults to Temperature (not "None") so the map opens already showing real
+// data colored by status — plain blue pins on first load told a visitor
+// nothing until they picked a parameter themselves. Reading Period already
+// defaults to July 2025 and Depth to Surface (0m, see DEPTHS above), so this
+// is the last piece needed for the map to "just show the data" on open.
+const selectedColorParamKey = ref<string | null>('temperature');
 const selectedColorParam = computed(
   () => allWaterParams.value.find((p) => p.key === selectedColorParamKey.value) ?? null,
 );
@@ -1876,22 +1914,6 @@ const contourGradientCss = computed(() => {
   return `linear-gradient(to bottom, ${stops.join(', ')})`;
 });
 
-// Depth-zone sampling layers, surfaced as filter chips in the Water tab.
-const waterDepthLayerIds = ['wqAbove40', 'wqBelow40', 'wqTributary'];
-const waterDepthLayers = computed(() =>
-  mapLayers.value.filter((l) => waterDepthLayerIds.includes(l.id)),
-);
-const waterZoneColors: Record<string, string> = {
-  wqAbove40: 'purple-7',
-  wqBelow40: 'brown-6',
-  wqTributary: 'green-8',
-};
-const waterZoneIcons: Record<string, string> = {
-  wqAbove40: 'vertical_align_bottom',
-  wqBelow40: 'vertical_align_top',
-  wqTributary: 'alt_route',
-};
-
 // Non-site reference layers, surfaced as toggles in the Water tab.
 const waterExtraLayerIds = ['lakeStations', 'tributaries'];
 const waterExtraLayers = computed(() =>
@@ -1971,8 +1993,14 @@ function initMap() {
   // syncLayerVisibility) — re-check on every zoom change.
   map.on('zoomend', syncLayerVisibility);
 
-  // ── Create Fish Layer Group ──
-  fishLayerGroup = L.layerGroup();
+  // ── Create Fish Layer Group (clustered — merges nearby sightings when
+  //    zoomed out, scatters them back to their real coordinates as you zoom in) ──
+  fishLayerGroup = L.markerClusterGroup({
+    iconCreateFunction: makeFishClusterIcon,
+    showCoverageOnHover: false,
+    spiderfyOnMaxZoom: true,
+    maxClusterRadius: 50,
+  });
   renderFishMarkers();
 
   // ── Create Municipality City-Pin Markers (hardcoded coords — no GeoJSON dep) ──
@@ -2004,9 +2032,12 @@ function initMap() {
     });
 
   // ── Water Quality Sampling Sites (points) ──
-  // Load the depth-classified subsets first so their SITE_IDs are known before the
-  // "All Sites" layer (shown by default) builds tooltips that reference the depth zone.
-  function fetchDepthZone(url: string, zoneLabel: string, color: string) {
+  // The depth-classified GeoJSONs are only consulted for their SITE_ID ->
+  // depth-zone labels (siteDepthZone), read by the "All Sites" layer's own
+  // tooltips/detail panel — there's no longer a separate toggleable layer or
+  // marker per zone (that was the "Sampling Zone Layers" UI, removed as
+  // redundant with "All Water Quality Sites" plus the Depth select).
+  function fetchDepthZone(url: string, zoneLabel: string) {
     return fetch(url)
       .then((res) => res.json())
       .then((geojson: GeoJSON.FeatureCollection) => {
@@ -2014,25 +2045,18 @@ function initMap() {
           const props = feature.properties as unknown as WaterQualitySiteProps;
           siteDepthZone.set(props.SITE_ID, zoneLabel);
         });
-        return createWaterQualitySiteLayer(geojson, color);
       })
       .catch((err) => {
         console.error(`Failed to load ${url}:`, err);
-        return null;
       });
   }
 
   Promise.all([
-    fetchDepthZone('/geo/WQ-Sampling-Sites-Above-40m-Depth.geojson', 'Above 40m Depth', '#7B1FA2'),
-    fetchDepthZone('/geo/WQ-Sampling-Sites-Below-40m-Depth.geojson', 'Below 40m Depth', '#8D6E63'),
-    fetchDepthZone('/geo/WQ-Sampling-Sites-Tributary.geojson', 'Tributary', '#2E7D32'),
+    fetchDepthZone('/geo/WQ-Sampling-Sites-Above-40m-Depth.geojson', 'Above 40m Depth'),
+    fetchDepthZone('/geo/WQ-Sampling-Sites-Below-40m-Depth.geojson', 'Below 40m Depth'),
+    fetchDepthZone('/geo/WQ-Sampling-Sites-Tributary.geojson', 'Tributary'),
   ])
-    .then(([aboveLayer, belowLayer, tributaryLayer]) => {
-      wqAbove40LayerGroup = aboveLayer;
-      wqBelow40LayerGroup = belowLayer;
-      wqTributaryLayerGroup = tributaryLayer;
-      syncLayerVisibility();
-
+    .then(() => {
       return fetch('/geo/WQ-All-Sampling-Sites.geojson')
         .then((res) => res.json())
         .then((geojson: GeoJSON.FeatureCollection) => {
@@ -2152,9 +2176,6 @@ function syncLayerVisibility() {
     fish: fishLayerGroup,
     lakeBoundary: lakeBoundaryLayerGroup,
     wqAll: wqAllLayerGroup,
-    wqAbove40: wqAbove40LayerGroup,
-    wqBelow40: wqBelow40LayerGroup,
-    wqTributary: wqTributaryLayerGroup,
     lakeStations: lakeStationsLayerGroup,
     tributaries: tributariesLayerGroup,
     contourLines: contourLinesLayerGroup,
@@ -2328,9 +2349,20 @@ function createFishItemEl(fish: Fish, color: string, bgColor: string): HTMLEleme
 }
 
 // Builds the full popup DOM element shown when a municipality marker is clicked.
+// A fish "belongs" to a municipality automatically when its coordinates fall
+// inside that municipality's water-zone polygon (zoneMunicipality, computed
+// once in toMapFish via point-in-polygon — see useMunicipalZones.ts). The
+// researcher-typed `municipal` text field is only consulted as a fallback,
+// for the rare sighting whose point misses every zone (e.g. right on the
+// shoreline, or if the zone GeoJSON failed to load).
+function belongsToMunicipality(fish: Fish, muniName: string): boolean {
+  if (fish.zoneMunicipality) return fish.zoneMunicipality === muniName;
+  return fish.municipal === muniName;
+}
+
 function buildMuniPopupContent(muni: LakeMunicipality): HTMLElement {
-  const endemicFish = species.value.filter((f) => f.type === 'endemic' && f.municipal === muni.name);
-  const invasiveFish = species.value.filter((f) => f.type === 'invasive' && f.municipal === muni.name);
+  const endemicFish = species.value.filter((f) => f.type === 'endemic' && belongsToMunicipality(f, muni.name));
+  const invasiveFish = species.value.filter((f) => f.type === 'invasive' && belongsToMunicipality(f, muni.name));
 
   const wrap = document.createElement('div');
   wrap.style.cssText = 'font-family:Roboto,sans-serif;min-width:230px;max-width:270px;max-height:300px;overflow-y:auto;';

@@ -34,24 +34,6 @@ export const mapLayers = ref<MapLayer[]>([
     active: true,
   },
   {
-    id: 'wqAbove40',
-    name: 'Sites Above 40m Depth',
-    description: 'Sampling points deeper than 40m',
-    active: false,
-  },
-  {
-    id: 'wqBelow40',
-    name: 'Sites Below 40m Depth',
-    description: 'Sampling points shallower than 40m',
-    active: false,
-  },
-  {
-    id: 'wqTributary',
-    name: 'Tributary Sampling Sites',
-    description: 'Sampling points along tributaries',
-    active: false,
-  },
-  {
     id: 'lakeStations',
     name: 'Lake Monitoring Stations',
     description: 'Lake zone boundaries (hover for details)',

@@ -90,11 +90,15 @@ const props = defineProps<{
 const emit = defineEmits<{ 'select-station': [siteId: string] }>();
 
 const vbWidth = 900;
-const vbHeight = 340;
+const vbHeight = 400;
 const padLeft = 24;
 const padRight = 24;
 const padTop = 24;
-const padBottom = 46;
+// Rotated (-40deg) axis labels like "Dissolved Oxygen" or "Total Dissolved
+// Solids" need real room below the axis line — 46px wasn't enough and was
+// clipping the bottom of longer labels (SVG clips content outside its
+// viewBox by default, unlike most HTML elements).
+const padBottom = 80;
 
 const hovered = ref<string | null>(null);
 const highlighted = computed(() => hovered.value ?? props.selectedSiteId ?? null);
@@ -150,8 +154,12 @@ const seriesRender = computed(() =>
 
 .parallel-coords__svg {
   width: 900px;
-  height: 340px;
+  height: 400px;
   display: block;
+  /* Safety net on top of the padBottom fix above — SVG clips overflow by
+     default, so anything that still runs past the viewBox (an unusually
+     long future parameter label, etc.) stays visible instead of vanishing. */
+  overflow: visible;
 }
 
 .parallel-coords__axis-line {

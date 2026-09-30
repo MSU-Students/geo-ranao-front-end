@@ -1,6 +1,9 @@
 <template>
   <div class="surface3d">
     <canvas ref="canvasEl" class="surface3d__canvas" @wheel.prevent="onWheel" />
+    <!-- CSS2DRenderer's output lands in here — axis tick labels (months,
+         depths, value range) that track the 3D grid as you rotate/zoom. -->
+    <div ref="labelLayerEl" class="surface3d__label-layer" />
     <div class="surface3d__hint">Drag to rotate · Scroll to zoom</div>
 
     <!-- The canvas renders nothing when there isn't at least one fully-
@@ -15,8 +18,12 @@
       </div>
     </div>
 
-    <!-- Legend: height and color both map to this value range. -->
+    <!-- Legend: height AND color both map to this same value range — the
+         wireframe box's floor grid lines up with the Time/Depth axis labels
+         (rendered in the label layer above), the vertical corner posts with
+         the value ticks at their base/top. -->
     <div v-if="hasMesh && legendRange" class="surface3d__legend">
+      <span class="surface3d__legend-caption">Height &amp; color:</span>
       <span class="surface3d__legend-label">{{ legendRange.min.toFixed(decimals) }}{{ unit }}</span>
       <div class="surface3d__legend-gradient" />
       <span class="surface3d__legend-label">{{ legendRange.max.toFixed(decimals) }}{{ unit }}</span>
@@ -27,6 +34,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as THREE from 'three';
+import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 
 export interface Surface3DPoint {
   depth: number;
@@ -47,19 +55,49 @@ const props = withDefaults(
 );
 
 const canvasEl = ref<HTMLCanvasElement | null>(null);
+const labelLayerEl = ref<HTMLDivElement | null>(null);
 const hasMesh = ref(false);
 const legendRange = ref<{ min: number; max: number } | null>(null);
 
 let renderer: THREE.WebGLRenderer | null = null;
+let labelRenderer: CSS2DRenderer | null = null;
 let scene: THREE.Scene | null = null;
 let camera: THREE.PerspectiveCamera | null = null;
 let mesh: THREE.Mesh | null = null;
+let axesLines: THREE.LineSegments | null = null;
+let labelObjects: CSS2DObject[] = [];
 let animId: number | null = null;
 
 let isDragging = false;
 let lastX = 0;
 let lastY = 0;
-const cam = { phi: 1.0, theta: 0.7, radius: 3.2 };
+// Pulled back slightly further (radius 3.2 -> 3.6) than a bare mesh needs,
+// so the axis labels — which sit just outside the wireframe box — have room
+// to breathe instead of clipping against the canvas edge.
+const cam = { phi: 1.05, theta: 0.75, radius: 3.6 };
+
+// Grid footprint shared between the mesh and the reference box/labels built
+// around it — kept at module scope (rather than local to buildMesh) so
+// buildAxes can reuse the exact same coordinate math.
+const SCALE_XZ = 2.4;
+const SCALE_Y = 0.7;
+
+function depthLabel(d: number): string {
+  return d === 0 ? 'Surface' : `${d}m`;
+}
+
+// Thins a long list of tick positions down to at most maxTicks, always
+// keeping the first and last — avoids 9 overlapping depth labels or 12
+// overlapping month labels crowding the same small box edge.
+function pickTickIndices(length: number, maxTicks: number): number[] {
+  if (length <= 0) return [];
+  if (length <= maxTicks) return Array.from({ length }, (_, i) => i);
+  const picked = new Set<number>();
+  for (let i = 0; i < maxTicks; i++) {
+    picked.add(Math.round((i * (length - 1)) / (maxTicks - 1)));
+  }
+  return [...picked].sort((a, b) => a - b);
+}
 
 function updateCameraPosition() {
   if (!camera) return;
@@ -106,6 +144,7 @@ function buildMesh() {
     (mesh.material as THREE.Material).dispose();
     mesh = null;
   }
+  clearAxes();
   hasMesh.value = false;
   legendRange.value = null;
 
@@ -130,9 +169,6 @@ function buildMesh() {
   const indices: number[] = [];
   // vertexIndex[ci][di] — undefined where that grid point has no data.
   const vertexIndex: (number | undefined)[][] = cols.map(() => []);
-
-  const SCALE_XZ = 2.4;
-  const SCALE_Y = 0.7;
 
   cols.forEach((_, ci) => {
     allDepths.forEach((depth, di) => {
@@ -181,11 +217,103 @@ function buildMesh() {
   scene.add(mesh);
   hasMesh.value = true;
   legendRange.value = { min: valueMin, max: valueMax };
+  buildAxes(cols, allDepths, depthMax, valueMin, valueMax);
+}
+
+// Wireframe reference box + tick labels around the mesh — without this the
+// surface is just a colored blob floating in empty space with no way to
+// tell which direction is time, which is depth, or what the axis values
+// actually are. The floor grid lines land exactly on each month column and
+// depth row (same xFor/zFor math buildMesh uses), so every tick label lines
+// up with real data, not an arbitrary ruler.
+function addLabel(text: string, x: number, y: number, z: number, className: string) {
+  if (!scene) return;
+  const el = document.createElement('div');
+  el.className = className;
+  el.textContent = text;
+  const obj = new CSS2DObject(el);
+  obj.position.set(x, y, z);
+  scene.add(obj);
+  labelObjects.push(obj);
+}
+
+function clearAxes() {
+  if (axesLines) {
+    scene?.remove(axesLines);
+    axesLines.geometry.dispose();
+    (axesLines.material as THREE.Material).dispose();
+    axesLines = null;
+  }
+  labelObjects.forEach((obj) => {
+    scene?.remove(obj);
+    obj.element.remove();
+  });
+  labelObjects = [];
+}
+
+function buildAxes(
+  cols: Surface3DColumn[],
+  depths: number[],
+  depthMax: number,
+  valueMin: number,
+  valueMax: number,
+) {
+  if (!scene) return;
+
+  const xMin = -SCALE_XZ / 2;
+  const xMax = SCALE_XZ / 2;
+  const zMin = 0;
+  const zMax = SCALE_XZ * 0.6;
+  const xFor = (ci: number) => (ci / Math.max(cols.length - 1, 1) - 0.5) * SCALE_XZ;
+  const zFor = (depth: number) => (depth / depthMax) * SCALE_XZ * 0.6;
+
+  // Floor border + a vertical post at each corner (an open box, no ceiling,
+  // so it frames the surface without hiding it), plus a floor gridline at
+  // every actual month column and depth row.
+  const linePositions: number[] = [];
+  const addLine = (x1: number, y1: number, z1: number, x2: number, y2: number, z2: number) => {
+    linePositions.push(x1, y1, z1, x2, y2, z2);
+  };
+  addLine(xMin, 0, zMin, xMax, 0, zMin);
+  addLine(xMax, 0, zMin, xMax, 0, zMax);
+  addLine(xMax, 0, zMax, xMin, 0, zMax);
+  addLine(xMin, 0, zMax, xMin, 0, zMin);
+  addLine(xMin, 0, zMin, xMin, SCALE_Y, zMin);
+  addLine(xMax, 0, zMin, xMax, SCALE_Y, zMin);
+  addLine(xMax, 0, zMax, xMax, SCALE_Y, zMax);
+  addLine(xMin, 0, zMax, xMin, SCALE_Y, zMax);
+  cols.forEach((_, ci) => addLine(xFor(ci), 0, zMin, xFor(ci), 0, zMax));
+  depths.forEach((d) => addLine(xMin, 0, zFor(d), xMax, 0, zFor(d)));
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+  const material = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28 });
+  axesLines = new THREE.LineSegments(geometry, material);
+  scene.add(axesLines);
+
+  // Time (month) ticks along the front edge, thinned to avoid overlap.
+  pickTickIndices(cols.length, 6).forEach((ci) => {
+    addLabel(cols[ci]!.month, xFor(ci), 0, zMin, 'surface3d-tick surface3d-tick--time');
+  });
+  addLabel('TIME →', xMax + 0.22, 0, zMin, 'surface3d-axis-title');
+
+  // Depth ticks along the left edge — Surface at the front, deepest at back.
+  pickTickIndices(depths.length, 6).forEach((di) => {
+    const d = depths[di]!;
+    addLabel(depthLabel(d), xMin, 0, zFor(d), 'surface3d-tick surface3d-tick--depth');
+  });
+  addLabel('DEPTH ↓', xMin, 0, zMax + 0.22, 'surface3d-axis-title');
+
+  // Value ticks running up the back-right corner post — reinforces that
+  // height means the same thing the color legend already shows.
+  addLabel(`${valueMin.toFixed(props.decimals)}${props.unit}`, xMax, 0, zMax, 'surface3d-tick surface3d-tick--value');
+  addLabel(`${valueMax.toFixed(props.decimals)}${props.unit}`, xMax, SCALE_Y, zMax, 'surface3d-tick surface3d-tick--value');
 }
 
 function animate() {
   animId = requestAnimationFrame(animate);
   if (renderer && scene && camera) renderer.render(scene, camera);
+  if (labelRenderer && scene && camera) labelRenderer.render(scene, camera);
 }
 
 function onPointerDown(e: PointerEvent) {
@@ -216,6 +344,7 @@ function onResize() {
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
   renderer.setSize(width, height, false);
+  labelRenderer?.setSize(width, height);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
 }
@@ -227,6 +356,14 @@ onMounted(() => {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+
+  labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(canvas.clientWidth, canvas.clientHeight);
+  labelRenderer.domElement.style.position = 'absolute';
+  labelRenderer.domElement.style.top = '0';
+  labelRenderer.domElement.style.left = '0';
+  labelRenderer.domElement.style.pointerEvents = 'none';
+  labelLayerEl.value?.appendChild(labelRenderer.domElement);
 
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.01, 100);
@@ -249,11 +386,14 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (animId !== null) cancelAnimationFrame(animId);
+  clearAxes();
   if (mesh) {
     mesh.geometry.dispose();
     (mesh.material as THREE.Material).dispose();
   }
   renderer?.dispose();
+  labelRenderer?.domElement.remove();
+  labelRenderer = null;
   canvasEl.value?.removeEventListener('pointerdown', onPointerDown);
   window.removeEventListener('pointermove', onPointerMove);
   window.removeEventListener('pointerup', onPointerUp);
@@ -279,6 +419,13 @@ watch(() => props.columns, buildMesh, { deep: true });
   display: block;
   cursor: grab;
   touch-action: none;
+}
+
+.surface3d__label-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
 }
 
 .surface3d__hint {
@@ -311,8 +458,14 @@ watch(() => props.columns, buildMesh, { deep: true });
   display: flex;
   align-items: center;
   gap: 6px;
-  max-width: 220px;
+  max-width: 260px;
   pointer-events: none;
+}
+
+.surface3d__legend-caption {
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
 }
 
 .surface3d__legend-label {
@@ -333,5 +486,41 @@ watch(() => props.columns, buildMesh, { deep: true });
     rgb(230, 140, 55),
     rgb(178, 24, 43)
   );
+}
+</style>
+
+<!-- Not scoped, deliberately: these tick/title elements are created
+     imperatively via document.createElement for Three.js's CSS2DRenderer,
+     so they never receive the scoped data-v-* attribute Vue stamps on
+     template-rendered nodes — a scoped rule would silently never match them. -->
+<style>
+.surface3d-tick {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(15, 15, 15, 0.62);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  font-family: Roboto, sans-serif;
+}
+.surface3d-tick--time {
+  color: #90caf9;
+}
+.surface3d-tick--depth {
+  color: #ffcc80;
+}
+.surface3d-tick--value {
+  color: rgba(255, 255, 255, 0.95);
+}
+.surface3d-axis-title {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: rgba(38, 166, 154, 0.6);
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-family: Roboto, sans-serif;
 }
 </style>

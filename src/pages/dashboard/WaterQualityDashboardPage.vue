@@ -18,6 +18,27 @@
         </p>
       </div>
 
+      <!-- Overview / Advanced Analytics split — the 9 analytics visualization
+           types plus Station Comparison are specialist tools (PCA, time-lagged
+           correlation, isopleth diagrams, stoichiometry) that most visitors
+           checking "is the lake okay" never need to see. Overview is the
+           default landing view; Advanced Analytics is opt-in. -->
+      <q-tabs
+        v-model="activeView"
+        dense
+        align="justify"
+        indicator-color="teal"
+        active-color="white"
+        inactive-color="grey-5"
+        class="view-tabs q-mb-md"
+      >
+        <q-tab name="overview" icon="dashboard" label="Overview" no-caps />
+        <q-tab name="advanced" icon="insights" label="Advanced Analytics" no-caps />
+      </q-tabs>
+
+      <q-tab-panels v-model="activeView" class="view-tab-panels">
+        <q-tab-panel name="overview" class="q-pa-none">
+
       <!-- KPI Summary Cards -->
       <div class="row q-col-gutter-md q-mb-md justify-center">
         <div class="col-6 col-md-3">
@@ -167,12 +188,115 @@
               <StatusDistributionBar :counts="statusCounts(selectedParam, selectedMonthIndex)" />
               <div class="text-grey-4 text-caption q-mt-md">
                 <q-icon name="info" size="14px" class="q-mr-xs" />
-                See the "Sites of Concern" panel next to the Station Map further down for the flagged stations.
+                See the "Sites of Concern" panel below for the flagged stations.
               </div>
             </q-card-section>
           </q-card>
         </div>
       </div>
+
+      <!-- Interactive Station Map -->
+      <div class="row q-col-gutter-md q-mb-md">
+        <div class="col-12 col-md-8">
+          <q-card class="glass-morph full-height">
+            <q-card-section>
+              <div class="row items-center justify-between q-mb-sm">
+                <span class="text-white text-subtitle1 text-weight-medium">
+                  <q-icon name="map" color="teal-3" class="q-mr-xs" />
+                  Station Map — {{ selectedParam ? selectedParam.label : 'Select a Parameter' }}
+                </span>
+                <q-btn
+                  v-if="selectedStationId"
+                  flat
+                  dense
+                  size="sm"
+                  color="grey-4"
+                  icon="close"
+                  label="Clear Selection"
+                  @click="selectedStationId = null"
+                />
+              </div>
+              <p class="text-grey-4 text-caption q-mb-sm">
+                {{ siteCount }} monitoring stations across Lake Lanao. Click a station to filter
+                the research charts above, and the Advanced Analytics tab, to that site.
+              </p>
+
+              <div class="station-map-wrap">
+                <StationMap
+                  :sites="sites"
+                  :status-color-by-site="statusColorBySite"
+                  :status-by-site="statusBySite"
+                  :attention-detail-by-site="attentionDetailBySite"
+                  :selected-site-id="selectedStationId"
+                  @select-station="selectStation"
+                />
+              </div>
+
+              <div class="row items-center q-gutter-md q-mt-sm">
+                <div class="row items-center no-wrap">
+                  <span class="status-dot" :style="{ background: STATUS_COLORS.good }" />
+                  <span class="text-caption text-grey-4 q-ml-xs">Good</span>
+                </div>
+                <div class="row items-center no-wrap">
+                  <span class="status-dot" :style="{ background: STATUS_COLORS.warning }" />
+                  <span class="text-caption text-grey-4 q-ml-xs">Warning</span>
+                </div>
+                <div class="row items-center no-wrap">
+                  <span class="status-dot" :style="{ background: STATUS_COLORS.critical }" />
+                  <span class="text-caption text-grey-4 q-ml-xs">Serious / Critical</span>
+                </div>
+              </div>
+              <p class="text-caption text-grey-5 q-mt-xs q-mb-0">
+                Pulsing ring = Serious &nbsp;·&nbsp; <strong>!</strong> badge = Warning &nbsp;·&nbsp;
+                both = Critical — for {{ selectedParam?.label ?? 'the selected parameter' }} only
+              </p>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <div class="col-12 col-md-4">
+          <q-card class="glass-morph full-height">
+            <q-card-section>
+              <div class="text-white text-subtitle1 text-weight-medium q-mb-xs">
+                <q-icon name="report_problem" color="orange-3" class="q-mr-xs" />
+                Sites of Concern
+              </div>
+              <p class="text-grey-4 text-caption q-mb-sm">
+                Click a site to quick-filter the map and charts.
+              </p>
+              <q-list dark dense>
+                <q-item
+                  v-for="s in sitesOfConcern"
+                  :key="s.siteId"
+                  clickable
+                  class="q-px-sm concern-item"
+                  :class="{ 'concern-item--active': s.siteId === selectedStationId }"
+                  @click="selectStation(s.siteId)"
+                >
+                  <q-item-section>
+                    <q-item-label class="text-grey-2">{{ s.siteId }}</q-item-label>
+                    <q-item-label caption class="text-grey-5">Station: {{ s.stationId }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <span class="status-chip" :style="{ background: STATUS_COLORS[s.status] }">
+                      {{ STATUS_LABELS[s.status] }}
+                    </span>
+                  </q-item-section>
+                </q-item>
+                <q-item v-if="sitesOfConcern.length === 0">
+                  <q-item-section class="text-center text-grey-4 q-py-md">
+                    No sites of concern for this parameter this month.
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+
+        </q-tab-panel>
+
+        <q-tab-panel name="advanced" class="q-pa-none">
 
       <!-- Type of Analytics Visualization -->
       <q-card class="glass-morph q-mb-md">
@@ -609,133 +733,55 @@
           <div v-else class="text-center text-grey-5 q-py-lg">No readings yet for {{ months[selectedMonthIndex] }}.</div>
           <div v-if="parallelSeriesList.length" class="text-caption text-grey-5 q-mt-sm">
             <q-icon name="info" size="14px" class="q-mr-xs" />
-            {{ parallelSeriesList.length }} stations shown, each colored differently around the color
-            wheel — with that many lines, colors alone aren't meant to be individually memorized. Hover
-            or click a line (or a station on the map below) to highlight just that one and see its name.
-            Each vertical axis is one parameter, scaled to its own plausible range (top-to-bottom order:
-            {{ allWaterQualityParams.map((p) => p.label).join(', ') }}).
+            {{ parallelSeriesList.length }} stations shown — each vertical axis is one parameter, scaled
+            to its own plausible range (top-to-bottom order:
+            {{ allWaterQualityParams.map((p) => p.label).join(', ') }}). Click a station below or a line
+            in the chart to highlight just that one.
+          </div>
+          <!-- Station legend — every line's color + name, clickable to highlight
+               (mirrors clicking the line itself). With up to ~30 stations, colors
+               cycle around the hue wheel and aren't meant to be memorized on sight;
+               this list is how you actually look one up. -->
+          <div v-if="parallelSeriesList.length" class="parallel-legend q-mt-sm">
+            <button
+              v-for="s in parallelSeriesList"
+              :key="s.siteId"
+              type="button"
+              class="parallel-legend__item"
+              :class="{ 'parallel-legend__item--active': selectedStationId === s.siteId }"
+              @click="selectStation(s.siteId)"
+            >
+              <span class="parallel-legend__dot" :style="{ background: s.color }" />
+              {{ s.siteId }}
+            </button>
           </div>
         </q-card-section>
       </q-card>
 
-      <!-- Interactive Station Map -->
-      <div class="row q-col-gutter-md q-mb-md">
-        <div class="col-12 col-md-8">
-          <q-card class="glass-morph full-height">
-            <q-card-section>
-              <div class="row items-center justify-between q-mb-sm">
-                <span class="text-white text-subtitle1 text-weight-medium">
-                  <q-icon name="map" color="teal-3" class="q-mr-xs" />
-                  Station Map — {{ selectedParam ? selectedParam.label : 'Select a Parameter' }}
-                </span>
-                <q-btn
-                  v-if="selectedStationId"
-                  flat
-                  dense
-                  size="sm"
-                  color="grey-4"
-                  icon="close"
-                  label="Clear Selection"
-                  @click="selectedStationId = null"
-                />
-              </div>
-              <p class="text-grey-4 text-caption q-mb-sm">
-                {{ siteCount }} monitoring stations across Lake Lanao. Click a station to filter
-                the research charts above to that site.
-              </p>
-
-              <div class="station-map-wrap">
-                <StationMap
-                  :sites="sites"
-                  :status-color-by-site="statusColorBySite"
-                  :status-by-site="statusBySite"
-                  :attention-detail-by-site="attentionDetailBySite"
-                  :selected-site-id="selectedStationId"
-                  @select-station="selectStation"
-                />
-              </div>
-
-              <div class="row items-center q-gutter-md q-mt-sm">
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" :style="{ background: STATUS_COLORS.good }" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Good</span>
-                </div>
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" :style="{ background: STATUS_COLORS.warning }" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Warning</span>
-                </div>
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" :style="{ background: STATUS_COLORS.critical }" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Serious / Critical</span>
-                </div>
-              </div>
-              <p class="text-caption text-grey-5 q-mt-xs q-mb-0">
-                Pulsing ring = Serious &nbsp;·&nbsp; <strong>!</strong> badge = Warning &nbsp;·&nbsp;
-                both = Critical — for {{ selectedParam?.label ?? 'the selected parameter' }} only
-              </p>
-            </q-card-section>
-          </q-card>
-        </div>
-
-        <div class="col-12 col-md-4">
-          <q-card class="glass-morph full-height">
-            <q-card-section>
-              <div class="text-white text-subtitle1 text-weight-medium q-mb-xs">
-                <q-icon name="report_problem" color="orange-3" class="q-mr-xs" />
-                Sites of Concern
-              </div>
-              <p class="text-grey-4 text-caption q-mb-sm">
-                Click a site to quick-filter the map and charts.
-              </p>
-              <q-list dark dense>
-                <q-item
-                  v-for="s in sitesOfConcern"
-                  :key="s.siteId"
-                  clickable
-                  class="q-px-sm concern-item"
-                  :class="{ 'concern-item--active': s.siteId === selectedStationId }"
-                  @click="selectStation(s.siteId)"
-                >
-                  <q-item-section>
-                    <q-item-label class="text-grey-2">{{ s.siteId }}</q-item-label>
-                    <q-item-label caption class="text-grey-5">Station: {{ s.stationId }}</q-item-label>
-                  </q-item-section>
-                  <q-item-section side>
-                    <span class="status-chip" :style="{ background: STATUS_COLORS[s.status] }">
-                      {{ STATUS_LABELS[s.status] }}
-                    </span>
-                  </q-item-section>
-                </q-item>
-                <q-item v-if="sitesOfConcern.length === 0">
-                  <q-item-section class="text-center text-grey-4 q-py-md">
-                    No sites of concern for this parameter this month.
-                  </q-item-section>
-                </q-item>
-              </q-list>
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
-
+        </q-tab-panel>
+      </q-tab-panels>
     </div>
 
     <!-- Reading Period / Depth / Classification — floating in the bottom
          corner and fixed regardless of scroll position, so changing any of
          these never requires scrolling back to the top. Collapsed to a
          single button by default so it doesn't sit permanently over page
-         content; expands to the full controls on click. -->
-    <q-page-sticky position="bottom-right" :offset="[18, 18]">
+         content; expands to the full controls on click. Plain fixed
+         positioning (not q-page-sticky) with an explicit high z-index —
+         BackButton alone is already at z-index 2100, and q-page-sticky
+         doesn't reliably out-rank fixed-position elements like that. -->
+    <div class="sticky-controls-anchor">
       <q-btn
         v-if="!controlsPanelOpen"
         round
         unelevated
         color="teal"
         icon="tune"
-        size="md"
+        size="lg"
         class="sticky-controls-fab"
         @click="controlsPanelOpen = true"
       >
-        <q-tooltip anchor="top middle" self="bottom middle">Reading Period, Depth &amp; Classification</q-tooltip>
+        <q-tooltip anchor="top middle" self="bottom middle">Reading Period, Parameter, Depth, Classification &amp; Station</q-tooltip>
       </q-btn>
 
       <q-card v-else class="glass-morph sticky-controls-card">
@@ -789,6 +835,30 @@
 
           <div class="row items-center justify-between q-mb-xs">
             <span class="text-grey-3 text-caption">
+              <q-icon name="science" size="14px" class="q-mr-xs" />
+              Parameter
+            </span>
+          </div>
+          <q-select
+            v-model="selectedParamKey"
+            :options="paramSelectOptions"
+            emit-value
+            map-options
+            dense
+            outlined
+            dark
+            class="form-field q-mb-sm"
+          />
+          <div class="text-caption text-grey-5 q-mt-xs q-mb-md">
+            <q-icon name="info" size="14px" class="q-mr-xs" />
+            Drives Parameter Overview, the 13-Month Trend, Sites of Concern, the Station Map's color,
+            and most of the analytics visualizations below.
+          </div>
+
+          <q-separator dark class="q-mb-md" style="opacity: 0.15" />
+
+          <div class="row items-center justify-between q-mb-xs">
+            <span class="text-grey-3 text-caption">
               <q-icon name="vertical_align_bottom" size="14px" class="q-mr-xs" />
               Depth
             </span>
@@ -820,9 +890,34 @@
             dark
             class="form-field"
           />
+
+          <q-separator dark class="q-my-md" style="opacity: 0.15" />
+
+          <div class="row items-center justify-between q-mb-xs">
+            <span class="text-grey-3 text-caption">
+              <q-icon name="place" size="14px" class="q-mr-xs" />
+              Station (for depth-based views)
+            </span>
+          </div>
+          <q-select
+            v-model="stationPickerModel"
+            :options="stationPickerOptions"
+            emit-value
+            map-options
+            dense
+            outlined
+            dark
+            class="form-field"
+          />
+          <div class="text-caption text-grey-5 q-mt-xs">
+            <q-icon name="info" size="14px" class="q-mr-xs" />
+            Drives Vertical Depth Profile, Faceted Profiles, Multi-Depth Time-Series, Depth-Time
+            Isopleth, the 3D Surface Plot, and (when set) the Stoichiometric Ratio — same as clicking
+            a station on the map below.
+          </div>
         </q-card-section>
       </q-card>
-    </q-page-sticky>
+    </div>
   </q-page>
 </template>
 
@@ -934,6 +1029,12 @@ const selectedMonthIndex = computed(() => readingMonthIndex(selectedYear.value, 
 
 const paramSelectOptions = allWaterQualityParams.map((p) => ({ label: p.label, value: p.key }));
 
+// Overview / Advanced Analytics — always lands on Overview, matching how
+// most visits actually use this page. Local (not session-persisted), same
+// reasoning as parameterOverviewExpanded below: this is a navigational
+// choice for this visit, not a filter selection worth remembering.
+const activeView = ref<'overview' | 'advanced'>('overview');
+
 // Collapsed by default — see the Parameter Overview card's comment above.
 // Local (not session-persisted): re-collapsing on a fresh visit is expected
 // here, unlike an actual filter selection.
@@ -942,7 +1043,8 @@ const parameterOverviewExpanded = ref(false);
 // Floating Reading Period/Depth/Classification panel — collapsed by default
 // so it doesn't sit permanently over page content (same reasoning as
 // parameterOverviewExpanded above); the toggle button is always reachable
-// via q-page-sticky regardless of scroll position.
+// via fixed positioning regardless of scroll position (see
+// .sticky-controls-anchor).
 const controlsPanelOpen = ref(false);
 
 // ═══ TYPE OF ANALYTICS VISUALIZATION ═══
@@ -1307,6 +1409,47 @@ const depthProfileParamB = computed(
   () => allWaterQualityParams.find((p) => p.key === depthProfileParamKeyB.value) ?? null,
 );
 const depthProfileStationId = computed(() => selectedStationId.value ?? sites.value[0]?.siteId ?? null);
+
+// How many distinct depths each station has EVER reported at (not scoped to
+// the current Reading Period) — surfaced in the station picker below so you
+// can tell a station with real vertical coverage from a surface-only one
+// before picking it, rather than discovering it's empty by trial and error.
+const siteDepthCoverage = computed<Record<string, number>>(() => {
+  const depthsBySite = new Map<string, Set<number>>();
+  rawReadings.value.forEach((r) => {
+    const bucket = depthsBySite.get(r.siteId);
+    if (bucket) bucket.add(r.depthM);
+    else depthsBySite.set(r.siteId, new Set([r.depthM]));
+  });
+  const result: Record<string, number> = {};
+  depthsBySite.forEach((depths, siteId) => {
+    result[siteId] = depths.size;
+  });
+  return result;
+});
+
+// Rivers are excluded — see selectStation()'s comment: they're always
+// Surface-only, so picking one would drive a meaningless flat depth profile.
+const stationPickerOptions = computed(() =>
+  sites.value
+    .filter((s) => !TRIBUTARY_RIVER_SITE_IDS.has(s.siteId))
+    .map((s) => {
+      const depthCount = siteDepthCoverage.value[s.siteId] ?? 0;
+      const coverageLabel = depthCount >= 2 ? `${depthCount} depths` : depthCount === 1 ? 'Surface only' : 'No data yet';
+      return { label: `${s.siteId} — ${coverageLabel}`, value: s.siteId };
+    }),
+);
+
+// Getter/setter so the dropdown always shows a real station (falling back to
+// the same default the depth-based views themselves use) while still
+// sharing selectedStationId with the map's click-to-select/deselect — picking
+// "Auto" here and deselecting a station on the map do the same thing.
+const stationPickerModel = computed<string | null>({
+  get: () => depthProfileStationId.value,
+  set: (val) => {
+    selectedStationId.value = val;
+  },
+});
 
 function depthProfilePoints(stationId: string, param: WaterQualityParam, monthIndex: number): DepthReadingPoint[] {
   const points: DepthReadingPoint[] = [];
@@ -1736,6 +1879,28 @@ const pcaResult = computed<PCAResult | null>(() => {
   padding-top: 88px;
 }
 
+.view-tabs {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.view-tab-panels {
+  background: transparent;
+}
+
+/* Explicit fixed positioning + high z-index rather than q-page-sticky —
+   BackButton alone already sits at z-index 2100 (position: fixed), and this
+   needs to render above every card, the Leaflet station map, and any other
+   fixed-position element on the page, not just whatever q-page-sticky
+   happens to default to. */
+.sticky-controls-anchor {
+  position: fixed;
+  bottom: 18px;
+  left: 18px;
+  z-index: 5000;
+}
+
 .sticky-controls-fab {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
@@ -1877,6 +2042,50 @@ const pcaResult = computed<PCAResult | null>(() => {
   display: inline-block;
   width: 16px;
   height: 2px;
+  flex-shrink: 0;
+}
+
+/* Station Comparison legend — a scrollable wrapped grid of clickable
+   color+name chips, since up to ~30 stations can't fit as a single row and
+   their hue-wheel colors aren't meant to be memorized without a lookup. */
+.parallel-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.parallel-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 3px 10px 3px 8px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.7rem;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.parallel-legend__item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.parallel-legend__item--active {
+  background: rgba(38, 166, 154, 0.18);
+  border-color: rgba(38, 166, 154, 0.6);
+  color: white;
+}
+
+.parallel-legend__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
   flex-shrink: 0;
 }
 
