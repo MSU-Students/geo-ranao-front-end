@@ -483,21 +483,12 @@
                   />
 
                   <q-btn
-                    color="teal"
-                    label="Generate PDF Report"
-                    icon="picture_as_pdf"
-                    unelevated
-                    rounded
-                    class="full-width q-py-sm"
-                    @click="handleGeneratePdf"
-                  />
-                  <q-btn
                     color="blue-7"
                     label="Export as CSV"
                     icon="table_chart"
                     unelevated
                     rounded
-                    class="full-width q-py-sm q-mt-sm"
+                    class="full-width q-py-sm"
                     @click="handleExportCsv"
                   />
                 </q-card-section>
@@ -580,6 +571,53 @@
                     :loading="wqSummaryGenerating"
                     class="full-width q-py-sm"
                     @click="handleGenerateWaterQualitySummary"
+                  />
+                </q-card-section>
+              </q-card>
+            </div>
+
+            <!-- Fish Observation Summary Report -->
+            <div class="col-12 col-md-6">
+              <q-card class="glass-morph full-height">
+                <q-card-section>
+                  <div class="text-white text-h6 text-weight-bold q-mb-md">
+                    <q-icon name="set_meal" color="teal-3" class="q-mr-sm" />
+                    Fish Observation Summary Report
+                  </div>
+                  <p class="text-grey-4 text-caption q-mb-md">
+                    A plain-language PDF: species recorded, conservation status breakdown, and a sighting
+                    location diagram — for a municipality's water zone or the whole lake.
+                  </p>
+
+                  <q-select
+                    v-model="fishSummaryMunicipality"
+                    :options="wqSummaryMunicipalityOptions"
+                    label="Scope"
+                    dark
+                    outlined
+                    emit-value
+                    map-options
+                    class="form-field q-mb-md"
+                  />
+
+                  <q-select
+                    v-model="fishSummaryDateRange"
+                    :options="dateRangeOptions"
+                    label="Period"
+                    dark
+                    outlined
+                    class="form-field q-mb-md"
+                  />
+
+                  <q-btn
+                    color="teal"
+                    label="Generate PDF"
+                    icon="picture_as_pdf"
+                    unelevated
+                    rounded
+                    :loading="fishSummaryGenerating"
+                    class="full-width q-py-sm"
+                    @click="handleGenerateFishObservationSummary"
                   />
                 </q-card-section>
               </q-card>
@@ -816,10 +854,17 @@ import {
   type UploadReviewStatus,
   type ActivitySeverity,
 } from 'src/stores/admin';
-import { allWaterQualityParams, formatReading } from 'src/composables/useWaterQualityModel';
-import { toCsv, triggerDownload, withinDateRange, type DateRangeOption } from 'src/composables/useReportExport';
+import { allWaterQualityParams, formatReading, READING_START_YEAR } from 'src/composables/useWaterQualityModel';
+import {
+  toCsv,
+  triggerDownload,
+  withinDateRange,
+  buildYearRangeOptions,
+  type DateRangeOption,
+} from 'src/composables/useReportExport';
 import { loadMunicipalZones } from 'src/composables/useMunicipalZones';
 import { generateWaterQualitySummaryReport } from 'src/composables/useWaterQualitySummaryReport';
+import { generateFishObservationSummaryReport } from 'src/composables/useFishObservationSummaryReport';
 
 const $q = useQuasar();
 const router = useRouter();
@@ -1390,7 +1435,7 @@ const reportType = ref('Account Activity Summary');
 const dateRange = ref<DateRangeOption>('All Time');
 
 const reportTypeOptions = ['Account Activity Summary', 'Researcher Roster', 'Upload Review Summary'];
-const dateRangeOptions: DateRangeOption[] = ['Last 30 Days', 'Last 6 Months', 'Year 2025', 'Year 2026', 'All Time'];
+const dateRangeOptions = buildYearRangeOptions(READING_START_YEAR);
 
 function handleExportCsv() {
   let rows: Record<string, unknown>[];
@@ -1447,18 +1492,6 @@ function handleExportCsv() {
   $q.notify({ type: 'positive', message: `${label} downloaded.`, position: 'top' });
 }
 
-function handleGeneratePdf() {
-  const label = `${reportType.value} (PDF) — ${dateRange.value}`;
-  adminStore.recordReportGenerated(authStore.displayName, label);
-  $q.notify({
-    type: 'info',
-    message: 'PDF report generation is not connected to a backend yet.',
-    caption: 'This request was logged — use "Export as CSV" for a real download.',
-    position: 'top',
-    timeout: 4000,
-  });
-}
-
 // ─── Water Quality Summary Report ───
 const wqSummaryMunicipality = ref<string | null>(null);
 const wqSummaryDateRange = ref<DateRangeOption>('All Time');
@@ -1500,6 +1533,38 @@ async function handleGenerateWaterQualitySummary() {
     });
   } finally {
     wqSummaryGenerating.value = false;
+  }
+}
+
+// ─── Fish Observation Summary Report ───
+// Shares wqSummaryMunicipalityOptions (same municipal zones list, no need to
+// fetch it twice) and the same dateRangeOptions as the water quality report.
+const fishSummaryMunicipality = ref<string | null>(null);
+const fishSummaryDateRange = ref<DateRangeOption>('All Time');
+const fishSummaryGenerating = ref(false);
+
+async function handleGenerateFishObservationSummary() {
+  fishSummaryGenerating.value = true;
+  try {
+    const result = await generateFishObservationSummaryReport({
+      municipality: fishSummaryMunicipality.value,
+      dateRange: fishSummaryDateRange.value,
+      generatedBy: authStore.displayName,
+    });
+    adminStore.recordReportGenerated(authStore.displayName, result.label);
+    $q.notify({
+      type: 'positive',
+      message: `${result.filename} downloaded (${result.recordCount} observations).`,
+      position: 'top',
+    });
+  } catch (err) {
+    $q.notify({
+      type: 'warning',
+      message: err instanceof Error ? err.message : 'Failed to generate the report.',
+      position: 'top',
+    });
+  } finally {
+    fishSummaryGenerating.value = false;
   }
 }
 

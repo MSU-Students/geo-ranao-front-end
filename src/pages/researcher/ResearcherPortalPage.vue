@@ -162,6 +162,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 import BackButton from 'src/components/BackButton.vue';
 import { fetchWaterQualityReadings, type WaterQualityReading } from 'src/composables/useWaterQualityReadings';
@@ -171,12 +172,13 @@ import {
   type FishObservation,
   type FishCategory,
 } from 'src/composables/useFishObservations';
-import { allWaterQualityParams } from 'src/composables/useWaterQualityModel';
+import { allWaterQualityParams, READING_START_YEAR } from 'src/composables/useWaterQualityModel';
 import { useStations, fetchStations } from 'src/composables/useStations';
 import {
   toCsv,
   triggerDownload,
   withinDateRange,
+  buildYearRangeOptions,
   loadRecentReports,
   recordRecentReport,
   type DateRangeOption,
@@ -184,6 +186,7 @@ import {
 } from 'src/composables/useReportExport';
 
 const $q = useQuasar();
+const router = useRouter();
 const authStore = useAuthStore();
 
 const RECENT_REPORTS_KEY = 'researcher-report-recent';
@@ -202,7 +205,7 @@ const scopeOptions = [
 ];
 
 const dateRange = ref<DateRangeOption>('All Time');
-const dateRangeOptions: DateRangeOption[] = ['Last 30 Days', 'Last 6 Months', 'Year 2025', 'Year 2026', 'All Time'];
+const dateRangeOptions = buildYearRangeOptions(READING_START_YEAR);
 
 const { stations } = useStations();
 const stationOptions = computed(() => stations.value.map((s) => s.siteId));
@@ -218,7 +221,20 @@ const selectedCategories = ref<FishCategory[]>([]);
 const exporting = ref(false);
 const recentReports = ref<RecentReportEntry[]>([]);
 
+// ─── Access Guard ───
+// Report downloads here read the same approved data the public map already
+// shows, but this page is meant for logged-in researchers/admins specifically
+// — without this check, anyone who navigated straight to /researcher could
+// use what's labeled a researcher tool.
 onMounted(() => {
+  if (!authStore.isLoggedIn) {
+    $q.notify({ type: 'negative', message: 'Please log in to access the Researcher Portal.', position: 'top' });
+    router.replace('/auth/login').catch((err) => {
+      console.error('Navigation error:', err);
+    });
+    return;
+  }
+
   fetchStations().catch((err) => console.error('Failed to load stations:', err));
   recentReports.value = loadRecentReports(RECENT_REPORTS_KEY);
 });

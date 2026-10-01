@@ -6,8 +6,9 @@ import { ref } from 'vue';
 // the previous page component when you navigate away (no <keep-alive> wraps
 // the router-view). Every filter/selection below survives the trip instead.
 
-// Species list category chip ("All" / "Endemic" / "Invasive").
+// Species list category chip ("All" / "Endemic" / "Invasive") and search box.
 export const activeFilter = ref('all');
+export const search = ref('');
 
 // Distribution Explorer.
 export const distYear = ref<string>('All Years');

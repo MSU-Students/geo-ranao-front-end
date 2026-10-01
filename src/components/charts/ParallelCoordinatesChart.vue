@@ -27,8 +27,8 @@
         :key="s.siteId"
         class="parallel-coords__series"
         :class="{
-          'parallel-coords__series--dim': highlighted && highlighted !== s.siteId,
-          'parallel-coords__series--active': highlighted === s.siteId,
+          'parallel-coords__series--dim': isDimmed(s.siteId),
+          'parallel-coords__series--active': isActive(s.siteId),
         }"
         @click="emit('select-station', s.siteId)"
         @mouseenter="hovered = s.siteId"
@@ -48,7 +48,7 @@
           :points="seg"
           fill="none"
           :stroke="s.color"
-          stroke-width="1.75"
+          stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
         />
@@ -85,6 +85,11 @@ const props = defineProps<{
   axes: ParallelAxis[];
   seriesList: ParallelSeries[];
   selectedSiteId?: string | null;
+  /** Station IDs passing every active filter rule (see the Station Comparison
+   *  filter panel) — when given a non-empty array, this drives dim/active
+   *  instead of hover/click, so every matching station stays lit up at once
+   *  rather than only the last-hovered one. */
+  matchedSiteIds?: string[] | null;
 }>();
 
 const emit = defineEmits<{ 'select-station': [siteId: string] }>();
@@ -102,6 +107,16 @@ const padBottom = 80;
 
 const hovered = ref<string | null>(null);
 const highlighted = computed(() => hovered.value ?? props.selectedSiteId ?? null);
+const hasActiveFilters = computed(() => !!props.matchedSiteIds && props.matchedSiteIds.length > 0);
+
+function isDimmed(siteId: string): boolean {
+  if (hasActiveFilters.value) return !props.matchedSiteIds!.includes(siteId);
+  return highlighted.value !== null && highlighted.value !== siteId;
+}
+function isActive(siteId: string): boolean {
+  if (hasActiveFilters.value) return props.matchedSiteIds!.includes(siteId);
+  return highlighted.value === siteId;
+}
 
 function colorFor(siteId: string): string {
   return props.seriesList.find((s) => s.siteId === siteId)?.color ?? '#ffffff';
@@ -178,13 +193,21 @@ const seriesRender = computed(() =>
   font-weight: 600;
 }
 
+/* Default opacity is well below 1 on purpose — with up to ~30 overlapping
+   lines, full-opacity-by-default just turns into a solid tangle that's
+   impossible to individually trace. Semi-transparent lines let overlaps
+   show through as visible density instead of one opaque mass, so the chart
+   reads clearly without needing to hover or filter first; hovering/filtering
+   still pushes the lines that matter up to full opacity + a thicker stroke
+   for a clear pop against the now much-fainter rest. */
 .parallel-coords__series {
   cursor: pointer;
+  opacity: 0.55;
   transition: opacity 0.15s ease;
 }
 
 .parallel-coords__series--dim {
-  opacity: 0.12;
+  opacity: 0.08;
 }
 
 .parallel-coords__series--active {

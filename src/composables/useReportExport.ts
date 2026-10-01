@@ -26,7 +26,12 @@ export function triggerDownload(content: string, filename: string, mime: string)
   URL.revokeObjectURL(url);
 }
 
-export type DateRangeOption = 'Last 30 Days' | 'Last 6 Months' | 'Year 2025' | 'Year 2026' | 'All Time';
+// 'Year 2025', 'Year 2026', … — a template literal type rather than one
+// hardcoded literal per year, since the fixed list used to be exactly that
+// (stuck at 'Year 2025' | 'Year 2026', defined independently in 3 files) and
+// just went stale once 2027 actually arrived. See buildYearRangeOptions
+// below for how the real list gets generated.
+export type DateRangeOption = 'Last 30 Days' | 'Last 6 Months' | 'All Time' | `Year ${number}`;
 
 export function withinDateRange(dateStr: string | undefined, range: DateRangeOption): boolean {
   if (!dateStr) return range === 'All Time';
@@ -42,13 +47,27 @@ export function withinDateRange(dateStr: string | undefined, range: DateRangeOpt
       cutoff.setMonth(cutoff.getMonth() - 6);
       return d >= cutoff;
     }
-    case 'Year 2025':
-      return d.getFullYear() === 2025;
-    case 'Year 2026':
-      return d.getFullYear() === 2026;
-    default:
-      return true; // All Time
+    case 'All Time':
+      return true;
+    default: {
+      // range is `Year ${number}` here (e.g. "Year 2027") — matched
+      // generically instead of one switch case per year.
+      const year = Number(range.slice('Year '.length));
+      return d.getFullYear() === year;
+    }
   }
+}
+
+// Builds the date-range dropdown's options, spanning from the platform's
+// sampling start year through whichever year it actually is right now —
+// computed fresh on every call instead of a list someone has to remember to
+// extend by hand each January.
+export function buildYearRangeOptions(startYear: number): DateRangeOption[] {
+  const currentYear = new Date().getFullYear();
+  const endYear = Math.max(startYear, currentYear);
+  const years: DateRangeOption[] = [];
+  for (let y = endYear; y >= startYear; y--) years.push(`Year ${y}`);
+  return ['Last 30 Days', 'Last 6 Months', ...years, 'All Time'];
 }
 
 // ── Per-viewer "recent downloads" history ──

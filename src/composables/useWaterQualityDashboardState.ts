@@ -38,6 +38,25 @@ export const timeLagParamKeyB = ref(
   allWaterQualityParams.find((p) => p.key === 'chlorophyll')?.key ?? allWaterQualityParams[1]!.key,
 );
 
+// Which of the 12 Advanced Analytics visualization types is showing.
+export const analyticsVizType = ref<string>('vertical-depth-profile');
+
+// Station Comparison's range filters (e.g. "Temperature > 28 AND Dissolved
+// Oxygen < 4") — the id counter stays private to this module since an
+// imported `let` can't be reassigned from the page file; allocateFilterRuleId
+// is the only way to get a fresh one.
+export interface ParallelFilterRule {
+  id: number;
+  paramKey: string;
+  operator: '>' | '<' | '>=' | '<=';
+  value: number;
+}
+export const parallelFilterRules = ref<ParallelFilterRule[]>([]);
+let nextParallelFilterRuleId = 1;
+export function allocateParallelFilterRuleId(): number {
+  return nextParallelFilterRuleId++;
+}
+
 // selectedMonthIndex depends on READING_START_YEAR, kept here (rather than
 // as a page-local computed) so it stays next to the refs it derives from.
 export function readingMonthIndex(year: number, monthInYear: number): number {

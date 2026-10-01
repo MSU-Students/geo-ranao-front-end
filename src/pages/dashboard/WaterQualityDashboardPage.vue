@@ -18,11 +18,12 @@
         </p>
       </div>
 
-      <!-- Overview / Advanced Analytics split — the 9 analytics visualization
-           types plus Station Comparison are specialist tools (PCA, time-lagged
-           correlation, isopleth diagrams, stoichiometry) that most visitors
-           checking "is the lake okay" never need to see. Overview is the
-           default landing view; Advanced Analytics is opt-in. -->
+      <!-- Overview / Advanced Analytics split — the 12 analytics visualization
+           types (grouped Single-Station / Cross-Station / Statistical
+           Relationships in the picker below) are specialist tools (PCA,
+           time-lagged correlation, isopleth diagrams, stoichiometry) that most
+           visitors checking "is the lake okay" never need to see. Overview is
+           the default landing view; Advanced Analytics is opt-in. -->
       <q-tabs
         v-model="activeView"
         dense
@@ -309,6 +310,7 @@
             <q-select
               v-model="analyticsVizType"
               :options="analyticsVizOptions"
+              :option-disable="(opt) => !!opt.isHeader"
               emit-value
               map-options
               dense
@@ -317,7 +319,23 @@
               class="form-field"
               label="Type of analytics visualization"
               style="min-width: 280px"
-            />
+              popup-content-class="viz-picker-popup"
+            >
+              <template #option="scope">
+                <q-item v-if="scope.opt.isHeader" class="viz-picker-group-header">
+                  <q-item-section>
+                    <q-item-label caption class="text-teal-3 text-weight-bold">
+                      {{ scope.opt.label.toUpperCase() }}
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+                <q-item v-else v-bind="scope.itemProps">
+                  <q-item-section>
+                    <q-item-label>{{ scope.opt.label }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </template>
+            </q-select>
           </div>
 
           <!-- Vertical Depth Profile — the only type built so far; every
@@ -696,6 +714,156 @@
             <div v-else class="text-center text-grey-5 q-py-lg">No depth readings yet for this station/parameter.</div>
           </template>
 
+          <!-- Station Comparison (Parallel Coordinates) -->
+          <template v-else-if="analyticsVizType === 'station-comparison'">
+            <div class="text-white text-body2 text-weight-medium q-mb-xs">Station Comparison</div>
+            <p class="text-grey-4 text-caption q-mb-md">
+              All 13 parameters at once for {{ months[selectedMonthIndex] }} — each line is one station.
+              Click a line (or a station elsewhere on this page) to highlight it; a station missing a
+              reading for a parameter simply skips that axis rather than showing a fabricated value.
+            </p>
+
+            <!-- Range filters — e.g. "Temperature > 28 AND Dissolved Oxygen < 4" —
+                 combined with AND across every active rule. Matching stations light
+                 up together in the chart and legend below instead of only the
+                 single last-hovered/clicked one. -->
+            <div class="row items-center q-gutter-sm q-mb-sm wrap">
+              <span class="text-caption text-grey-4">Highlight stations where:</span>
+              <div
+                v-for="rule in parallelFilterRules"
+                :key="rule.id"
+                class="row items-center no-wrap q-gutter-xs filter-rule-chip"
+              >
+                <q-select
+                  v-model="rule.paramKey"
+                  :options="paramSelectOptions"
+                  emit-value
+                  map-options
+                  dense
+                  outlined
+                  dark
+                  style="min-width: 150px"
+                />
+                <q-select v-model="rule.operator" :options="['>', '<', '>=', '<=']" dense outlined dark style="width: 62px" />
+                <q-input v-model.number="rule.value" type="number" dense outlined dark style="width: 80px" />
+                <q-btn flat round dense size="sm" icon="close" color="grey-4" @click="removeParallelFilterRule(rule.id)" />
+              </div>
+              <q-btn flat dense size="sm" icon="add" label="Add filter" color="teal-3" @click="addParallelFilterRule" />
+            </div>
+            <div v-if="parallelFilterRules.length" class="text-caption text-grey-3 q-mb-sm">
+              <q-icon name="filter_alt" size="14px" class="q-mr-xs" />
+              {{ parallelMatchedSiteIds.length }} of {{ parallelSeriesList.length }} stations match all
+              {{ parallelFilterRules.length }} filter{{ parallelFilterRules.length > 1 ? 's' : '' }} (AND).
+            </div>
+
+            <q-scroll-area v-if="parallelSeriesList.length" style="height: 420px">
+              <ParallelCoordinatesChart
+                :axes="parallelAxes"
+                :series-list="parallelSeriesList"
+                :selected-site-id="selectedStationId"
+                :matched-site-ids="parallelMatchedSiteIds"
+                @select-station="selectStation"
+              />
+            </q-scroll-area>
+            <div v-else class="text-center text-grey-5 q-py-lg">No readings yet for {{ months[selectedMonthIndex] }}.</div>
+            <div v-if="parallelSeriesList.length" class="text-caption text-grey-5 q-mt-sm">
+              <q-icon name="info" size="14px" class="q-mr-xs" />
+              {{ parallelSeriesList.length }} stations shown — each vertical axis is one parameter, scaled
+              to its own plausible range (top-to-bottom order:
+              {{ allWaterQualityParams.map((p) => p.label).join(', ') }}). Click a station below or a line
+              in the chart to highlight just that one.
+            </div>
+            <!-- Station legend — every line's color + name, clickable to highlight
+                 (mirrors clicking the line itself). With up to ~30 stations, colors
+                 cycle around the hue wheel and aren't meant to be memorized on sight;
+                 this list is how you actually look one up. -->
+            <div v-if="parallelSeriesList.length" class="parallel-legend q-mt-sm">
+              <button
+                v-for="s in parallelSeriesList"
+                :key="s.siteId"
+                type="button"
+                class="parallel-legend__item"
+                :class="{
+                  'parallel-legend__item--active': parallelFilterRules.length
+                    ? parallelMatchedSiteIds.includes(s.siteId)
+                    : selectedStationId === s.siteId,
+                  'parallel-legend__item--dim': parallelFilterRules.length > 0 && !parallelMatchedSiteIds.includes(s.siteId),
+                }"
+                @click="selectStation(s.siteId)"
+              >
+                <span class="parallel-legend__dot" :style="{ background: s.color }" />
+                {{ s.siteId }}
+              </button>
+            </div>
+          </template>
+
+          <!-- Transect / Distance-Gradient Profile -->
+          <template v-else-if="analyticsVizType === 'transect-profile'">
+            <div class="text-white text-body2 text-weight-medium q-mb-xs">
+              Transect / Distance-Gradient Profile — {{ selectedParam?.label }}
+            </div>
+            <p class="text-grey-4 text-caption q-mb-md">
+              {{ months[selectedMonthIndex] }}, every station ordered Tributary → Nearshore → Offshore.
+              Lake Lanao has no single inflow-to-outflow channel like a river — it's fed by 6 tributaries
+              around its perimeter with one outlet — so this uses zone as a categorical stand-in for
+              "distance from shore," not a real measured distance.
+            </p>
+            <TransectProfileChart
+              v-if="transectStations.some((s) => s.value !== null)"
+              :stations="transectStations"
+              :unit="selectedParam?.unit ?? ''"
+              :decimals="selectedParam?.decimals ?? 1"
+            />
+            <div v-else class="text-center text-grey-5 q-py-lg">No readings yet for {{ months[selectedMonthIndex] }}.</div>
+            <div class="row items-center justify-center q-gutter-md q-mt-sm">
+              <div class="row items-center no-wrap">
+                <span class="status-dot" style="background: #26a69a" />
+                <span class="text-caption text-grey-4 q-ml-xs">Tributary</span>
+              </div>
+              <div class="row items-center no-wrap">
+                <span class="status-dot" style="background: #42a5f5" />
+                <span class="text-caption text-grey-4 q-ml-xs">Nearshore</span>
+              </div>
+              <div class="row items-center no-wrap">
+                <span class="status-dot" style="background: #7e57c2" />
+                <span class="text-caption text-grey-4 q-ml-xs">Offshore</span>
+              </div>
+            </div>
+            <div class="text-caption text-grey-5 q-mt-sm">
+              <q-icon name="info" size="14px" class="q-mr-xs" />
+              Uses whatever depth is currently selected in the Reading Controls (tributary rivers are
+              always Surface). A break in the line means that station had no reading this month, not a
+              value of zero.
+            </div>
+          </template>
+
+          <!-- Station × Month Compliance Grid -->
+          <template v-else-if="analyticsVizType === 'compliance-grid'">
+            <div class="text-white text-body2 text-weight-medium q-mb-xs">
+              Station × Month Compliance Grid — {{ selectedParam?.label }}
+            </div>
+            <p class="text-grey-4 text-caption q-mb-md">
+              Trailing 13 months, every station, colored by the same good/warning/serious/critical status
+              used everywhere else on this dashboard for {{ selectedParam?.label }} — not a separate
+              composite index. Stations are ordered Tributary → Nearshore → Offshore.
+            </p>
+            <StationMonthComplianceGrid
+              v-if="complianceGrid.rows.length"
+              :months="complianceGrid.months"
+              :rows="complianceGrid.rows"
+              :selected-site-id="selectedStationId"
+              :unit="selectedParam?.unit ?? ''"
+              :decimals="selectedParam?.decimals ?? 1"
+              @select-station="selectStation"
+            />
+            <div v-else class="text-center text-grey-5 q-py-lg">No stations loaded yet.</div>
+            <div class="text-caption text-grey-5 q-mt-sm">
+              <q-icon name="info" size="14px" class="q-mr-xs" />
+              Click a station's name to highlight it elsewhere on this dashboard. Hover a cell for its
+              exact reading.
+            </div>
+          </template>
+
           <!-- Everything else: not built yet — names the type and what it
                will do, rather than an unexplained empty state. -->
           <template v-else>
@@ -708,53 +876,6 @@
               <div class="text-caption text-grey-6 q-mt-md">Coming soon.</div>
             </div>
           </template>
-        </q-card-section>
-      </q-card>
-
-      <!-- Station Comparison -->
-      <q-card class="glass-morph q-mb-md">
-        <q-card-section>
-          <span class="text-white text-subtitle1 text-weight-medium">
-            Station Comparison
-          </span>
-          <p class="text-grey-4 text-caption q-mb-md">
-            All 13 parameters at once for {{ months[selectedMonthIndex] }} — each line is one station.
-            Click a line (or a station elsewhere on this page) to highlight it; a station missing a
-            reading for a parameter simply skips that axis rather than showing a fabricated value.
-          </p>
-          <q-scroll-area v-if="parallelSeriesList.length" style="height: 420px">
-            <ParallelCoordinatesChart
-              :axes="parallelAxes"
-              :series-list="parallelSeriesList"
-              :selected-site-id="selectedStationId"
-              @select-station="selectStation"
-            />
-          </q-scroll-area>
-          <div v-else class="text-center text-grey-5 q-py-lg">No readings yet for {{ months[selectedMonthIndex] }}.</div>
-          <div v-if="parallelSeriesList.length" class="text-caption text-grey-5 q-mt-sm">
-            <q-icon name="info" size="14px" class="q-mr-xs" />
-            {{ parallelSeriesList.length }} stations shown — each vertical axis is one parameter, scaled
-            to its own plausible range (top-to-bottom order:
-            {{ allWaterQualityParams.map((p) => p.label).join(', ') }}). Click a station below or a line
-            in the chart to highlight just that one.
-          </div>
-          <!-- Station legend — every line's color + name, clickable to highlight
-               (mirrors clicking the line itself). With up to ~30 stations, colors
-               cycle around the hue wheel and aren't meant to be memorized on sight;
-               this list is how you actually look one up. -->
-          <div v-if="parallelSeriesList.length" class="parallel-legend q-mt-sm">
-            <button
-              v-for="s in parallelSeriesList"
-              :key="s.siteId"
-              type="button"
-              class="parallel-legend__item"
-              :class="{ 'parallel-legend__item--active': selectedStationId === s.siteId }"
-              @click="selectStation(s.siteId)"
-            >
-              <span class="parallel-legend__dot" :style="{ background: s.color }" />
-              {{ s.siteId }}
-            </button>
-          </div>
         </q-card-section>
       </q-card>
 
@@ -903,6 +1024,13 @@ import CorrelationHeatmap from 'src/components/charts/CorrelationHeatmap.vue';
 import DepthTimeIsopleth, { type IsoplethColumn } from 'src/components/charts/DepthTimeIsopleth.vue';
 import PCABiplot, { type PCAPoint } from 'src/components/charts/PCABiplot.vue';
 import Depth3DSurfacePlot from 'src/components/charts/Depth3DSurfacePlot.vue';
+import TransectProfileChart, {
+  type TransectStation,
+  type TransectZone,
+} from 'src/components/charts/TransectProfileChart.vue';
+import StationMonthComplianceGrid, {
+  type ComplianceRow,
+} from 'src/components/charts/StationMonthComplianceGrid.vue';
 import {
   waterQualityParameterGroups,
   allWaterQualityParams,
@@ -935,6 +1063,10 @@ import {
   timeLagParamKeyA,
   timeLagParamKeyB,
   readingMonthIndex,
+  analyticsVizType,
+  parallelFilterRules,
+  allocateParallelFilterRuleId,
+  type ParallelFilterRule,
 } from 'src/composables/useWaterQualityDashboardState';
 import {
   fetchWaterQualityReadings,
@@ -1007,17 +1139,18 @@ const parameterOverviewExpanded = ref(false);
 const controlsPanelOpen = ref(true);
 
 // ═══ TYPE OF ANALYTICS VISUALIZATION ═══
-// Only 'vertical-depth-profile' renders a real chart right now (the rest of
-// this dashboard's build is happening in later batches) — every other entry
-// shows its own description as a placeholder instead of an unexplained gap,
-// so the picker's full intended shape is visible even before each type is
-// built out.
+// Every option below renders a real chart — grouped into 3 sections by the
+// question each one answers, since a flat list of 12 got hard to scan.
+// isHeader entries are non-selectable section labels (option-disable below),
+// rendered differently via the #option scoped slot.
 interface AnalyticsVizOption {
   label: string;
   value: string;
   description: string;
+  isHeader?: boolean;
 }
 const analyticsVizOptions: AnalyticsVizOption[] = [
+  { label: 'Single-Station', value: '__group-single__', description: '', isHeader: true },
   {
     label: 'Vertical Depth Profile',
     value: 'vertical-depth-profile',
@@ -1043,6 +1176,25 @@ const analyticsVizOptions: AnalyticsVizOption[] = [
     value: '3d-surface-plot',
     description: 'A 3D surface over time (X) and depth (Y), with parameter value as both height and color.',
   },
+
+  { label: 'Cross-Station', value: '__group-cross__', description: '', isHeader: true },
+  {
+    label: 'Station Comparison',
+    value: 'station-comparison',
+    description: 'Parallel coordinates — all 13 parameters at once, one colored line per station, with optional range filters to highlight stations matching a rule.',
+  },
+  {
+    label: 'Transect / Distance-Gradient Profile',
+    value: 'transect-profile',
+    description: 'Parameter value across stations ordered Tributary → Nearshore → Offshore, to spot dilution/attenuation gradients as water moves from tributary inputs into the deep lake.',
+  },
+  {
+    label: 'Station × Month Compliance Grid',
+    value: 'compliance-grid',
+    description: 'A stations-by-months grid colored by status for the selected parameter — a fast overview of which stations run persistently degraded vs. only seasonally.',
+  },
+
+  { label: 'Statistical Relationships', value: '__group-stats__', description: '', isHeader: true },
   {
     label: 'Interactive Statistical Correlation',
     value: 'correlation-heatmap',
@@ -1064,7 +1216,7 @@ const analyticsVizOptions: AnalyticsVizOption[] = [
     description: 'Derived ecological indices from raw nutrient values, such as the Nitrogen-to-Phosphorus (N:P) ratio.',
   },
 ];
-const analyticsVizType = ref<string>('vertical-depth-profile');
+// analyticsVizType comes from useWaterQualityDashboardState now (session-persisted, see that file).
 const selectedAnalyticsViz = computed(() =>
   analyticsVizOptions.find((o) => o.value === analyticsVizType.value) ?? null,
 );
@@ -1575,6 +1727,93 @@ const parallelSeriesList = computed<ParallelSeries[]>(() => {
       getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, p, depthForSite(site)),
     ),
   }));
+});
+
+// Range filters on the Station Comparison chart — e.g. "Temperature > 28 AND
+// Dissolved Oxygen < 4" — combined with AND across every active rule. A
+// station missing a reading for a filtered parameter that month can't
+// satisfy the rule (no fabricated pass/fail), so it's excluded like any
+// other non-match rather than silently ignored. parallelFilterRules comes
+// from useWaterQualityDashboardState now (session-persisted, see that file).
+
+function addParallelFilterRule() {
+  const firstParam = allWaterQualityParams[0]!;
+  parallelFilterRules.value.push({
+    id: allocateParallelFilterRuleId(),
+    paramKey: firstParam.key,
+    operator: '>',
+    value: firstParam.typical,
+  });
+}
+function removeParallelFilterRule(id: number) {
+  parallelFilterRules.value = parallelFilterRules.value.filter((r) => r.id !== id);
+}
+
+function parallelRuleMatches(rule: ParallelFilterRule, site: Site): boolean {
+  const param = allWaterQualityParams.find((p) => p.key === rule.paramKey);
+  if (!param) return false;
+  const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
+  if (value === null) return false;
+  switch (rule.operator) {
+    case '>':
+      return value > rule.value;
+    case '<':
+      return value < rule.value;
+    case '>=':
+      return value >= rule.value;
+    case '<=':
+      return value <= rule.value;
+  }
+}
+
+const parallelMatchedSiteIds = computed<string[]>(() => {
+  if (parallelFilterRules.value.length === 0) return [];
+  const eligibleIds = new Set(parallelSeriesList.value.map((s) => s.siteId));
+  return sites.value
+    .filter((site) => eligibleIds.has(site.siteId))
+    .filter((site) => parallelFilterRules.value.every((rule) => parallelRuleMatches(rule, site)))
+    .map((site) => site.siteId);
+});
+
+// ═══ TRANSECT / DISTANCE-GRADIENT PROFILE ═══
+// Lake Lanao has no single inflow -> outflow channel like a river (6
+// tributaries feed it around its perimeter, one outlet), so "distance along
+// the transect" is this categorical zone order rather than a fabricated
+// continuous distance metric.
+const ZONE_ORDER: Record<Site['zone'], number> = { Tributary: 0, Nearshore: 1, Offshore: 2 };
+const zoneOrderedSites = computed(() =>
+  [...sites.value].sort((a, b) => ZONE_ORDER[a.zone] - ZONE_ORDER[b.zone] || a.siteId.localeCompare(b.siteId)),
+);
+
+const transectStations = computed<TransectStation[]>(() => {
+  const param = selectedParam.value;
+  if (!param) return [];
+  return zoneOrderedSites.value.map((site) => ({
+    siteId: site.siteId,
+    zone: site.zone as TransectZone,
+    value: getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site)),
+  }));
+});
+
+// ═══ STATION × MONTH COMPLIANCE GRID ═══
+// Reuses the same single-parameter good/warning/serious/critical status
+// every other chart on this dashboard uses — not a separate composite Water
+// Quality Index, which would need its own methodology (NSF WQI, CCME WQI,
+// etc.) to be defensible rather than invented ad hoc.
+const complianceGrid = computed<{ months: string[]; rows: ComplianceRow[] }>(() => {
+  const param = selectedParam.value;
+  if (!param) return { months: [], rows: [] };
+  const monthsOut = trendIndices.value.map((i) => months[i]!);
+  const rows: ComplianceRow[] = zoneOrderedSites.value.map((site) => ({
+    siteId: site.siteId,
+    cells: trendIndices.value.map((i) => {
+      const value = getReading(readingsLookup.value, site.siteId, i, param, depthForSite(site));
+      return value === null
+        ? { status: 'no-data' as const, value: null }
+        : { status: param.getStatus(value), value };
+    }),
+  }));
+  return { months: monthsOut, rows };
 });
 
 // ═══ INTERACTIVE STATISTICAL CORRELATION (13×13 PEARSON MATRIX) ═══
@@ -2100,11 +2339,21 @@ const pcaResult = computed<PCAResult | null>(() => {
   color: white;
 }
 
+.parallel-legend__item--dim {
+  opacity: 0.35;
+}
+
 .parallel-legend__dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.filter-rule-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 4px 6px;
 }
 
 .station-map-wrap {
@@ -2133,5 +2382,24 @@ const pcaResult = computed<PCAResult | null>(() => {
 
 .form-field :deep(.q-field__label) {
   color: rgba(255, 255, 255, 0.5);
+}
+</style>
+
+<!-- Not scoped, deliberately: QSelect's option popup is teleported outside
+     this component's DOM tree, so it never receives the scoped data-v-*
+     attribute — a scoped rule here would silently never match it. -->
+<style>
+.viz-picker-popup {
+  background: #1a1f23;
+}
+.viz-picker-group-header {
+  min-height: 28px;
+  padding-top: 10px;
+  padding-bottom: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.viz-picker-group-header:first-child {
+  border-top: none;
+  padding-top: 4px;
 }
 </style>

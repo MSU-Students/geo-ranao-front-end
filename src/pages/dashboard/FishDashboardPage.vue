@@ -395,6 +395,7 @@ import {
 } from 'src/composables/useFishObservations';
 import {
   activeFilter,
+  search,
   distYear,
   distMunicipality,
   distCategory,
@@ -408,7 +409,7 @@ import {
   timelineBMetric,
 } from 'src/composables/useFishDashboardState';
 
-const search = ref('');
+// search comes from useFishDashboardState now (session-persisted, see that file).
 const loading = ref(false);
 
 interface Fish {

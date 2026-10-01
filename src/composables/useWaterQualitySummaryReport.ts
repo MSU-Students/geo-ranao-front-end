@@ -1,14 +1,10 @@
 import jsPDF from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { fetchWaterQualityReadings, type WaterQualityReading } from 'src/composables/useWaterQualityReadings';
-import { fetchStations, type Station } from 'src/composables/useStations';
-import {
-  loadMunicipalZones,
-  findMunicipalityForPoint,
-  simplifiedZoneRing,
-  type MunicipalZone,
-} from 'src/composables/useMunicipalZones';
+import { fetchStations } from 'src/composables/useStations';
+import { loadMunicipalZones, findMunicipalityForPoint, simplifiedZoneRing } from 'src/composables/useMunicipalZones';
 import { loadLakePolygonRings } from 'src/composables/useBathymetryClean';
+import { hexToRgb, drawLocationDiagram, type DiagramPoint } from 'src/composables/useReportDiagram';
 import {
   allWaterQualityParams,
   formatReading,
@@ -31,126 +27,6 @@ export interface WaterQualitySummaryResult {
   filename: string;
   label: string;
   recordCount: number;
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const num = parseInt(hex.replace('#', ''), 16);
-  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
-}
-
-interface Bounds {
-  minLat: number;
-  maxLat: number;
-  minLng: number;
-  maxLng: number;
-}
-
-function boundsOf(ring: [number, number][]): Bounds | null {
-  if (ring.length === 0) return null;
-  let minLat = Infinity;
-  let maxLat = -Infinity;
-  let minLng = Infinity;
-  let maxLng = -Infinity;
-  for (const [lat, lng] of ring) {
-    if (lat < minLat) minLat = lat;
-    if (lat > maxLat) maxLat = lat;
-    if (lng < minLng) minLng = lng;
-    if (lng > maxLng) maxLng = lng;
-  }
-  return { minLat, maxLat, minLng, maxLng };
-}
-
-function project(lat: number, lng: number, bounds: Bounds, x: number, y: number, size: number): [number, number] {
-  const latSpan = bounds.maxLat - bounds.minLat || 1;
-  const lngSpan = bounds.maxLng - bounds.minLng || 1;
-  const px = x + ((lng - bounds.minLng) / lngSpan) * size;
-  const py = y + size - ((lat - bounds.minLat) / latSpan) * size; // flip so north is up
-  return [px, py];
-}
-
-function drawRing(doc: jsPDF, ring: [number, number][], bounds: Bounds, x: number, y: number, size: number) {
-  if (ring.length < 2) return;
-  doc.setDrawColor(2, 136, 209);
-  doc.setLineWidth(0.4);
-  for (let i = 0; i < ring.length; i++) {
-    const [latA, lngA] = ring[i]!;
-    const [latB, lngB] = ring[(i + 1) % ring.length]!;
-    const [ax, ay] = project(latA, lngA, bounds, x, y, size);
-    const [bx, by] = project(latB, lngB, bounds, x, y, size);
-    doc.line(ax, ay, bx, by);
-  }
-}
-
-// One page: the municipality's (or the lake's) boundary as a simple outline,
-// with a colored dot per contributing station — red if any of its readings
-// in scope hit "serious"/"critical" on any parameter, teal otherwise. A real
-// locator diagram, not decoration: the shape and dot positions are the
-// actual boundary and actual station coordinates, just projected into a
-// square instead of pulled from a live map.
-async function drawStationDiagram(
-  doc: jsPDF,
-  opts: {
-    x: number;
-    y: number;
-    size: number;
-    zone: MunicipalZone | null;
-    stations: Station[];
-    stationConcern: Map<string, boolean>;
-  },
-): Promise<void> {
-  const { x, y, size, zone, stations, stationConcern } = opts;
-
-  let ring: [number, number][];
-  if (zone) {
-    ring = simplifiedZoneRing(zone);
-  } else {
-    const lakeRings = await loadLakePolygonRings();
-    ring = lakeRings[0] ?? [];
-  }
-
-  const bounds = boundsOf(ring);
-  if (!bounds) {
-    doc.setFontSize(9);
-    doc.setTextColor(140, 140, 140);
-    doc.text('Boundary unavailable for this scope.', x, y + 10);
-    return;
-  }
-
-  // Pad the bounds slightly so stations near the edge aren't clipped.
-  const latPad = (bounds.maxLat - bounds.minLat || 0.01) * 0.08;
-  const lngPad = (bounds.maxLng - bounds.minLng || 0.01) * 0.08;
-  const padded: Bounds = {
-    minLat: bounds.minLat - latPad,
-    maxLat: bounds.maxLat + latPad,
-    minLng: bounds.minLng - lngPad,
-    maxLng: bounds.maxLng + lngPad,
-  };
-
-  doc.setDrawColor(210, 210, 210);
-  doc.rect(x, y, size, size);
-
-  drawRing(doc, ring, padded, x, y, size);
-
-  for (const station of stations) {
-    const [px, py] = project(station.latitude, station.longitude, padded, x, y, size);
-    const concern = stationConcern.get(station.siteId) ?? false;
-    const [r, g, b] = hexToRgb(concern ? STATUS_COLORS.critical : STATUS_COLORS.good);
-    doc.setFillColor(r, g, b);
-    doc.circle(px, py, 1.6, 'F');
-    doc.setFontSize(6.5);
-    doc.setTextColor(60, 60, 60);
-    doc.text(station.siteId, px + 2.2, py + 1, { maxWidth: 24 });
-  }
-
-  const legendY = y + size + 8;
-  doc.setFillColor(...hexToRgb(STATUS_COLORS.good));
-  doc.circle(x + 2, legendY, 1.6, 'F');
-  doc.setFontSize(8);
-  doc.setTextColor(80, 80, 80);
-  doc.text('No serious/critical readings', x + 5, legendY + 1);
-  doc.setFillColor(...hexToRgb(STATUS_COLORS.critical));
-  doc.circle(x + 75, legendY, 1.6, 'F');
-  doc.text('At least one serious/critical reading', x + 78, legendY + 1);
 }
 
 export async function generateWaterQualitySummaryReport(
@@ -283,13 +159,23 @@ export async function generateWaterQualitySummaryReport(
   doc.setTextColor(100, 100, 100);
   doc.text(zone ? `${zone.name} water zone boundary` : 'Lake Lanao boundary (all municipalities)', margin, 26);
 
-  await drawStationDiagram(doc, {
+  const ring = zone ? simplifiedZoneRing(zone) : ((await loadLakePolygonRings())[0] ?? []);
+  const points: DiagramPoint[] = stationsWithData.map((s) => ({
+    lat: s.latitude,
+    lng: s.longitude,
+    color: (stationConcern.get(s.siteId) ?? false) ? STATUS_COLORS.critical : STATUS_COLORS.good,
+    label: s.siteId,
+  }));
+  drawLocationDiagram(doc, {
     x: margin,
     y: 34,
     size: pageWidth - margin * 2,
-    zone,
-    stations: stationsWithData,
-    stationConcern,
+    ring,
+    points,
+    legend: [
+      { color: STATUS_COLORS.good, label: 'No serious/critical readings' },
+      { color: STATUS_COLORS.critical, label: 'At least one serious/critical reading' },
+    ],
   });
 
   const today = new Date().toISOString().slice(0, 10);

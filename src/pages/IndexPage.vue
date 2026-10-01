@@ -387,6 +387,30 @@
                   "
                   class="base-layer-toggle q-mb-md"
                 />
+
+                <template v-if="authStore.isLoggedIn">
+                  <q-btn
+                    color="teal"
+                    label="Export Map as Image"
+                    icon="download"
+                    unelevated
+                    rounded
+                    dense
+                    :loading="exportingMap"
+                    class="full-width q-mb-xs"
+                    @click="exportMapImage"
+                  />
+                  <div class="text-caption text-grey-6 q-mb-md">
+                    Captures exactly what's on screen — pan, zoom, and toggle layers first. Only works
+                    on the OpenStreetMap base layer (Google's tiles can't be captured this way).
+                  </div>
+                </template>
+                <!-- Report/map downloads are a researcher & admin tool — a logged-out
+                     visitor sees why the option isn't here instead of it just vanishing. -->
+                <div v-else class="text-caption text-grey-6 q-mb-md">
+                  <q-icon name="lock" size="12px" class="q-mr-xs" />
+                  Log in as a researcher or admin to export the map as an image.
+                </div>
                 <q-separator class="q-mb-md" />
 
                 <div class="text-subtitle2 text-teal-8 text-weight-bold q-mb-md">
@@ -774,6 +798,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
 import lakeMunicipalitiesRaw from 'src/data/lake-municipalities.json';
 import {
@@ -791,7 +816,12 @@ import {
   type WaterQualityParam,
   type StatusLevel,
 } from 'src/composables/useWaterQualityModel';
-import { selectedYear, selectedMonthInYear, readingMonthIndex } from 'src/composables/useWaterQualityDashboardState';
+import {
+  selectedYear,
+  selectedMonthInYear,
+  selectedDepthM,
+  readingMonthIndex,
+} from 'src/composables/useWaterQualityDashboardState';
 import {
   fetchWaterQualityReadings,
   buildReadingLookup,
@@ -806,6 +836,14 @@ import {
   type FishObservation,
 } from 'src/composables/useFishObservations';
 import { mapLayers } from 'src/composables/useMapLayersState';
+import {
+  activeTab,
+  activeFilter,
+  selectedSpeciesFilter,
+  selectedSiteFilter,
+  selectedColorParamKey,
+  selectedBaseLayer,
+} from 'src/composables/useMapFilterState';
 import { loadMunicipalZones, findMunicipalityForPoint, type MunicipalZone } from 'src/composables/useMunicipalZones';
 import {
   buildDepthGrid,
@@ -827,6 +865,7 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import html2canvas from 'html2canvas';
 // ═══ CONSERVATION STATUS COLORS (IUCN scale) ═══
 const STATUS_PIN_COLORS: Record<string, string> = {
   CR: '#D32F2F', // Critically Endangered — red
@@ -1002,13 +1041,14 @@ const waterSiteMarkerEntries: { siteId: string; defaultColor: string; marker: L.
 const riverSiteMarkerEntries: { siteId: string; marker: L.Marker }[] = [];
 let riverSitesLayerGroup: L.LayerGroup | null = null;
 
+const $q = useQuasar();
 const authStore = useAuthStore();
 const isAdmin = computed(() => authStore.user?.role === 'Admin');
 const uploadDialogRef = ref<InstanceType<typeof UploadDataDialog> | null>(null);
 const uploadBathymetryDialogRef = ref<InstanceType<typeof UploadBathymetryDialog> | null>(null);
 
 // ═══ STATE ═══
-const activeTab = ref('fish');
+// activeTab comes from useMapFilterState now (session-persisted, see that file).
 
 // ═══ BATHYMETRY — the fixed grid's current data drives the real contour grid ═══
 // customDepthGrid used to hold an admin's own local-only upload preview;
@@ -1149,7 +1189,7 @@ onMounted(async () => {
   }
 });
 
-const selectedSpeciesFilter = ref<string[]>([]);
+// selectedSpeciesFilter comes from useMapFilterState now (session-persisted, see that file).
 const allSpeciesNames = computed(() => [...new Set(species.value.map((s) => s.commonName))]);
 const speciesOptionsFiltered = ref<string[]>(allSpeciesNames.value);
 watch(allSpeciesNames, (names) => {
@@ -1171,7 +1211,7 @@ function filterFn(val: string, update: (callback: () => void) => void) {
   });
 }
 
-const activeFilter = ref('all');
+// activeFilter comes from useMapFilterState now (session-persisted, see that file).
 
 const fishFilters = [
   { value: 'all', label: 'All', icon: 'filter_list', activeColor: 'teal-7' },
@@ -1265,7 +1305,7 @@ const allWaterAndRiverSites = computed<WaterQualitySite[]>(() => [
   })),
 ]);
 
-const selectedSiteFilter = ref<string[]>([]);
+// selectedSiteFilter comes from useMapFilterState now (session-persisted, see that file).
 const allSiteIds = computed(() => allWaterAndRiverSites.value.map((s) => s.siteId));
 const siteOptionsFiltered = ref<string[]>([]);
 
@@ -1322,7 +1362,9 @@ function depthLabel(depthM: number): string {
   return depthM === 0 ? 'Surface' : `${depthM}m`;
 }
 const DEPTH_OPTIONS = DEPTHS.map((d) => ({ label: depthLabel(d), value: d }));
-const selectedDepthM = ref(0);
+// selectedDepthM comes from useWaterQualityDashboardState now — shared with
+// the dashboard's own Depth selector, same reasoning as the Reading Period
+// refs above (session-persisted, see that file).
 
 // Sites/params/months with zero approved readings show as this neutral grey
 // rather than a fabricated "good" status — "no data" is a distinct state.
@@ -1386,7 +1428,7 @@ const colorParamOptions = computed(() => [
 // nothing until they picked a parameter themselves. Reading Period already
 // defaults to July 2025 and Depth to Surface (0m, see DEPTHS above), so this
 // is the last piece needed for the map to "just show the data" on open.
-const selectedColorParamKey = ref<string | null>('temperature');
+// Comes from useMapFilterState now (session-persisted, see that file).
 const selectedColorParam = computed(
   () => allWaterParams.value.find((p) => p.key === selectedColorParamKey.value) ?? null,
 );
@@ -1872,7 +1914,7 @@ const baseLayerOptions: BaseLayerOption[] = [
   },
 ];
 
-const selectedBaseLayer = ref<string>('osm');
+// selectedBaseLayer comes from useMapFilterState now (session-persisted, see that file).
 
 function setBaseLayer(id: string) {
   if (!map) return;
@@ -1886,12 +1928,68 @@ function setBaseLayer(id: string) {
     attribution: option.attribution,
     maxZoom: option.maxZoom,
     ...(option.subdomains ? { subdomains: option.subdomains } : {}),
+    // OSM's tile server sends CORS headers, so this is the one base layer
+    // "Export Map" (see exportMapImage below) can actually read back out of
+    // a canvas — the Google tile endpoints here don't send them, and
+    // requesting cross-origin from a server that doesn't support it would
+    // just break those tiles loading at all, so they're left as plain,
+    // display-only (non-exportable) requests.
+    ...(option.id === 'osm' ? { crossOrigin: 'anonymous' } : {}),
   });
   currentBaseTileLayer.addTo(map);
   currentBaseTileLayer.bringToBack();
 }
 
 watch(selectedBaseLayer, (id) => setBaseLayer(id));
+
+// ═══ EXPORT MAP AS IMAGE ═══
+// Only the OSM base layer's tiles are requested with CORS enabled (see
+// setBaseLayer above) — Google's tile endpoints here don't send CORS
+// headers, so a canvas that included them would be "tainted" and refuse to
+// export at all. Checked upfront with a clear message rather than letting
+// html2canvas fail with an opaque SecurityError.
+const exportingMap = ref(false);
+
+async function exportMapImage() {
+  if (!mapContainer.value) return;
+  if (selectedBaseLayer.value !== 'osm') {
+    $q.notify({
+      type: 'warning',
+      message: 'Switch to the OpenStreetMap base layer to export the map.',
+      caption: "Google's map tiles can't be captured into a downloadable image.",
+      position: 'top',
+      timeout: 4000,
+    });
+    return;
+  }
+
+  exportingMap.value = true;
+  try {
+    const canvas = await html2canvas(mapContainer.value, {
+      useCORS: true,
+      backgroundColor: '#eef2f5',
+      logging: false,
+    });
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `lake-lanao-map-${new Date().toISOString().slice(0, 10)}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    $q.notify({ type: 'positive', message: 'Map image downloaded.', position: 'top' });
+  } catch (err) {
+    console.error('Failed to export map image:', err);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to export the map image.',
+      caption: 'Try again after the map finishes loading, or with fewer layers turned on.',
+      position: 'top',
+    });
+  } finally {
+    exportingMap.value = false;
+  }
+}
 
 // mapLayers comes from useMapLayersState now — session-persisted toggle
 // state, not reset every time you navigate back to this page.

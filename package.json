@@ -24,6 +24,7 @@
     "@types/leaflet": "^1.9.21",
     "axios": "^1.2.1",
     "delaunator": "^5.1.0",
+    "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "jszip": "^3.10.1",
