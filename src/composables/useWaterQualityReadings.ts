@@ -166,3 +166,53 @@ export function getReadingCoverage(
 ): number {
   return lookup.get(lookupKey(siteId, monthIndex, param.key, depthM))?.length ?? 0;
 }
+
+export interface StationZoneAverage {
+  /** Matches stations.stationId / the Lake-Station.geojson zone polygons, e.g. "STATION-1". */
+  stationId: string;
+  /** Average of whichever of this zone's (normally 2) sub-sites have a reading — null if neither does. */
+  value: number | null;
+  /** How many sub-sites contributed to `value` (0, 1, or 2) — "averaging 1 value" is really just a fallback. */
+  coverage: number;
+}
+
+/**
+ * Groups sites by stationId (e.g. the S1A/S1B pair under "STATION-1") and
+ * averages whichever of each zone's sub-sites have a reading for the given
+ * param/month/depth. A zone with only one reporting sub-site falls back to
+ * that single value automatically — averaging a 1-element list is just the
+ * list's one element, no special case needed. Sites without a "STATION-"
+ * stationId (tributary rivers) are skipped; they have no zone polygon in
+ * Lake-Station.geojson. Shared by the Water Quality Dashboard's choropleth
+ * panel and the interactive map's choropleth/interpolation layers so the
+ * averaging logic can't drift between the two.
+ */
+export function computeStationZoneAverages(
+  sites: { siteId: string; stationId: string }[],
+  lookup: ReadingLookup,
+  monthIndex: number,
+  param: WaterQualityParam,
+  depthForSiteId: (siteId: string) => number,
+): StationZoneAverage[] {
+  const byStation = new Map<string, string[]>();
+  sites.forEach((site) => {
+    if (!site.stationId.startsWith('STATION-')) return;
+    const bucket = byStation.get(site.stationId);
+    if (bucket) bucket.push(site.siteId);
+    else byStation.set(site.stationId, [site.siteId]);
+  });
+  const results: StationZoneAverage[] = [];
+  byStation.forEach((siteIds, stationId) => {
+    const values: number[] = [];
+    siteIds.forEach((siteId) => {
+      const value = getReading(lookup, siteId, monthIndex, param, depthForSiteId(siteId));
+      if (value !== null) values.push(value);
+    });
+    results.push({
+      stationId,
+      value: values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null,
+      coverage: values.length,
+    });
+  });
+  return results;
+}

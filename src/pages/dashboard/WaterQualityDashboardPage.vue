@@ -11,12 +11,28 @@
 
     <div class="page-content full-width q-pa-md">
       <!-- Header -->
-      <div class="text-center q-mb-md">
+      <div class="text-center q-mb-sm">
         <h4 class="text-weight-bolder q-my-xs text-white drop-shadow">Water Quality Dashboard</h4>
         <p class="text-grey-3 drop-shadow-soft q-mb-none">
           Environmental monitoring overview of Lake Lanao — for agency awareness and reporting
         </p>
       </div>
+      <div class="text-center q-mb-md">
+        <q-btn
+          color="teal"
+          icon="summarize"
+          label="Station Summary"
+          unelevated
+          rounded
+          dense
+          @click="showStationSummary = true"
+        />
+      </div>
+      <StationSummaryDialog
+        v-model="showStationSummary"
+        :rows="stationSummaryRows"
+        v-model:param-key="selectedParamKey"
+      />
 
       <!-- Overview / Advanced Analytics split — the 12 analytics visualization
            types (grouped Single-Station / Cross-Station / Statistical
@@ -290,6 +306,54 @@
                   </q-item-section>
                 </q-item>
               </q-list>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+
+      <!-- Choropleth Map -->
+      <div class="row q-col-gutter-md q-mb-md">
+        <div class="col-12">
+          <q-card class="glass-morph full-height">
+            <q-card-section>
+              <div class="row items-center justify-between q-mb-sm">
+                <span class="text-white text-subtitle1 text-weight-medium">
+                  <q-icon name="layers" color="teal-3" class="q-mr-xs" />
+                  Choropleth Map — {{ selectedParam ? selectedParam.label : 'Select a Parameter' }}
+                </span>
+              </div>
+              <p class="text-grey-4 text-caption q-mb-sm">
+                Each of the 12 station zones is shaded by the average of its two sub-station
+                readings for the selected parameter (or the one reading that exists, if only one
+                sub-station has data). Switching the parameter above updates this map too.
+              </p>
+
+              <div class="station-map-wrap">
+                <WaterQualityChoroplethMap :zones="choroplethZones" />
+              </div>
+
+              <div class="row items-center q-gutter-md q-mt-sm">
+                <div class="row items-center no-wrap">
+                  <span class="status-dot" :style="{ background: STATUS_COLORS.good }" />
+                  <span class="text-caption text-grey-4 q-ml-xs">Good</span>
+                </div>
+                <div class="row items-center no-wrap">
+                  <span class="status-dot" :style="{ background: STATUS_COLORS.warning }" />
+                  <span class="text-caption text-grey-4 q-ml-xs">Warning</span>
+                </div>
+                <div class="row items-center no-wrap">
+                  <span class="status-dot" :style="{ background: STATUS_COLORS.serious }" />
+                  <span class="text-caption text-grey-4 q-ml-xs">Serious</span>
+                </div>
+                <div class="row items-center no-wrap">
+                  <span class="status-dot" :style="{ background: STATUS_COLORS.critical }" />
+                  <span class="text-caption text-grey-4 q-ml-xs">Critical</span>
+                </div>
+                <div class="row items-center no-wrap">
+                  <span class="status-dot" :style="{ background: '#78909c' }" />
+                  <span class="text-caption text-grey-4 q-ml-xs">No Data</span>
+                </div>
+              </div>
             </q-card-section>
           </q-card>
         </div>
@@ -1014,6 +1078,10 @@ import TrendSparkline from 'src/components/charts/TrendSparkline.vue';
 import ParameterTrendChart from 'src/components/charts/ParameterTrendChart.vue';
 import StatusDistributionBar from 'src/components/charts/StatusDistributionBar.vue';
 import StationMap from 'src/components/charts/StationMap.vue';
+import StationSummaryDialog, { type StationSummaryRow } from 'src/components/StationSummaryDialog.vue';
+import WaterQualityChoroplethMap, {
+  type ChoroplethZone,
+} from 'src/components/charts/WaterQualityChoroplethMap.vue';
 import DepthProfileChart from 'src/components/charts/DepthProfileChart.vue';
 import MultiDepthTrendChart, { type DepthSeries } from 'src/components/charts/MultiDepthTrendChart.vue';
 import ParallelCoordinatesChart, {
@@ -1073,10 +1141,13 @@ import {
   buildReadingLookup,
   getReading,
   getReadingCoverage,
+  computeStationZoneAverages,
   dateToMonthIndex,
   type ReadingLookup,
   type WaterQualityReading,
 } from 'src/composables/useWaterQualityReadings';
+import { loadMunicipalZones, type MunicipalZone } from 'src/composables/useMunicipalZones';
+import { computeStationSummaryRows } from 'src/composables/useStationSummary';
 
 // Sites/months with zero approved readings show as this neutral grey rather
 // than a fabricated status color — "no data" is a distinct state from "good".
@@ -1110,6 +1181,16 @@ onMounted(async () => {
   } finally {
     readingsLoading.value = false;
   }
+});
+
+// For the Station Summary dialog's "Nearest Municipality" column — same
+// lookup fish observations already use to auto-attribute a municipality.
+const municipalZones = ref<MunicipalZone[]>([]);
+onMounted(async () => {
+  municipalZones.value = await loadMunicipalZones().catch((err: unknown) => {
+    console.error('Failed to load municipal water zones for the Station Summary:', err);
+    return [] as MunicipalZone[];
+  });
 });
 
 // selectedYear/selectedMonthInYear/selectedStationId/selectedDepthM/
@@ -1490,6 +1571,51 @@ const statusColorBySite = computed<Record<string, string>>(() => {
     result[site.siteId] = status ? mapStatusColor(status) : NO_DATA_COLOR;
   });
   return result;
+});
+
+// ═══ CHOROPLETH MAP ═══
+// One value per STATION-<n> zone (public/geo/Lake-Station.geojson), not per
+// site — each zone covers a pair of sub-sites (e.g. S1A/S1B under
+// STATION-1). Averages whichever of the two actually have a reading for the
+// selected parameter/month/depth; when only one does, the "average" of a
+// single value is just that value, which is the fallback the request asked
+// for without needing a separate branch. Tributary river sites have no
+// stationId in that set and no zone polygon, so they're naturally excluded.
+const choroplethZones = computed<ChoroplethZone[]>(() => {
+  const param = selectedParam.value;
+  if (!param) return [];
+  // Every site this computed sees is a lake site (never a Tributary river —
+  // rivers have no "STATION-" stationId and are filtered out inside
+  // computeStationZoneAverages), so depthForSite's river branch never
+  // applies here; the selected Depth control is always the right one.
+  const zoneAverages = computeStationZoneAverages(
+    sites.value,
+    readingsLookup.value,
+    selectedMonthIndex.value,
+    param,
+    () => selectedDepthM.value,
+  );
+  const zones: ChoroplethZone[] = [];
+  zoneAverages.forEach(({ stationId, value: average, coverage }) => {
+    zones.push({
+      stationId,
+      formattedValue: average !== null ? formatReading(average, param) : 'No data',
+      status: average !== null ? param.getStatus(average) : null,
+      coverage,
+    });
+  });
+  return zones;
+});
+
+// ═══ STATION SUMMARY DIALOG ═══
+// Aggregation itself lives in useStationSummary.ts, shared with the main
+// interactive map's own Station Summary button — this page just supplies
+// its already-loaded sites/readings/municipal zones.
+const showStationSummary = ref(false);
+const stationSummaryRows = computed<StationSummaryRow[]>(() => {
+  const param = selectedParam.value;
+  if (!param) return [];
+  return computeStationSummaryRows(sites.value, rawReadings.value, municipalZones.value, param);
 });
 
 // The selected parameter's actual reading at each flagged site, so the map

@@ -1,5 +1,6 @@
 <template>
-  <div class="parallel-coords">
+  <div class="parallel-coords-wrap">
+    <div class="parallel-coords">
     <svg :viewBox="`0 0 ${vbWidth} ${vbHeight}`" class="parallel-coords__svg">
       <!-- Axes -->
       <g v-for="(axis, ai) in axes" :key="axis.key">
@@ -60,6 +61,7 @@
     <div v-if="highlighted" class="parallel-coords__hint">
       <span class="parallel-coords__hint-dot" :style="{ background: colorFor(highlighted) }" />
       {{ highlighted }}
+    </div>
     </div>
   </div>
 </template>
@@ -163,6 +165,16 @@ const seriesRender = computed(() =>
 </script>
 
 <style scoped>
+/* The SVG below has a fixed 900px width (its internal point/label layout
+   doesn't reflow sensibly at arbitrary widths) — on a phone-width screen
+   that would otherwise force the whole page to scroll horizontally. This
+   wrapper contains that scroll to just the chart itself, same pattern as
+   CorrelationHeatmap.vue. */
+.parallel-coords-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 .parallel-coords {
   position: relative;
 }

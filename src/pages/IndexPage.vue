@@ -179,6 +179,17 @@
                   monthly readings.
                 </div>
 
+                <q-btn
+                  color="teal"
+                  icon="summarize"
+                  label="Station Summary"
+                  unelevated
+                  rounded
+                  dense
+                  class="full-width q-mb-md"
+                  @click="showStationSummary = true"
+                />
+
                 <!-- Monthly Time Slider -->
                 <div class="text-caption text-grey-6 q-mb-xs">
                   Reading Period:
@@ -288,28 +299,11 @@
                   </template>
                 </q-select>
 
-                <!-- Additional Reference Layers -->
-                <div class="text-caption text-grey-6 q-mb-xs">Additional Layers</div>
-                <q-list class="q-mb-md q-gutter-y-xs">
-                  <q-item
-                    v-for="layer in waterExtraLayers"
-                    :key="layer.id"
-                    tag="label"
-                    class="species-item rounded-borders"
-                  >
-                    <q-item-section avatar>
-                      <q-toggle v-model="layer.active" color="teal" />
-                    </q-item-section>
-                    <q-item-section>
-                      <q-item-label class="text-grey-9" style="font-size: 0.8rem">{{
-                        layer.name
-                      }}</q-item-label>
-                      <q-item-label caption class="text-grey-6" style="font-size: 0.7rem">{{
-                        layer.description
-                      }}</q-item-label>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
+                <div class="text-caption text-grey-5 q-mb-md">
+                  <q-icon name="layers" size="12px" class="q-mr-xs" />
+                  Station zones, tributaries, and the interpolated/choropleth parameter layers
+                  moved to the <strong>Layers</strong> tab's Water Quality section.
+                </div>
 
                 <q-separator class="q-mb-md" />
 
@@ -416,61 +410,51 @@
                 <div class="text-subtitle2 text-teal-8 text-weight-bold q-mb-md">
                   <q-icon name="layers" class="q-mr-xs" /> Map Layers
                 </div>
-                <q-list>
-                  <q-item v-for="layer in exceptionLayers" :key="layer.id" tag="label">
-                    <q-item-section avatar>
-                      <q-toggle v-model="layer.active" color="teal" />
-                    </q-item-section>
-                    <q-item-section>
-                      <q-item-label class="text-grey-9">{{ layer.name }}</q-item-label>
-                      <q-item-label caption class="text-grey-6">{{
-                        layer.description
-                      }}</q-item-label>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-                <q-separator class="q-my-md" />
+                <div class="text-caption text-grey-6 q-mb-md">
+                  <q-icon name="touch_app" size="12px" class="q-mr-xs" />
+                  Tap a layer to expand it and adjust its opacity.
+                </div>
 
-                <!-- Fisheries Jurisdiction Layer — moved here from the Fish tab so it's
-                     always reachable without scrolling past a (potentially long) fish list. -->
+                <!-- Fish -->
                 <div class="text-caption text-grey-6 q-mb-xs">
-                  <q-icon name="gavel" size="14px" class="q-mr-xs" />Fisheries Jurisdiction
+                  <q-icon name="set_meal" size="14px" class="q-mr-xs" />Fish
                 </div>
-                <q-item tag="label" class="species-item rounded-borders q-mb-xs">
-                  <q-item-section avatar>
-                    <q-toggle v-model="municipalWaterLayer.active" color="teal" />
-                  </q-item-section>
-                  <q-item-section>
-                    <q-item-label class="text-grey-9" style="font-size: 0.8rem">
-                      Municipal Water Zones (~15km)
-                    </q-item-label>
-                    <q-item-label caption class="text-grey-6" style="font-size: 0.7rem">
-                      Illustrative median-line division among lakeshore LGUs
-                    </q-item-label>
-                  </q-item-section>
-                </q-item>
-                <div class="text-caption text-grey-5" style="font-size: 0.68rem; line-height: 1.4">
-                  Modeled using RA 8550's 15km / equidistant-line method for adjacent municipal
-                  waters, from real town coordinates — but Lake Lanao has no official municipal
-                  water boundaries today, and this is a simplified nearest-town model, not a
-                  cadastral survey. Treat it as a discussion starting point, not a legal
-                  determination.
+                <div class="q-mb-md">
+                  <LayerToggleItem v-for="layer in fishCategoryLayers" :key="layer.id" :layer="layer" />
                 </div>
 
-                <q-item tag="label" class="species-item rounded-borders q-mt-sm">
-                  <q-item-section avatar>
-                    <q-toggle v-model="municipalityMarkerLayer.active" color="amber-8" />
-                  </q-item-section>
-                  <q-item-section>
-                    <q-item-label class="text-grey-9" style="font-size: 0.8rem">
-                      Municipality Markers
-                    </q-item-label>
-                    <q-item-label caption class="text-grey-6" style="font-size: 0.7rem">
-                      Click a marker to view endemic &amp; invasive fish per municipality —
-                      automatically, based on which water zone each sighting falls in
-                    </q-item-label>
-                  </q-item-section>
-                </q-item>
+                <!-- Water Quality -->
+                <div class="text-caption text-grey-6 q-mb-xs">
+                  <q-icon name="water_drop" size="14px" class="q-mr-xs" />Water Quality
+                </div>
+                <div class="q-mb-md">
+                  <LayerToggleItem v-for="layer in waterQualityCategoryLayers" :key="layer.id" :layer="layer" />
+                </div>
+
+                <!-- Bathymetry -->
+                <div class="text-caption text-grey-6 q-mb-xs">
+                  <q-icon name="terrain" size="14px" class="q-mr-xs" />Bathymetry
+                </div>
+                <div class="q-mb-md">
+                  <LayerToggleItem v-for="layer in bathymetryCategoryLayers" :key="layer.id" :layer="layer" />
+                </div>
+
+                <!-- Boundaries & Jurisdiction -->
+                <div class="text-caption text-grey-6 q-mb-xs">
+                  <q-icon name="map" size="14px" class="q-mr-xs" />Boundaries &amp; Jurisdiction
+                </div>
+                <div class="q-mb-xs">
+                  <LayerToggleItem v-for="layer in lakeBoundaryCategoryLayers" :key="layer.id" :layer="layer" />
+                  <LayerToggleItem :layer="municipalWaterLayer" />
+                </div>
+                <div class="text-caption text-grey-5 q-mb-sm" style="font-size: 0.68rem; line-height: 1.4">
+                  Municipal Water Zones: modeled using RA 8550's 15km / equidistant-line method for
+                  adjacent municipal waters, from real town coordinates — but Lake Lanao has no
+                  official municipal water boundaries today, and this is a simplified nearest-town
+                  model, not a cadastral survey. Treat it as a discussion starting point, not a
+                  legal determination.
+                </div>
+                <LayerToggleItem :layer="municipalityMarkerLayer" />
               </q-tab-panel>
 
               <!-- ═══ MAP DATA TAB (ADMIN ONLY) ═══ -->
@@ -792,6 +776,11 @@
 
     <UploadDataDialog ref="uploadDialogRef" />
     <UploadBathymetryDialog ref="uploadBathymetryDialogRef" @published="loadBathymetryPoints" />
+    <StationSummaryDialog
+      v-model="showStationSummary"
+      :rows="stationSummaryRows"
+      v-model:param-key="stationSummaryParamKey"
+    />
 
   </q-page>
 </template>
@@ -800,6 +789,9 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
+import StationSummaryDialog from 'src/components/StationSummaryDialog.vue';
+import LayerToggleItem from 'src/components/LayerToggleItem.vue';
+import { computeStationSummaryRows, type StationSummaryRow } from 'src/composables/useStationSummary';
 import lakeMunicipalitiesRaw from 'src/data/lake-municipalities.json';
 import {
   TRIBUTARY_RIVER_SITES,
@@ -826,8 +818,17 @@ import {
   fetchWaterQualityReadings,
   buildReadingLookup,
   getReading,
+  computeStationZoneAverages,
   type ReadingLookup,
+  type StationZoneAverage,
+  type WaterQualityReading,
 } from 'src/composables/useWaterQualityReadings';
+import {
+  buildParamInterpolationGrid,
+  severityPosition,
+  severityColor,
+  type ValuePoint,
+} from 'src/composables/useWaterQualityInterpolation';
 import {
   fetchFishObservations,
   parseCoordinates,
@@ -835,7 +836,7 @@ import {
   CONSERVATION_STATUS_SHORT,
   type FishObservation,
 } from 'src/composables/useFishObservations';
-import { mapLayers } from 'src/composables/useMapLayersState';
+import { mapLayers, LAYER_PANE_Z_ORDER } from 'src/composables/useMapLayersState';
 import {
   activeTab,
   activeFilter,
@@ -1093,6 +1094,8 @@ let currentBaseTileLayer: L.TileLayer | null = null;
 let contourLinesLayerGroup: L.LayerGroup | null = null;
 let contourFilledLayerGroup: L.LayerGroup | null = null;
 let contourLabelsLayerGroup: L.LayerGroup | null = null;
+let wqInterpolatedLayerGroup: L.LayerGroup | null = null;
+let wqChoroplethLayerGroup: L.GeoJSON | null = null;
 let municipalZonesLayerGroup: L.LayerGroup | null = null;
 let municipalLabelsLayerGroup: L.LayerGroup | null = null;
 let municipalityMarkersLayerGroup: L.LayerGroup | null = null;
@@ -1378,9 +1381,14 @@ const NO_DATA_COLOR = '#78909c';
 // returns null — every consumer below shows/colors that as "No Data" rather
 // than inventing a value.
 const readingsLookup = ref<ReadingLookup>(new Map());
+// Kept alongside the lookup for the Station Summary dialog — a lifetime
+// sample count and a trend need each reading's own date/depth, not just the
+// lookup's already-bucketed-by-month values.
+const rawReadings = ref<WaterQualityReading[]>([]);
 onMounted(async () => {
   try {
     const readings = await fetchWaterQualityReadings({ status: 'APPROVED' });
+    rawReadings.value = readings;
     readingsLookup.value = buildReadingLookup(readings);
     // Readings load independently of the site GeoJSON — markers may already
     // be on the map (colored/attention-flagged as "no data") by the time
@@ -1390,6 +1398,38 @@ onMounted(async () => {
   } catch (err) {
     console.error('Failed to load water quality readings:', err);
   }
+});
+
+// Station Summary dialog — same aggregation the Water Quality Dashboard's
+// own Summary button uses (useStationSummary.ts), driven by this page's own
+// already-loaded sites/readings/municipal zones.
+const showStationSummary = ref(false);
+const stationSummaryMunicipalZones = ref<MunicipalZone[]>([]);
+onMounted(async () => {
+  // loadMunicipalZones() caches internally, so this is cheap even though the
+  // fish-observation loader elsewhere on this page also calls it.
+  stationSummaryMunicipalZones.value = await loadMunicipalZones().catch((err: unknown) => {
+    console.error('Failed to load municipal water zones for the Station Summary:', err);
+    return [] as MunicipalZone[];
+  });
+});
+const stationSummaryRows = computed<StationSummaryRow[]>(() => {
+  const param = selectedColorParam.value;
+  if (!param) return [];
+  // allWaterAndRiverSites (not waterQualitySites) — the 6 tributary rivers
+  // are a separate hardcoded list, not part of the lake sites GeoJSON, so
+  // they'd be silently excluded from the summary without this.
+  return computeStationSummaryRows(allWaterAndRiverSites.value, rawReadings.value, stationSummaryMunicipalZones.value, param);
+});
+// selectedColorParamKey can be null (no "Color by" parameter chosen) — the
+// dialog always needs a real key to select in its dropdown, so this falls
+// back to the first parameter for display and writes straight back to the
+// map's own shared ref when the user picks a different one.
+const stationSummaryParamKey = computed<string>({
+  get: () => selectedColorParamKey.value ?? allWaterQualityParams[0]!.key,
+  set: (key) => {
+    selectedColorParamKey.value = key;
+  },
 });
 
 // Renamed from the old generateReading()/mockReading() simulator names —
@@ -1504,15 +1544,28 @@ function recolorWaterLayers() {
 
 watch([selectedColorParam, selectedMonthIndex, selectedDepthM], () => {
   recolorWaterLayers();
+  buildWqInterpolatedLayer();
+  restyleWqChoropleth();
 });
 
 // Pins are created (via createWaterQualitySiteLayer / the river-markers loop)
 // before this page's separate onMounted() finishes fetching readings, so
 // their first paint always has readingsLookup still empty — no attention
 // decoration would ever appear until the user happened to touch a filter.
-// Re-decorate once real data lands.
+// Re-decorate once real data lands. The interpolated/choropleth layers have
+// the same "readings arrive after first paint" problem, so they rebuild here
+// too — and buildWqInterpolatedLayer/buildWqChoroplethLayer also no-op
+// safely if waterQualitySites/lakePolygonRings aren't ready yet, covering
+// whichever of the page's several independent fetches happens to finish last.
 watch(readingsLookup, () => {
   recolorWaterLayers();
+  buildWqInterpolatedLayer();
+  buildWqChoroplethLayer();
+});
+
+watch(waterQualitySites, () => {
+  buildWqInterpolatedLayer();
+  buildWqChoroplethLayer();
 });
 
 function waterQualityTooltipHtml(props: WaterQualitySiteProps): string {
@@ -1556,7 +1609,10 @@ function createWaterQualitySiteLayer(
     pointToLayer: (feature, latlng) => {
       const siteId = (feature.properties as WaterQualitySiteProps).SITE_ID;
       const color = getMarkerColor(siteId, defaultColor);
-      const marker = L.marker(latlng, { icon: makeWaterPinIcon(color, siteAttentionStatus(siteId)) });
+      const marker = L.marker(latlng, {
+        icon: makeWaterPinIcon(color, siteAttentionStatus(siteId)),
+        pane: 'pane-wqAll',
+      });
       waterSiteMarkerEntries.push({ siteId, defaultColor, marker });
       return marker;
     },
@@ -1734,7 +1790,7 @@ function buildContourLayers() {
           [minLat, minLng],
           [maxLat, maxLng],
         ],
-        { interactive: false, className: 'contour-filled-img' },
+        { interactive: false, className: 'contour-filled-img', pane: 'pane-contourFilled' },
       );
       contourFilledLayerGroup.addLayer(filledOverlay);
     }
@@ -1754,6 +1810,7 @@ function buildContourLayers() {
       weight,
       opacity: 0.85,
       interactive: false,
+      pane: 'pane-contourLines',
     });
     plainLine.bindTooltip(`${level}m depth contour`, { sticky: true });
     contourLinesLayerGroup!.addLayer(plainLine);
@@ -1763,6 +1820,7 @@ function buildContourLayers() {
       weight: Math.max(1, weight - 0.4),
       opacity: 0.4,
       interactive: false,
+      pane: 'pane-contourFilled',
     });
     contourFilledLayerGroup!.addLayer(overlayLine);
 
@@ -1790,6 +1848,162 @@ function buildContourLayers() {
       contourLabelsLayerGroup!.addLayer(labelMarker);
     }
   });
+}
+
+// ═══ WATER QUALITY INTERPOLATED MAP (smooth blended surface) ═══
+// Same canvas-raster + polygon-clip + blur technique as the bathymetry fill
+// above, just driven by the selected parameter's real readings via IDW
+// instead of depth soundings, and colored with a continuous severity ramp
+// (see useWaterQualityInterpolation.ts) instead of 4 flat bands, so the
+// result blends smoothly across the surface rather than showing hard edges
+// where one station's influence hands off to the next.
+function buildWqInterpolatedLayer() {
+  if (!map) return;
+  if (wqInterpolatedLayerGroup) {
+    map.removeLayer(wqInterpolatedLayerGroup);
+    wqInterpolatedLayerGroup = null;
+  }
+  const param = selectedColorParam.value;
+  if (!param || lakePolygonRings.length === 0 || waterQualitySites.value.length === 0) return;
+
+  const points: ValuePoint[] = [];
+  waterQualitySites.value.forEach((site) => {
+    const value = lakeReading(site.siteId, selectedMonthIndex.value, param, effectiveDepthFor(site.siteId));
+    if (value !== null) points.push({ lat: site.lat, lng: site.lng, value });
+  });
+  const grid = buildParamInterpolationGrid(points, lakePolygonRings);
+  if (!grid) return;
+
+  const { width, height, minLat, maxLat, minLng, maxLng, values } = grid;
+  const rawCanvas = document.createElement('canvas');
+  rawCanvas.width = width;
+  rawCanvas.height = height;
+  const rawCtx = rawCanvas.getContext('2d');
+  if (!rawCtx) return;
+  const imageData = rawCtx.createImageData(width, height);
+  const data = imageData.data;
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i]!;
+    if (Number.isNaN(v)) continue;
+    const [r, g, b] = severityColor(severityPosition(param, v));
+    const idx = i * 4;
+    data[idx] = r;
+    data[idx + 1] = g;
+    data[idx + 2] = b;
+    data[idx + 3] = Math.round(0.6 * 255);
+  }
+  rawCtx.putImageData(imageData, 0, 0);
+
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width = width;
+  finalCanvas.height = height;
+  const finalCtx = finalCanvas.getContext('2d');
+  if (!finalCtx) return;
+  const latSpan = maxLat - minLat;
+  const lngSpan = maxLng - minLng;
+  finalCtx.beginPath();
+  for (const ring of lakePolygonRings) {
+    ring.forEach(([lat, lng], i) => {
+      const x = ((lng - minLng) / lngSpan) * width;
+      const y = ((maxLat - lat) / latSpan) * height;
+      if (i === 0) finalCtx.moveTo(x, y);
+      else finalCtx.lineTo(x, y);
+    });
+    finalCtx.closePath();
+  }
+  finalCtx.clip('evenodd');
+  // Blurring the raw per-cell IDW grid is what turns its resolution
+  // artifacts into a smooth, continuously blended gradient — without this,
+  // the grid's individual cells would be visible as a blocky mosaic.
+  finalCtx.filter = 'blur(3px)';
+  finalCtx.drawImage(rawCanvas, 0, 0);
+
+  const overlay = L.imageOverlay(
+    finalCanvas.toDataURL('image/png'),
+    [
+      [minLat, minLng],
+      [maxLat, maxLng],
+    ],
+    { interactive: false, className: 'wq-interpolated-img', pane: 'pane-wqInterpolated' },
+  );
+  wqInterpolatedLayerGroup = L.layerGroup([overlay]);
+  syncLayerVisibility();
+}
+
+// ═══ WATER QUALITY CHOROPLETH (station zones) ═══
+// Same 12 Lake-Station.geojson zones and same averaging rule as the Water
+// Quality Dashboard's choropleth panel (computeStationZoneAverages) — zone
+// fill here is intentionally thin-bordered so the color itself (the data)
+// reads as the primary signal, not the outline.
+function choroplethZoneLookup(): Map<string, StationZoneAverage> {
+  const param = selectedColorParam.value;
+  const lookup = new Map<string, StationZoneAverage>();
+  if (!param) return lookup;
+  const sitesForZones = waterQualitySites.value.map((s) => ({ siteId: s.siteId, stationId: s.stationId }));
+  computeStationZoneAverages(
+    sitesForZones,
+    readingsLookup.value,
+    selectedMonthIndex.value,
+    param,
+    (siteId) => effectiveDepthFor(siteId),
+  ).forEach((zone) => lookup.set(zone.stationId, zone));
+  return lookup;
+}
+
+function choroplethFeatureStationId(feature: GeoJSON.Feature | undefined): string | null {
+  const name = (feature?.properties as { name?: string } | undefined)?.name;
+  if (!name) return null;
+  const match = /(\d+)/.exec(name);
+  return match ? `STATION-${match[1]}` : null;
+}
+
+function wqChoroplethStyleFn(zoneLookup: Map<string, StationZoneAverage>) {
+  const param = selectedColorParam.value;
+  return (feature?: GeoJSON.Feature): L.PathOptions => {
+    const stationId = choroplethFeatureStationId(feature);
+    const zone = stationId ? zoneLookup.get(stationId) : undefined;
+    const fillColor =
+      zone && zone.value !== null && param ? STATUS_COLORS[param.getStatus(zone.value)] : NO_DATA_COLOR;
+    // weight 0.6 — a deliberately thin outline, just enough to separate
+    // adjacent zones without competing with the fill color for attention.
+    return { color: '#333333', weight: 0.6, fillColor, fillOpacity: 0.5, pane: 'pane-wqChoropleth' };
+  };
+}
+
+function wqChoroplethTooltip(feature: GeoJSON.Feature | undefined): string {
+  const stationId = choroplethFeatureStationId(feature);
+  const param = selectedColorParam.value;
+  if (!stationId || !param) return `<strong>${stationId ?? 'Unknown zone'}</strong><br>No data`;
+  const zone = choroplethZoneLookup().get(stationId);
+  if (!zone || zone.value === null) return `<strong>${stationId}</strong><br>No data`;
+  const status = param.getStatus(zone.value);
+  const coverageLabel = zone.coverage >= 2 ? 'both sub-stations' : '1 of 2 sub-stations';
+  return `<strong>${stationId}</strong><br>${formatReading(zone.value, param)} · ${STATUS_LABELS[status]}<br><span style="color:#999;font-size:11px;">Averaged from ${coverageLabel}</span>`;
+}
+
+function buildWqChoroplethLayer() {
+  if (!map) return;
+  fetch('/geo/Lake-Station.geojson')
+    .then((res) => res.json())
+    .then((geojson: GeoJSON.FeatureCollection) => {
+      if (!map) return;
+      if (wqChoroplethLayerGroup) map.removeLayer(wqChoroplethLayerGroup);
+      const layer = L.geoJSON(geojson, { style: wqChoroplethStyleFn(choroplethZoneLookup()) });
+      layer.eachLayer((l) => {
+        const lWithFeature = l as L.Layer & { feature?: GeoJSON.Feature };
+        lWithFeature.bindTooltip(() => wqChoroplethTooltip(lWithFeature.feature), { sticky: true });
+      });
+      wqChoroplethLayerGroup = layer;
+      syncLayerVisibility();
+    })
+    .catch((err) => console.error('Failed to load Lake-Station GeoJSON for the choropleth layer:', err));
+}
+
+// Re-colors the already-built zone layer in place — called on every
+// parameter/month/depth change instead of re-fetching the GeoJSON each time.
+function restyleWqChoropleth() {
+  if (!wqChoroplethLayerGroup) return;
+  wqChoroplethLayerGroup.setStyle(wqChoroplethStyleFn(choroplethZoneLookup()));
 }
 
 // ═══ MUNICIPAL WATER ZONES (illustrative — see disclaimer in the Fish tab) ═══
@@ -1842,6 +2056,7 @@ function buildMunicipalZones() {
           weight: 1,
           fillColor: (feature!.properties as { color: string }).color,
           fillOpacity: 0.4,
+          pane: 'pane-municipalWaters',
         }),
         interactive: false,
       });
@@ -1992,12 +2207,22 @@ async function exportMapImage() {
 }
 
 // mapLayers comes from useMapLayersState now — session-persisted toggle
-// state, not reset every time you navigate back to this page.
-
-// Layers shown in the "Layers" tab (kept separate from the Water tab's own layer controls).
-const exceptionLayerIds = ['fish', 'lakeBoundary', 'wqAll', 'contourLines', 'contourFilled'];
-const exceptionLayers = computed(() =>
-  mapLayers.value.filter((l) => exceptionLayerIds.includes(l.id)),
+// state, not reset every time you navigate back to this page. Every layer
+// is now surfaced in one place (the Layers tab), grouped by the `category`
+// field on MapLayer itself instead of several separate id-array filters
+// scattered across this file and the Water tab template.
+const fishCategoryLayers = computed(() => mapLayers.value.filter((l) => l.category === 'fish'));
+const waterQualityCategoryLayers = computed(() =>
+  mapLayers.value.filter((l) => l.category === 'waterQuality'),
+);
+const bathymetryCategoryLayers = computed(() =>
+  mapLayers.value.filter((l) => l.category === 'bathymetry'),
+);
+// municipalWaters/municipalityMarkers (below) are also "boundaries" — pulled
+// out individually since each needs its own toggle color and/or disclaimer
+// text, rather than the generic name/description-only list item.
+const lakeBoundaryCategoryLayers = computed(() =>
+  mapLayers.value.filter((l) => l.category === 'boundaries' && l.id === 'lakeBoundary'),
 );
 
 // Floating depth legend — only shown while the filled contour layer is on,
@@ -2012,14 +2237,6 @@ const contourGradientCss = computed(() => {
   return `linear-gradient(to bottom, ${stops.join(', ')})`;
 });
 
-// Non-site reference layers, surfaced as toggles in the Water tab.
-const waterExtraLayerIds = ['lakeStations', 'tributaries'];
-const waterExtraLayers = computed(() =>
-  mapLayers.value.filter((l) => waterExtraLayerIds.includes(l.id)),
-);
-
-// Surfaced as its own toggle in the Fish tab, not the generic Layers tab —
-// fisheries jurisdiction is a fish-tab concern.
 const municipalWaterLayer = computed(() => mapLayers.value.find((l) => l.id === 'municipalWaters')!);
 const municipalityMarkerLayer = computed(() => mapLayers.value.find((l) => l.id === 'municipalityMarkers')!);
 
@@ -2081,6 +2298,20 @@ function initMap() {
     zoomControl: false,
   });
 
+  // One dedicated pane per toggleable layer, in a fixed bottom-to-top order
+  // (LAYER_PANE_Z_ORDER) — every layer's content renders into its own pane
+  // instead of sharing Leaflet's default overlayPane/markerPane, so the
+  // Layers tab's opacity slider can fade a whole layer via a single CSS
+  // `opacity` on its pane, regardless of whether that layer is built from
+  // markers, polygons, polylines, or an image overlay underneath. Z-index
+  // is assigned from the fixed order rather than load order, so stacking
+  // stays predictable even though layers finish their async fetches at
+  // different times.
+  LAYER_PANE_Z_ORDER.forEach((id, i) => {
+    const pane = map!.createPane(`pane-${id}`);
+    pane.style.zIndex = String(410 + i);
+  });
+
   // Base map tiles — switchable via the Layers tab (OpenStreetMap / Google Maps / Google Earth)
   setBaseLayer(selectedBaseLayer.value);
 
@@ -2098,6 +2329,10 @@ function initMap() {
     showCoverageOnHover: false,
     spiderfyOnMaxZoom: true,
     maxClusterRadius: 50,
+    // clusterPane for cluster icons, individual markers get the same pane
+    // via their own `pane` option in renderFishMarkers — both need setting
+    // for the opacity slider to fade fish whether clustered or not.
+    clusterPane: 'pane-fish',
   });
   renderFishMarkers();
 
@@ -2115,6 +2350,7 @@ function initMap() {
           weight: 2.5,
           fillColor: '#4FC3F7',
           fillOpacity: 0.15,
+          pane: 'pane-lakeBoundary',
         },
         interactive: false,
       });
@@ -2123,6 +2359,12 @@ function initMap() {
       await loadBathymetryPoints();
       buildContourLayers();
       buildMunicipalZones();
+      // Also re-attempted by the watcher below once waterQualitySites/
+      // readingsLookup (loaded via their own separate fetches) arrive —
+      // this call just covers the case where the lake boundary happens to
+      // load last.
+      buildWqInterpolatedLayer();
+      buildWqChoroplethLayer();
       syncLayerVisibility();
     })
     .catch((err) => {
@@ -2174,7 +2416,12 @@ function initMap() {
   {
     const markers = TRIBUTARY_RIVER_SITES.map((site) => {
       const color = getMarkerColor(site.siteId, RIVER_PIN_COLOR);
-      const marker = L.marker([site.lat, site.lng], { icon: makeRiverPinIcon(color, siteAttentionStatus(site.siteId)) });
+      const marker = L.marker([site.lat, site.lng], {
+        icon: makeRiverPinIcon(color, siteAttentionStatus(site.siteId)),
+        // River sites share the "All Water Quality Sites" toggle (and now
+        // its opacity) rather than getting a separate control.
+        pane: 'pane-wqAll',
+      });
       // Bound as a function so the attention line stays accurate as
       // month/depth change, not just whatever it was at page load.
       marker.bindTooltip(
@@ -2217,6 +2464,7 @@ function initMap() {
           weight: 1.5,
           fillColor: '#4DD0E1',
           fillOpacity: 0.08,
+          pane: 'pane-lakeStations',
         },
         onEachFeature: (feature, layer) => {
           const name = (feature.properties?.name as string) ?? 'Station';
@@ -2249,7 +2497,7 @@ function initMap() {
         features: [...rivers.features, ...sawir.features],
       };
       tributariesLayerGroup = L.geoJSON(merged, {
-        style: { color: '#1976D2', weight: 2, fillOpacity: 0.25 },
+        style: { color: '#1976D2', weight: 2, fillOpacity: 0.25, pane: 'pane-tributaries' },
         onEachFeature: (feature, layer) => {
           const props = feature.properties ?? {};
           const name =
@@ -2278,13 +2526,22 @@ function syncLayerVisibility() {
     tributaries: tributariesLayerGroup,
     contourLines: contourLinesLayerGroup,
     contourFilled: contourFilledLayerGroup,
+    wqInterpolated: wqInterpolatedLayerGroup,
+    wqChoropleth: wqChoroplethLayerGroup,
     municipalWaters: municipalZonesLayerGroup,
     municipalityMarkers: municipalityMarkersLayerGroup,
   };
 
   for (const layerConfig of mapLayers.value) {
     const group = layerGroups[layerConfig.id];
-    if (!group || !map) continue;
+    // Opacity applies via the layer's dedicated pane (see initMap), so it
+    // still needs setting even for a layer with no group object yet (e.g.
+    // still loading) or one that's currently toggled off — otherwise
+    // dragging the slider while a layer is off, then turning it on, would
+    // show the old 100% opacity until the slider was touched again.
+    const pane = map.getPane(`pane-${layerConfig.id}`);
+    if (pane) pane.style.opacity = String(layerConfig.opacity / 100);
+    if (!group) continue;
     if (layerConfig.active) {
       if (!map.hasLayer(group)) map.addLayer(group);
     } else {
@@ -2337,7 +2594,7 @@ function renderFishMarkers() {
   filteredSpecies.value.forEach((fish) => {
     const icon = makeFishIcon(fish.statusShort);
 
-    const marker = L.marker([fish.lat, fish.lng], { icon });
+    const marker = L.marker([fish.lat, fish.lng], { icon, pane: 'pane-fish' });
     marker.bindPopup(`
       <div style="font-family: Roboto, sans-serif; min-width: 160px;">
         <strong>${fish.commonName}</strong><br>
@@ -2537,6 +2794,7 @@ function buildMunicipalityMarkers() {
       icon: makeMunicipalityIcon(),
       zIndexOffset: 200,
       title: muni.name,
+      pane: 'pane-municipalityMarkers',
     });
     marker.bindTooltip(muni.name, {
       direction: 'top',
@@ -3085,6 +3343,20 @@ function buildMunicipalityMarkers() {
   }
   .hero-stat-value {
     font-size: 1.2rem;
+  }
+  /* Desktop's shifted state pushes this button to left:408px to clear the
+     380px-wide side panel — on a phone that's off-screen entirely (a phone
+     narrower than ~470px can't fit both the button and that offset). The
+     mobile .control-panel above moves to the bottom half of the screen
+     instead of the left side, so there's nothing left to dodge up here. */
+  .add-data-btn--shifted {
+    left: 16px;
+  }
+  /* Same reasoning — the panel toggle doesn't need to jump to the opposite
+     edge on mobile, since the panel it's revealing no longer covers this
+     corner of the screen. */
+  .toggle-btn--shifted {
+    left: 12px;
   }
 }
 
