@@ -3932,6 +3932,20 @@ function buildMunicipalityMarkers() {
 .fish-year-control-bar--shifted-right {
   left: calc(50% - 170px);
 }
+.fish-year-select :deep(.q-field__control) {
+  background: rgba(0, 150, 136, 0.07);
+  border-radius: 8px;
+  min-height: 30px !important;
+  height: 30px;
+  padding: 0 8px;
+}
+.fish-year-select :deep(.q-field__native) {
+  padding: 0;
+  min-height: unset;
+}
+.fish-year-select :deep(.q-field__append) {
+  height: 30px;
+}
 </style>
 
 <!-- Global styles for Leaflet municipality popups (outside Vue scoped scope) -->
