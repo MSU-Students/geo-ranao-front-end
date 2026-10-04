@@ -575,7 +575,6 @@ import {
   buildMultiDepthSeries,
   buildDepthTimeColumns,
   buildComplianceGrid,
-  buildTimeLagResults,
   buildCompositionOverTime,
   buildLongTermTrend,
   type MonthBucket,
@@ -696,7 +695,6 @@ const depthProfileChartEl = ref<HTMLElement | null>(null);
 const isoplethChartEl = ref<HTMLElement | null>(null);
 const multiDepthChartEl = ref<HTMLElement | null>(null);
 const complianceChartEl = ref<HTMLElement | null>(null);
-const timeLagChartEl = ref<HTMLElement | null>(null);
 const compositionChartEl = ref<HTMLElement | null>(null);
 const longTermTrendChartEl = ref<HTMLElement | null>(null);
 const allParamTrendChartEl = ref<HTMLElement | null>(null);
@@ -748,7 +746,6 @@ function canSatisfy(type: string): boolean {
   const hasParam = scope.value.params.length > 0;
   const hasTwoParams = scope.value.params.length > 1;
   const hasMonth = focusMonths.value.length > 0;
-  const hasTwoMonths = focusMonths.value.length > 1;
   switch (type) {
     case 'parallel':
     case 'correlation':
@@ -765,8 +762,6 @@ function canSatisfy(type: string): boolean {
     case 'long-term-trend':
     case 'all-param-trend':
       return hasParam;
-    case 'timelag':
-      return hasTwoParams && hasTwoMonths;
     default:
       return true;
   }
@@ -863,12 +858,6 @@ const complianceGrid = computed(() =>
     ? buildComplianceGrid(scope.value.readings, scope.value.stations, focusParam.value, focusMonths.value)
     : { months: [], rows: [] },
 );
-const timeLagResults = computed(() =>
-  focusParamA.value && focusParamB.value
-    ? buildTimeLagResults(scope.value.readings, focusParamA.value, focusParamB.value, focusMonths.value)
-    : [],
-);
-
 // Status-based line color, reusing the same Status column the Parameter
 // Summary table already computes from the filtered scope's average — there
 // is no single "current" reading period on this page (it's a date RANGE),
@@ -1057,14 +1046,6 @@ function analyticsPdfText(type: string): { description: string; notes: string[] 
         description: `${focusParam.value?.label ?? ''} — every station and month in the filtered range, colored by status.`,
         notes: ['Uses the same good/warning/serious/critical status used throughout this report — not a separate composite index. Stations are ordered Tributary → Nearshore → Offshore.'],
       };
-    case 'timelag':
-      return {
-        description: `Correlates ${focusParamA.value?.label ?? ''} against ${focusParamB.value?.label ?? ''} 0-6 months later, lake-wide, across the filtered date range.`,
-        notes: [
-          `"t+2" means ${focusParamB.value?.label ?? 'Parameter B'} two months after the ${focusParamA.value?.label ?? 'Parameter A'} reading it's compared against.`,
-          'A stronger correlation at a lag does not prove cause and effect, and n shrinks as the lag grows.',
-        ],
-      };
     case 'composition':
       return {
         description:
@@ -1180,13 +1161,6 @@ function analyticsDataTable(type: string): DataTable | null {
         ]),
       };
     }
-    case 'timelag': {
-      if (timeLagResults.value.length === 0) return null;
-      return {
-        head: ['Lag', 'r', 'n (month-pairs)'],
-        body: timeLagResults.value.map((res) => [`t+${res.lag}`, fmtNum(res.r), String(res.n)]),
-      };
-    }
     case 'composition': {
       if (dcCompositionResult.value.segments.length === 0) return null;
       return {
@@ -1259,7 +1233,6 @@ async function captureSelectedChartImages(): Promise<{ images: ChartImage[]; ski
     isopleth: isoplethChartEl.value,
     'multi-depth': multiDepthChartEl.value,
     compliance: complianceChartEl.value,
-    timelag: timeLagChartEl.value,
     composition: compositionChartEl.value,
     'long-term-trend': longTermTrendChartEl.value,
     'all-param-trend': allParamTrendChartEl.value,
@@ -1651,58 +1624,5 @@ async function handleDownload() {
   height: 0;
   border-top: 2px dashed #fab219;
   flex-shrink: 0;
-}
-
-.legend-line {
-  display: inline-block;
-  width: 16px;
-  height: 2px;
-  flex-shrink: 0;
-}
-
-.time-lag-bars {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-around;
-  height: 160px;
-  gap: 8px;
-  padding: 0 8px;
-}
-.time-lag-bar-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  height: 100%;
-}
-.time-lag-bar-value {
-  font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 4px;
-}
-.time-lag-bar-track {
-  flex: 1;
-  width: 100%;
-  display: flex;
-  align-items: flex-end;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.time-lag-bar-fill {
-  width: 100%;
-  border-radius: 4px 4px 0 0;
-  transition: height 0.2s ease;
-}
-.time-lag-bar-fill--pos {
-  background: #ef5350;
-}
-.time-lag-bar-fill--neg {
-  background: #4f7fff;
-}
-.time-lag-bar-label {
-  font-size: 0.62rem;
-  color: rgba(255, 255, 255, 0.55);
-  margin-top: 4px;
 }
 </style>

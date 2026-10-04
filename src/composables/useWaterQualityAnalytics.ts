@@ -262,53 +262,6 @@ export function buildComplianceGrid(
   return { months: months.map((m) => m.label), rows };
 }
 
-// ═══ TIME-LAGGED CROSS-CORRELATION ═══
-// Lake-wide monthly average per parameter, across whichever months are in
-// the filtered scope — consistent with "the chart shows exactly what your
-// filters selected," unlike the dashboard's own version (which deliberately
-// spans the platform's *entire* history regardless of any page filter).
-export interface TimeLagResult {
-  lag: number;
-  r: number | null;
-  n: number;
-}
-
-function lakeWideMonthlySeries(readings: WaterQualityReading[], param: WaterQualityParam, months: MonthBucket[]): (number | null)[] {
-  return months.map((m) => {
-    const nums = readings
-      .filter((r) => monthKeyOf(r) === m.key)
-      .map((r) => r[param.key as keyof WaterQualityReading])
-      .filter((v): v is number => typeof v === 'number');
-    return avgOf(nums);
-  });
-}
-
-export function buildTimeLagResults(
-  readings: WaterQualityReading[],
-  paramA: WaterQualityParam,
-  paramB: WaterQualityParam,
-  months: MonthBucket[],
-  maxLag = 6,
-): TimeLagResult[] {
-  const seriesA = lakeWideMonthlySeries(readings, paramA, months);
-  const seriesB = lakeWideMonthlySeries(readings, paramB, months);
-  const results: TimeLagResult[] = [];
-  for (let lag = 0; lag <= maxLag; lag++) {
-    const xs: number[] = [];
-    const ys: number[] = [];
-    for (let t = 0; t + lag < seriesA.length; t++) {
-      const a = seriesA[t];
-      const b = seriesB[t + lag];
-      if (a !== null && a !== undefined && b !== null && b !== undefined) {
-        xs.push(a);
-        ys.push(b);
-      }
-    }
-    results.push({ lag, r: pearsonCorrelation(xs, ys), n: xs.length });
-  }
-  return results;
-}
-
 // ═══ COMPOSITION OVER TIME (stacked bar) ═══
 // Modeled after a "volume by species per year" stacked bar — but a raw
 // measured value (temperature, pH, …) can't stack meaningfully across
