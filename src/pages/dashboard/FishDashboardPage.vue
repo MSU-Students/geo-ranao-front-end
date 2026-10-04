@@ -1,24 +1,15 @@
 <template>
-  <q-page class="q-pa-md flex flex-center relative-position overflow-hidden">
-    <!-- Same Lake Lanao background as IndexPage -->
-    <q-img
-      src="https://phworldexpo.tpb.gov.ph/wp-content/uploads/2025/05/Lake-Lanao.png"
-      class="absolute-full"
-    />
-
-    <!-- Dark overlay for readability -->
-    <div class="absolute-full bg-overlay" />
-
+  <q-page class="q-pa-md flex flex-center relative-position overflow-hidden dashboard-page">
     <BackButton to="/map" />
 
     <!-- Main Content -->
     <div class="page-content full-width q-pa-md" style="max-width: 1300px">
       <!-- Header -->
       <div class="text-center q-mb-lg">
-        <h4 class="text-weight-bolder q-my-xs text-white drop-shadow">
+        <h4 class="text-weight-bolder q-my-xs" style="color: #16306b">
           Fish Observation Dashboard
         </h4>
-        <p class="text-grey-3 drop-shadow-soft q-mb-none">
+        <p class="q-mb-none" style="color: #5c6b7a">
           Profiling and mapping of Lake Lanao's endemic cyprinids and invasive species
         </p>
       </div>
@@ -96,7 +87,6 @@
               <q-input
                 v-model="search"
                 dense
-                dark
                 outlined
                 placeholder="Search species..."
                 class="search-input"
@@ -107,7 +97,7 @@
               </q-input>
             </q-card-section>
 
-            <q-list dark separator style="max-height: 320px; overflow-y: auto">
+            <q-list separator style="max-height: 320px; overflow-y: auto">
               <q-item
                 v-for="fish in filteredSpecies"
                 :key="fish.id"
@@ -187,7 +177,7 @@
                   />
                 </div>
               </div>
-              <q-list dense dark>
+              <q-list dense>
                 <q-item v-for="d in selectedFishDetails" :key="d.label" class="q-px-none">
                   <q-item-section>
                     <q-item-label caption class="text-grey-4">{{ d.label }}</q-item-label>
@@ -231,7 +221,7 @@
                 <q-linear-progress
                   :value="species.length ? s.count / species.length : 0"
                   :color="s.color"
-                  track-color="grey-8"
+                  track-color="grey-3"
                   rounded
                   size="8px"
                 />
@@ -275,24 +265,24 @@
       </div>
 
       <!-- Distribution Explorer -->
-      <div class="text-white text-h6 text-weight-bold q-mb-sm q-mt-lg">
-        <q-icon name="explore" color="teal-3" class="q-mr-sm" />
+      <div class="text-h6 text-weight-bold q-mb-sm q-mt-lg" style="color: #16306b">
+        <q-icon name="explore" color="teal-7" class="q-mr-sm" />
         Geographic & Temporal Distribution
       </div>
       <q-card class="glass-morph q-mb-lg">
         <q-card-section>
           <div class="row q-col-gutter-md q-mb-md">
             <div class="col-12 col-sm-4">
-              <q-select v-model="distYear" :options="distYearOptions" label="Year" outlined dense dark />
+              <q-select v-model="distYear" :options="distYearOptions" label="Year" outlined dense />
             </div>
             <div class="col-12 col-sm-4">
-              <q-select v-model="distMunicipality" :options="distMuniOptions" label="Municipality" outlined dense dark />
+              <q-select v-model="distMunicipality" :options="distMuniOptions" label="Municipality" outlined dense />
             </div>
             <div class="col-12 col-sm-4">
-              <q-select v-model="distCategory" :options="distCategoryOptions" label="Category" outlined dense dark emit-value map-options />
+              <q-select v-model="distCategory" :options="distCategoryOptions" label="Category" outlined dense emit-value map-options />
             </div>
           </div>
-          <q-list dark separator>
+          <q-list separator>
             <q-item v-for="item in distributionResults" :key="item.speciesName">
               <q-item-section>
                 <q-item-label class="text-white text-weight-bold">{{ item.speciesName }}</q-item-label>
@@ -311,11 +301,11 @@
       </q-card>
 
       <!-- Timeline Comparison -->
-      <div class="text-white text-h6 text-weight-bold q-mb-sm q-mt-lg">
-        <q-icon name="timeline" color="teal-3" class="q-mr-sm" />
+      <div class="text-h6 text-weight-bold q-mb-sm q-mt-lg" style="color: #16306b">
+        <q-icon name="timeline" color="teal-7" class="q-mr-sm" />
         Timeline Comparison
       </div>
-      <p class="text-grey-4 text-caption q-mb-md">Compare up to 2 timelines (count, length, weight, bathymetry/depth) side-by-side.</p>
+      <p class="text-caption q-mb-md" style="color: #5c6b7a">Compare up to 2 timelines (count, length, weight, bathymetry/depth) side-by-side.</p>
       
       <div class="row q-col-gutter-md q-mb-xl">
         <!-- Series A -->
@@ -324,25 +314,26 @@
             <q-card-section>
               <div class="row q-col-gutter-sm q-mb-md">
                 <div class="col-6 col-sm-3">
-                  <q-select v-model="timelineAYear" :options="timelineYearOptions" label="Year" outlined dense dark />
+                  <q-select v-model="timelineAYear" :options="timelineYearOptions" label="Year" outlined dense />
                 </div>
                 <div class="col-6 col-sm-3">
-                  <q-select v-model="timelineAMuni" :options="distMuniOptions" label="Municipality" outlined dense dark />
+                  <q-select v-model="timelineAMuni" :options="distMuniOptions" label="Municipality" outlined dense />
                 </div>
                 <div class="col-6 col-sm-3">
-                  <q-select v-model="timelineASpecies" :options="speciesSelectOptions" label="Species" outlined dense dark />
+                  <q-select v-model="timelineASpecies" :options="speciesSelectOptions" label="Species" outlined dense />
                 </div>
                 <div class="col-6 col-sm-3">
-                  <q-select v-model="timelineAMetric" :options="metricSelectOptions" label="Metric" outlined dense dark emit-value map-options />
+                  <q-select v-model="timelineAMetric" :options="metricSelectOptions" label="Metric" outlined dense emit-value map-options />
                 </div>
               </div>
-              <ParameterTrendChart
-                v-if="timelineASeries.values.length"
-                :months="timelineASeries.months"
-                :values="timelineASeries.values"
-                :unit="timelineASeries.unit"
-                color="#4dd0e1"
-              />
+              <div v-if="timelineASeries.values.length" class="chart-inset">
+                <ParameterTrendChart
+                  :months="timelineASeries.months"
+                  :values="timelineASeries.values"
+                  :unit="timelineASeries.unit"
+                  color="#4dd0e1"
+                />
+              </div>
               <div v-else class="text-center text-grey-5 q-py-xl">Not enough data to graph for this year</div>
             </q-card-section>
           </q-card>
@@ -354,25 +345,26 @@
             <q-card-section>
               <div class="row q-col-gutter-sm q-mb-md">
                 <div class="col-6 col-sm-3">
-                  <q-select v-model="timelineBYear" :options="timelineYearOptions" label="Year" outlined dense dark />
+                  <q-select v-model="timelineBYear" :options="timelineYearOptions" label="Year" outlined dense />
                 </div>
                 <div class="col-6 col-sm-3">
-                  <q-select v-model="timelineBMuni" :options="distMuniOptions" label="Municipality" outlined dense dark />
+                  <q-select v-model="timelineBMuni" :options="distMuniOptions" label="Municipality" outlined dense />
                 </div>
                 <div class="col-6 col-sm-3">
-                  <q-select v-model="timelineBSpecies" :options="speciesSelectOptions" label="Species" outlined dense dark />
+                  <q-select v-model="timelineBSpecies" :options="speciesSelectOptions" label="Species" outlined dense />
                 </div>
                 <div class="col-6 col-sm-3">
-                  <q-select v-model="timelineBMetric" :options="metricSelectOptions" label="Metric" outlined dense dark emit-value map-options />
+                  <q-select v-model="timelineBMetric" :options="metricSelectOptions" label="Metric" outlined dense emit-value map-options />
                 </div>
               </div>
-              <ParameterTrendChart
-                v-if="timelineBSeries.values.length"
-                :months="timelineBSeries.months"
-                :values="timelineBSeries.values"
-                :unit="timelineBSeries.unit"
-                color="#ba68c8"
-              />
+              <div v-if="timelineBSeries.values.length" class="chart-inset">
+                <ParameterTrendChart
+                  :months="timelineBSeries.months"
+                  :values="timelineBSeries.values"
+                  :unit="timelineBSeries.unit"
+                  color="#ba68c8"
+                />
+              </div>
               <div v-else class="text-center text-grey-5 q-py-xl">Not enough data to graph for this year</div>
             </q-card-section>
           </q-card>
@@ -668,24 +660,61 @@ const timelineBSeries = computed(() => computeTimelineSeries(timelineBSpecies.va
   padding-top: 88px;
 }
 
-.drop-shadow {
-  text-shadow: 0px 4px 10px rgba(0, 0, 0, 0.6);
-}
-
-.drop-shadow-soft {
-  text-shadow: 0px 2px 5px rgba(0, 0, 0, 0.4);
-}
-
-.bg-overlay {
-  background: rgba(0, 0, 0, 0.55);
+/* Replaces the old hotlinked-photo + dark-overlay background — same light
+   theme as the Water Quality Dashboard, for a uniform look across both. */
+.dashboard-page {
+  background: #eef1f5;
+  align-items: stretch;
 }
 
 .glass-morph {
-  background: rgba(255, 255, 255, 0.1) !important;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #ffffff !important;
+  border: 1px solid #e1e6ed;
   border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(16, 32, 64, 0.08);
   transition: transform 0.3s ease;
+}
+
+/* Quasar's text-white/text-grey-N/pastel accent classes are used throughout
+   this page's markup for what used to be light-on-dark-glass text —
+   remapped here to dark-on-white instead of rewriting every element. */
+.glass-morph .text-white {
+  color: #16306b !important;
+}
+.glass-morph .text-grey-2 {
+  color: #9aa5b1 !important;
+}
+.glass-morph .text-grey-3 {
+  color: #2c3a4a !important;
+}
+.glass-morph .text-grey-4 {
+  color: #5c6b7a !important;
+}
+.glass-morph .text-grey-5 {
+  color: #6b7686 !important;
+}
+.glass-morph .text-teal-3,
+.glass-morph .text-teal-4 {
+  color: #00897b !important;
+}
+.glass-morph .text-blue-3 {
+  color: #1976d2 !important;
+}
+.glass-morph .text-orange-3 {
+  color: #ef6c00 !important;
+}
+.glass-morph .text-red-3 {
+  color: #d32f2f !important;
+}
+
+/* Chart-rendering areas keep their own dark background — ParameterTrendChart's
+   internal colors (gridlines, axis labels) are tuned for a dark backdrop and
+   shared with the Water Quality Dashboard/Download Center, so this avoids
+   re-theming the component itself. */
+.chart-inset {
+  background: #16212e;
+  border-radius: 10px;
+  padding: 12px;
 }
 
 .action-card {
@@ -694,19 +723,19 @@ const timelineBSeries = computed(() => computeTimelineSeries(timelineBSpecies.va
 
 .action-card:hover {
   transform: translateY(-6px);
-  background: rgba(255, 255, 255, 0.18) !important;
+  background: #f4f6f8 !important;
 }
 
 .species-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: #f4f6f8;
 }
 
 .selected-item {
-  background: rgba(255, 255, 255, 0.12) !important;
+  background: #e0f2f1 !important;
   border-left: 3px solid #26a69a;
 }
 
 .search-input :deep(.q-field__control) {
-  background: rgba(255, 255, 255, 0.08);
+  background: #f4f6f8;
 }
 </style>
