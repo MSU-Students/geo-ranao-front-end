@@ -274,7 +274,7 @@ function buildWaterRows(readings: WaterQualityReading[]) {
 function buildFishRows(observations: FishObservation[]) {
   const filtered = observations.filter(
     (o) =>
-      withinDateRange(o.dateObserved, dateRange.value) &&
+      withinDateRange(o.dateObserved ?? undefined, dateRange.value) &&
       (selectedCategories.value.length === 0 || selectedCategories.value.includes(o.category)),
   );
   const rows = filtered.map((o) => ({

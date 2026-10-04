@@ -24,3 +24,9 @@ export const timelineASpecies = ref('All Species');
 export const timelineAMetric = ref('count');
 export const timelineBSpecies = ref('All Species');
 export const timelineBMetric = ref('depthM');
+
+// Yearly Trend Section Filters
+export const trendMunicipality = ref<string>('All Municipalities');
+export const trendCategory = ref<string>('All');
+export const trendSpecies = ref<string>('All Species');
+

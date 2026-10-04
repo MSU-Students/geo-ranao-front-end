@@ -35,7 +35,7 @@ export interface FishObservation {
   coordinates?: string | null;
   municipal?: string | null;
   barangay?: string | null;
-  dateObserved: string;
+  dateObserved?: string | null;
   notes?: string | null;
   reviewStatus: ReviewStatus;
   reviewNote?: string | null;
@@ -52,6 +52,10 @@ export interface FishObservationSummary {
   byConservationStatus: Record<ConservationStatus, number>;
 }
 
+export function hasSampleData(records: { notes?: string | null }[]): boolean {
+  return records.some((r) => r.notes?.includes('[SAMPLE DATA]'));
+}
+
 // Photo streaming is deliberately unauthenticated (see the API's
 // fish-observations.controller.ts) so a plain <img> tag can use this URL
 // directly without attaching a Bearer header. Built from api.defaults.baseURL
@@ -62,15 +66,7 @@ export function fishPhotoUrl(photo: Pick<FishObservationPhoto, 'id' | 'observati
   return `${api.defaults.baseURL}/fish-observations/${photo.observationId}/photos/${photo.id}`;
 }
 
-// "7.9823, 124.2701" -> { lat, lng } — the API stores/validates this as one
-// free-text field (class-validator's @IsLatLong()); split it back out only
-// where a numeric pair is actually needed, e.g. placing a map marker.
-export function parseCoordinates(coordinates: string | null | undefined): { lat: number; lng: number } | null {
-  if (!coordinates) return null;
-  const [lat, lng] = coordinates.split(',').map((p) => Number(p.trim()));
-  if (lat === undefined || lng === undefined || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { lat, lng };
-}
+export { parseCoordinates } from './useFishCoordinates';
 
 export async function submitFishObservation(form: FormData): Promise<FishObservation> {
   const { data } = await api.post<FishObservation>('/fish-observations', form, {
@@ -111,10 +107,19 @@ export async function submitFishObservationBatch(rows: FishObservationBulkRow[])
 export async function fetchFishObservations(
   params: { status?: ReviewStatus; category?: FishCategory; mine?: boolean } = {},
 ): Promise<FishObservation[]> {
-  const { data } = await api.get<FishObservation[]>('/fish-observations', {
-    params: { status: params.status, category: params.category, mine: params.mine ? 'true' : undefined },
-  });
-  return data;
+  try {
+    const { data } = await api.get<FishObservation[]>('/fish-observations', {
+      params: { status: params.status, category: params.category, mine: params.mine ? 'true' : undefined },
+    });
+    return data;
+  } catch {
+    // Backend unavailable — return deterministic mock data for offline preview
+    const { generateFrontendMockObservations } = await import('src/data/mockFishObservations');
+    const all = generateFrontendMockObservations();
+    if (params.status) return all.filter((o) => o.reviewStatus === params.status);
+    if (params.category) return all.filter((o) => o.category === params.category);
+    return all;
+  }
 }
 
 export async function fetchFishObservationSummary(status: ReviewStatus = 'APPROVED'): Promise<FishObservationSummary> {

@@ -312,7 +312,7 @@ onMounted(async () => {
         detail,
         reviewStatus: obs.reviewStatus,
         location: obs.coordinates ?? '—',
-        date: obs.dateObserved,
+        date: obs.dateObserved ?? 'Undated',
       };
     });
 

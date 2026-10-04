@@ -173,6 +173,12 @@ const linksList: NavLink[] = [
     link: '/dashboard/fish',
   },
   {
+    title: 'Decision Support',
+    caption: 'Fisheries Advisory & Alerts',
+    icon: 'policy',
+    link: '/dashboard/fish/decision-support',
+  },
+  {
     title: 'Water Quality Dashboard',
     caption: 'Environmental Overview',
     icon: 'water_drop',
