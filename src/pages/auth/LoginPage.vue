@@ -132,12 +132,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
+import { api } from 'src/boot/axios';
 import BackButton from 'src/components/BackButton.vue';
 
-const $q = useQuasar();
 const router = useRouter();
 const authStore = useAuthStore();
 
@@ -168,14 +167,14 @@ async function handleLogin() {
   }
 }
 
-const loginWithGoogle = () => {
-  // Logic to trigger Google Auth
-  $q.notify({
-    message: 'Connecting to Google Services...',
-    color: 'info',
-    icon: 'auth',
-  });
-};
+// A plain browser navigation, not an API call — /auth/google is where the
+// backend's own redirect-to-Google flow (Passport) lives, outside the SPA's
+// router entirely. authStore.login() doesn't apply here since there's no
+// token yet; the backend redirects back to /auth/google/complete (success)
+// or /auth/signup (first-time Google user still needs affiliation/purpose).
+function loginWithGoogle() {
+  window.location.href = `${api.defaults.baseURL}/auth/google`;
+}
 
 function handlesignup() {
   router.push('/auth/signup').catch((err) => {

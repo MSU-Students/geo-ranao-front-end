@@ -22,6 +22,17 @@ export interface MapLayer {
   active: boolean;
   /** 0–100 — applied via a dedicated Leaflet pane per layer (see IndexPage.vue's PANE_Z_ORDER), not per-feature restyling. */
   opacity: number;
+  /**
+   * False for a layer that doesn't render its own pane/geometry — it just
+   * toggles a visual modifier rather than owning its own pane (e.g. "Fish
+   * With Photos" draws into the same pane as Fish Observations, applying a
+   * gold highlight — it's independent of whether Fish Observations is also
+   * on, so it isn't just styling that layer's existing markers). An opacity
+   * slider for a modifier like that has nothing of its own to apply to, so
+   * LayerToggleItem.vue hides it when this is false. Omitted (undefined)
+   * means true, same as every ordinary layer.
+   */
+  opacityApplies?: boolean;
 }
 
 export const mapLayers = ref<MapLayer[]>([
@@ -32,6 +43,15 @@ export const mapLayers = ref<MapLayer[]>([
     category: 'fish',
     active: true,
     opacity: 100,
+  },
+  {
+    id: 'fishPhotos',
+    name: 'Fish With Photos',
+    description: 'Shows/highlights observations with an uploaded photo — independent of Fish Observations',
+    category: 'fish',
+    active: false,
+    opacity: 100,
+    opacityApplies: false,
   },
   {
     id: 'wqAll',
@@ -128,8 +148,11 @@ export const LAYER_PANE_Z_ORDER: string[] = [
   'wqChoropleth',
   'lakeStations',
   'contourLines',
-  'tributaries',
-  'wqAll',
   'municipalityMarkers',
   'fish',
+  // Water quality markers render above fish observations on purpose — water
+  // quality is this capstone's primary focus, so a station/tributary pin
+  // should never be hidden underneath a coincident fish observation marker.
+  'tributaries',
+  'wqAll',
 ];

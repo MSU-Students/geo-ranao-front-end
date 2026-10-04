@@ -149,12 +149,12 @@ const seriesRender = computed(() =>
 }
 
 .multi-trend-chart__grid {
-  stroke: rgba(255, 255, 255, 0.1);
+  stroke: rgba(255, 255, 255, 0.2);
   stroke-width: 1;
 }
 
 .multi-trend-chart__axis-label {
-  fill: rgba(255, 255, 255, 0.55);
+  fill: rgba(255, 255, 255, 0.75);
   font-size: 8px;
 }
 
@@ -167,7 +167,7 @@ const seriesRender = computed(() =>
 
 .multi-trend-chart__x-label {
   font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.7);
   flex: 1;
   text-align: center;
 }

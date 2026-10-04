@@ -10,7 +10,7 @@
       </q-item-section>
     </template>
 
-    <q-card flat class="bg-grey-2">
+    <q-card v-if="layer.opacityApplies !== false" flat class="bg-grey-2">
       <q-card-section class="q-pt-sm q-pb-md">
         <div class="row items-center no-wrap q-gutter-sm">
           <q-icon name="opacity" size="16px" color="grey-7" />

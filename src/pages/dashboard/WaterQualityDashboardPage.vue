@@ -1,23 +1,16 @@
 <template>
-  <q-page class="q-pa-md flex flex-center relative-position overflow-hidden">
-    <!-- Same Lake Lanao background as the Fish Dashboard -->
-    <q-img
-      src="https://phworldexpo.tpb.gov.ph/wp-content/uploads/2025/05/Lake-Lanao.png"
-      class="absolute-full"
-    />
-    <div class="absolute-full bg-overlay" />
-
+  <q-page class="q-pa-md flex flex-center relative-position overflow-hidden dashboard-page">
     <BackButton to="/map" />
 
     <div class="page-content full-width q-pa-md">
       <!-- Header -->
       <div class="text-center q-mb-sm">
-        <h4 class="text-weight-bolder q-my-xs text-white drop-shadow">Water Quality Dashboard</h4>
-        <p class="text-grey-3 drop-shadow-soft q-mb-none">
+        <h4 class="text-weight-bolder q-my-xs" style="color: #16306b">Water Quality Dashboard</h4>
+        <p class="q-mb-none" style="color: #5c6b7a">
           Environmental monitoring overview of Lake Lanao — for agency awareness and reporting
         </p>
       </div>
-      <div class="text-center q-mb-md">
+      <div class="text-center q-mb-md q-gutter-sm">
         <q-btn
           color="teal"
           icon="summarize"
@@ -27,6 +20,15 @@
           dense
           @click="showStationSummary = true"
         />
+        <q-btn
+          color="primary"
+          icon="download"
+          label="Download Center"
+          outline
+          rounded
+          dense
+          to="/download"
+        />
       </div>
       <StationSummaryDialog
         v-model="showStationSummary"
@@ -34,10 +36,9 @@
         v-model:param-key="selectedParamKey"
       />
 
-      <!-- Overview / Advanced Analytics split — the 12 analytics visualization
+      <!-- Overview / Advanced Analytics split — the analytics visualization
            types (grouped Single-Station / Cross-Station / Statistical
-           Relationships in the picker below) are specialist tools (PCA,
-           time-lagged correlation, isopleth diagrams, stoichiometry) that most
+           Relationships in the picker below) are specialist tools that most
            visitors checking "is the lake okay" never need to see. Overview is
            the default landing view; Advanced Analytics is opt-in. -->
       <q-tabs
@@ -45,8 +46,8 @@
         dense
         align="justify"
         indicator-color="teal"
-        active-color="white"
-        inactive-color="grey-5"
+        active-color="teal-8"
+        inactive-color="grey-6"
         class="view-tabs q-mb-md"
       >
         <q-tab name="overview" icon="dashboard" label="Overview" no-caps />
@@ -176,7 +177,6 @@
                     map-options
                     dense
                     outlined
-                    dark
                     class="form-field"
                     style="min-width: 180px"
                   >
@@ -184,13 +184,15 @@
                   </q-select>
                 </div>
               </div>
-              <ParameterTrendChart
-                :months="selectedParamTrend.months"
-                :values="selectedParamTrend.values"
-                :unit="selectedParam.unit"
-                :decimals="selectedParam.decimals"
-                color="#4dd0e1"
-              />
+              <div class="chart-inset">
+                <ParameterTrendChart
+                  :months="selectedParamTrend.months"
+                  :values="selectedParamTrend.values"
+                  :unit="selectedParam.unit"
+                  :decimals="selectedParam.decimals"
+                  color="#4dd0e1"
+                />
+              </div>
             </q-card-section>
           </q-card>
         </div>
@@ -281,7 +283,7 @@
               <p class="text-grey-4 text-caption q-mb-sm">
                 Click a site to quick-filter the map and charts.
               </p>
-              <q-list dark dense>
+              <q-list dense>
                 <q-item
                   v-for="s in sitesOfConcern"
                   :key="s.siteId"
@@ -379,7 +381,6 @@
               map-options
               dense
               outlined
-              dark
               class="form-field"
               label="Type of analytics visualization"
               style="min-width: 280px"
@@ -415,7 +416,6 @@
                   map-options
                   dense
                   outlined
-                  dark
                   label="Parameter A"
                   class="form-field"
                   style="min-width: 160px"
@@ -427,7 +427,6 @@
                   map-options
                   dense
                   outlined
-                  dark
                   label="Parameter B"
                   class="form-field"
                   style="min-width: 160px"
@@ -445,25 +444,29 @@
                   <div class="text-grey-3 text-caption q-mb-xs">
                     {{ depthProfileParamA.label }}{{ depthProfileParamA.unit ? ` (${depthProfileParamA.unit})` : '' }}
                   </div>
-                  <DepthProfileChart
-                    :points="depthProfilePointsA"
-                    :unit="depthProfileParamA.unit"
-                    color="#ff8a65"
-                    :decimals="depthProfileParamA.decimals"
-                    :guideline-value="guidelineFor(depthProfileParamA)"
-                  />
+                  <div class="chart-inset">
+                    <DepthProfileChart
+                      :points="depthProfilePointsA"
+                      :unit="depthProfileParamA.unit"
+                      color="#ff8a65"
+                      :decimals="depthProfileParamA.decimals"
+                      :guideline-value="guidelineFor(depthProfileParamA)"
+                    />
+                  </div>
                 </div>
                 <div class="col-12 col-sm-6 col-md-4 text-center" v-if="depthProfileParamB">
                   <div class="text-grey-3 text-caption q-mb-xs">
                     {{ depthProfileParamB.label }}{{ depthProfileParamB.unit ? ` (${depthProfileParamB.unit})` : '' }}
                   </div>
-                  <DepthProfileChart
-                    :points="depthProfilePointsB"
-                    :unit="depthProfileParamB.unit"
-                    color="#4fc3f7"
-                    :decimals="depthProfileParamB.decimals"
-                    :guideline-value="guidelineFor(depthProfileParamB)"
-                  />
+                  <div class="chart-inset">
+                    <DepthProfileChart
+                      :points="depthProfilePointsB"
+                      :unit="depthProfileParamB.unit"
+                      color="#4fc3f7"
+                      :decimals="depthProfileParamB.decimals"
+                      :guideline-value="guidelineFor(depthProfileParamB)"
+                    />
+                  </div>
                 </div>
               </div>
               <!-- Legend -->
@@ -488,41 +491,38 @@
             <div v-else class="text-center text-grey-5 q-py-lg">No depth readings yet for this station/parameter.</div>
           </template>
 
-          <!-- Faceted Vertical Depth Profiles -->
-          <template v-else-if="analyticsVizType === 'faceted-depth-profiles'">
+          <!-- All-Parameter Depth Profiles -->
+          <template v-else-if="analyticsVizType === 'all-param-depth-profiles'">
             <div class="text-white text-body2 text-weight-medium q-mb-xs">
-              Faceted Vertical Depth Profiles — {{ selectedParam?.label }}
+              All-Parameter Depth Profiles — {{ depthProfileStationId ?? '—' }}, {{ months[selectedMonthIndex] }}
             </div>
             <p class="text-grey-4 text-caption q-mb-md">
-              {{ depthProfileStationId ?? '—' }}'s depth profile each month in the trailing window,
-              side by side in chronological order. Months with no readings at this station/parameter
-              are skipped rather than shown empty.
+              Every parameter's own depth-profile line, same station and month as the Vertical Depth
+              Profile chart. The dashed line (where shown) is that parameter's DENR
+              {{ WATER_QUALITY_CLASS_LABEL }} limit. Parameters with no readings at this station/month
+              are skipped.
             </p>
-            <q-scroll-area v-if="facetedProfiles.length" style="height: 320px">
-              <div class="row no-wrap q-gutter-md q-pb-sm">
-                <div v-for="f in facetedProfiles" :key="f.month" class="text-center" style="width: 160px; flex-shrink: 0">
-                  <div class="text-grey-3 text-caption q-mb-xs">{{ f.month }}</div>
+            <div v-if="allParamDepthProfiles.length" class="row q-col-gutter-md">
+              <div v-for="entry in allParamDepthProfiles" :key="entry.param.key" class="col-6 col-sm-4 col-md-3 text-center">
+                <div class="text-grey-3 text-caption ellipsis q-mb-xs">
+                  {{ entry.param.label }}{{ entry.param.unit ? ` (${entry.param.unit})` : '' }}
+                </div>
+                <div class="chart-inset">
                   <DepthProfileChart
-                    :points="f.points"
-                    :unit="selectedParam?.unit ?? ''"
-                    :decimals="selectedParam?.decimals ?? 1"
-                    color="#4dd0e1"
-                    :guideline-value="guidelineFor(selectedParam)"
+                    :points="entry.points"
+                    :unit="entry.param.unit"
+                    :decimals="entry.param.decimals"
+                    :color="paramColor(entry.param)"
+                    :guideline-value="guidelineFor(entry.param)"
                   />
                 </div>
               </div>
-            </q-scroll-area>
-            <div v-else class="text-center text-grey-5 q-py-lg">No depth readings yet for this station/parameter.</div>
-            <div v-if="facetedProfiles.length" class="row items-center justify-center q-gutter-md q-mt-sm">
-              <div class="row items-center no-wrap">
-                <span class="status-dot" style="background: #4dd0e1" />
-                <span class="text-caption text-grey-4 q-ml-xs">{{ selectedParam?.label }}</span>
-              </div>
-              <div class="row items-center no-wrap" v-if="guidelineFor(selectedParam) !== undefined">
-                <span class="legend-dash" />
-                <span class="text-caption text-grey-4 q-ml-xs">DENR guideline</span>
-              </div>
-              <span class="text-caption text-grey-5">X: value · Y: depth (0m at top)</span>
+            </div>
+            <div v-else class="text-center text-grey-5 q-py-lg">No depth readings yet for this station/month.</div>
+            <div class="text-caption text-grey-5 q-mt-md">
+              <q-icon name="info" size="14px" class="q-mr-xs" />
+              Each line's color reflects that parameter's current status (good/warning/serious/critical),
+              same scheme as everywhere else on this dashboard. X: value · Y: depth (0m at top).
             </div>
           </template>
 
@@ -536,70 +536,14 @@
               13-month window. A depth's line breaks wherever a month wasn't sampled at that depth,
               rather than interpolating across the gap.
             </p>
-            <MultiDepthTrendChart
-              v-if="multiDepthSeries.series.length"
-              :months="multiDepthSeries.months"
-              :series="multiDepthSeries.series"
-              :decimals="selectedParam?.decimals ?? 1"
-            />
+            <div v-if="multiDepthSeries.series.length" class="chart-inset">
+              <MultiDepthTrendChart
+                :months="multiDepthSeries.months"
+                :series="multiDepthSeries.series"
+                :decimals="selectedParam?.decimals ?? 1"
+              />
+            </div>
             <div v-else class="text-center text-grey-5 q-py-lg">No depth readings yet for this station/parameter.</div>
-          </template>
-
-          <!-- Stoichiometric Ratio -->
-          <template v-else-if="analyticsVizType === 'stoichiometric-ratio'">
-            <div class="text-white text-body2 text-weight-medium q-mb-md">Nitrogen : Phosphorus Ratio</div>
-            <div class="row q-col-gutter-md items-center q-mb-sm">
-              <div class="col-12 col-sm-4 text-center">
-                <div class="text-grey-4 text-caption">Current N:P (molar)</div>
-                <div class="text-h4 text-white text-weight-bold q-my-xs">
-                  {{ currentNPRatio.molarRatio !== null ? currentNPRatio.molarRatio.toFixed(1) : '—' }}
-                </div>
-                <span
-                  v-if="npRatioInterpretation"
-                  class="status-chip"
-                  :style="{ background: npRatioInterpretation.color }"
-                >
-                  {{ npRatioInterpretation.label }}
-                </span>
-              </div>
-              <div class="col-12 col-sm-8">
-                <ParameterTrendChart
-                  :months="npRatioTrend.months"
-                  :values="npRatioTrend.values"
-                  unit=""
-                  :decimals="1"
-                  color="#ba68c8"
-                  :guideline-value="REDFIELD_NP_RATIO"
-                  guideline-label="Redfield Ratio (16:1)"
-                />
-              </div>
-            </div>
-            <!-- Legend -->
-            <div class="row items-center justify-center q-gutter-md q-mb-sm">
-              <div class="row items-center no-wrap">
-                <span class="status-dot" style="background: #4fc3f7" />
-                <span class="text-caption text-grey-4 q-ml-xs">N-limited (&lt; 12)</span>
-              </div>
-              <div class="row items-center no-wrap">
-                <span class="status-dot" style="background: #81c784" />
-                <span class="text-caption text-grey-4 q-ml-xs">Near-balanced (12–20)</span>
-              </div>
-              <div class="row items-center no-wrap">
-                <span class="status-dot" style="background: #ff8a65" />
-                <span class="text-caption text-grey-4 q-ml-xs">P-limited (&gt; 20)</span>
-              </div>
-              <div class="row items-center no-wrap">
-                <span class="legend-dash" />
-                <span class="text-caption text-grey-4 q-ml-xs">Redfield ratio (16:1)</span>
-              </div>
-            </div>
-            <div class="text-caption text-grey-5">
-              <q-icon name="info" size="14px" class="q-mr-xs" />
-              Computed from measured nitrate, nitrite, and ammonia (→ total N) and phosphate (→ total P),
-              converted to molar units. The 16:1 Redfield ratio is a reference point, not a hard threshold —
-              well below it, nitrogen is the more likely growth-limiting nutrient for algae; well above it,
-              phosphorus is. A value near 16 isn't necessarily "balanced," just inconclusive from this ratio alone.
-            </div>
           </template>
 
           <!-- Interactive Statistical Correlation -->
@@ -613,7 +557,9 @@
               needs many paired observations to mean anything). Hover a cell for the exact r and how
               many paired readings it's based on.
             </p>
-            <CorrelationHeatmap :labels="correlationLabels" :matrix="correlationMatrix" />
+            <div class="chart-inset">
+              <CorrelationHeatmap :labels="correlationLabels" :matrix="correlationMatrix" />
+            </div>
             <div class="text-caption text-grey-5 q-mt-md">
               <q-icon name="info" size="14px" class="q-mr-xs" />
               r ranges from −1 (perfectly inverse) to +1 (perfectly matched); 0 means no linear
@@ -623,95 +569,22 @@
             </div>
           </template>
 
-          <!-- Time-Lagged Cross-Correlation -->
-          <template v-else-if="analyticsVizType === 'time-lagged-correlation'">
-            <div class="row items-center justify-between q-mb-sm wrap">
-              <span class="text-white text-body2 text-weight-medium">Time-Lagged Cross-Correlation</span>
-              <div class="row q-gutter-sm">
-                <q-select
-                  v-model="timeLagParamKeyA"
-                  :options="paramSelectOptions"
-                  emit-value
-                  map-options
-                  dense
-                  outlined
-                  dark
-                  label="Parameter A (lag 0)"
-                  class="form-field"
-                  style="min-width: 170px"
-                />
-                <q-select
-                  v-model="timeLagParamKeyB"
-                  :options="paramSelectOptions"
-                  emit-value
-                  map-options
-                  dense
-                  outlined
-                  dark
-                  label="Parameter B (shifted)"
-                  class="form-field"
-                  style="min-width: 170px"
-                />
-              </div>
-            </div>
-            <p class="text-grey-4 text-caption q-mb-md">
-              Correlates {{ timeLagParamA?.label }} against {{ timeLagParamB?.label }} 0–6 months later,
-              using the lake-wide monthly average across the platform's full recorded history.
-            </p>
-            <div class="time-lag-bars">
-              <div v-for="res in timeLagResults" :key="res.lag" class="time-lag-bar-col">
-                <div class="time-lag-bar-value">{{ res.r !== null ? res.r.toFixed(2) : '—' }}</div>
-                <div class="time-lag-bar-track">
-                  <div
-                    v-if="res.r !== null"
-                    class="time-lag-bar-fill"
-                    :class="res.r < 0 ? 'time-lag-bar-fill--neg' : 'time-lag-bar-fill--pos'"
-                    :style="{ height: `${Math.abs(res.r) * 100}%` }"
-                  />
-                </div>
-                <div class="time-lag-bar-label">t+{{ res.lag }}</div>
-              </div>
-            </div>
-            <!-- Legend -->
-            <div class="row items-center justify-center q-gutter-md q-mt-sm">
-              <div class="row items-center no-wrap">
-                <span class="legend-line" style="background: #ef5350" />
-                <span class="text-caption text-grey-4 q-ml-xs">Positive correlation</span>
-              </div>
-              <div class="row items-center no-wrap">
-                <span class="legend-line" style="background: #4f7fff" />
-                <span class="text-caption text-grey-4 q-ml-xs">Negative correlation</span>
-              </div>
-              <span class="text-caption text-grey-5">Bar height = |r| (0 to 1)</span>
-            </div>
-            <div v-if="bestTimeLag" class="text-caption text-grey-3 q-mt-sm">
-              Strongest relationship at a {{ bestTimeLag.lag }}-month lag
-              (r = {{ bestTimeLag.r!.toFixed(2) }}, n = {{ bestTimeLag.n }} month-pairs).
-            </div>
-            <div class="text-caption text-grey-5 q-mt-sm">
-              <q-icon name="info" size="14px" class="q-mr-xs" />
-              "t+2" means {{ timeLagParamB?.label }} two months after the {{ timeLagParamA?.label }} reading
-              it's compared against — e.g. a nutrient pulse possibly showing up as an algal (chlorophyll)
-              response two months later. A stronger correlation at a lag doesn't prove cause and effect, and
-              n shrinks as the lag grows (fewer month-pairs exist at the far ends of the record).
-            </div>
-          </template>
-
-          <!-- Depth-Time Isopleth -->
+          <!-- Depth-Time Heatmap -->
           <template v-else-if="analyticsVizType === 'depth-time-isopleth'">
             <div class="text-white text-body2 text-weight-medium q-mb-xs">
-              Depth-Time Isopleth — {{ selectedParam?.label }}
+              Depth-Time Heatmap — {{ selectedParam?.label }}
             </div>
             <p class="text-grey-4 text-caption q-mb-md">
               {{ depthProfileStationId ?? '—' }}, trailing 13 months. Depth increases downward
               (0m at top); color shows the {{ selectedParam?.label }} level.
             </p>
-            <DepthTimeIsopleth
-              v-if="isoplethColumns.some((c) => c.points.length)"
-              :columns="isoplethColumns"
-              :unit="selectedParam?.unit ?? ''"
-              :decimals="selectedParam?.decimals ?? 1"
-            />
+            <div v-if="isoplethColumns.some((c) => c.points.length)" class="chart-inset">
+              <DepthTimeIsopleth
+                :columns="isoplethColumns"
+                :unit="selectedParam?.unit ?? ''"
+                :decimals="selectedParam?.decimals ?? 1"
+              />
+            </div>
             <div v-else class="text-center text-grey-5 q-py-lg">No depth readings yet for this station/parameter.</div>
             <div class="text-caption text-grey-5 q-mt-md">
               <q-icon name="info" size="14px" class="q-mr-xs" />
@@ -722,60 +595,6 @@
               month, not that nothing changed. This shows a smooth color gradient rather than traced
               contour lines connecting equal values across months.
             </div>
-          </template>
-
-          <!-- Principal Component Analysis -->
-          <template v-else-if="analyticsVizType === 'pca'">
-            <div class="text-white text-body2 text-weight-medium q-mb-xs">Principal Component Analysis</div>
-            <p class="text-grey-4 text-caption q-mb-md">
-              Loadings plot — how much each of the 13 parameters contributes to the two directions
-              (principal components) that explain the most variance across every approved reading
-              ever recorded. Parameters near each other (or pointing the same direction) tend to vary
-              together; parameters pointing opposite directions tend to vary inversely.
-            </p>
-            <template v-if="pcaResult">
-              <PCABiplot :points="pcaResult.points" />
-              <div class="row items-center justify-center q-gutter-md q-mt-sm">
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" style="background: #4fc3f7" />
-                  <span class="text-caption text-grey-4 q-ml-xs">One dot/arrow = one parameter</span>
-                </div>
-                <span class="text-caption text-grey-5">Arrow direction &amp; length = how strongly it drives that axis</span>
-              </div>
-              <div class="text-caption text-grey-3 q-mt-sm">
-                PC1 explains {{ pcaResult.varianceExplainedPct1.toFixed(0) }}% of the variance,
-                PC2 explains {{ pcaResult.varianceExplainedPct2.toFixed(0) }}% — together
-                {{ (pcaResult.varianceExplainedPct1 + pcaResult.varianceExplainedPct2).toFixed(0) }}%.
-              </div>
-            </template>
-            <div v-else class="text-center text-grey-5 q-py-lg">Not enough paired data yet to run this.</div>
-            <div class="text-caption text-grey-5 q-mt-md">
-              <q-icon name="info" size="14px" class="q-mr-xs" />
-              This is a loadings plot only — it shows how the parameters relate to each other, not
-              where individual readings fall. A parameter pair with too few paired readings to
-              correlate reliably (see the Interactive Statistical Correlation view) is treated here as
-              uncorrelated (r=0) rather than left unknown, which can pull it toward the center more
-              than its true relationship would.
-            </div>
-          </template>
-
-          <!-- Interactive 3D Surface Plot -->
-          <template v-else-if="analyticsVizType === '3d-surface-plot'">
-            <div class="text-white text-body2 text-weight-medium q-mb-xs">
-              Interactive 3D Surface Plot — {{ selectedParam?.label }}
-            </div>
-            <p class="text-grey-4 text-caption q-mb-md">
-              {{ depthProfileStationId ?? '—' }}, trailing 13 months. Height and color both encode the
-              {{ selectedParam?.label }} value; a hole in the surface means that month/depth combination
-              wasn't sampled, not that the value was zero.
-            </p>
-            <Depth3DSurfacePlot
-              v-if="isoplethColumns.some((c) => c.points.length)"
-              :columns="isoplethColumns"
-              :unit="selectedParam?.unit ?? ''"
-              :decimals="selectedParam?.decimals ?? 1"
-            />
-            <div v-else class="text-center text-grey-5 q-py-lg">No depth readings yet for this station/parameter.</div>
           </template>
 
           <!-- Station Comparison (Parallel Coordinates) -->
@@ -805,11 +624,10 @@
                   map-options
                   dense
                   outlined
-                  dark
                   style="min-width: 150px"
                 />
-                <q-select v-model="rule.operator" :options="['>', '<', '>=', '<=']" dense outlined dark style="width: 62px" />
-                <q-input v-model.number="rule.value" type="number" dense outlined dark style="width: 80px" />
+                <q-select v-model="rule.operator" :options="['>', '<', '>=', '<=']" dense outlined style="width: 62px" />
+                <q-input v-model.number="rule.value" type="number" dense outlined style="width: 80px" />
                 <q-btn flat round dense size="sm" icon="close" color="grey-4" @click="removeParallelFilterRule(rule.id)" />
               </div>
               <q-btn flat dense size="sm" icon="add" label="Add filter" color="teal-3" @click="addParallelFilterRule" />
@@ -820,7 +638,7 @@
               {{ parallelFilterRules.length }} filter{{ parallelFilterRules.length > 1 ? 's' : '' }} (AND).
             </div>
 
-            <q-scroll-area v-if="parallelSeriesList.length" style="height: 420px">
+            <q-scroll-area v-if="parallelSeriesList.length" style="height: 420px" class="chart-inset">
               <ParallelCoordinatesChart
                 :axes="parallelAxes"
                 :series-list="parallelSeriesList"
@@ -861,46 +679,6 @@
             </div>
           </template>
 
-          <!-- Transect / Distance-Gradient Profile -->
-          <template v-else-if="analyticsVizType === 'transect-profile'">
-            <div class="text-white text-body2 text-weight-medium q-mb-xs">
-              Transect / Distance-Gradient Profile — {{ selectedParam?.label }}
-            </div>
-            <p class="text-grey-4 text-caption q-mb-md">
-              {{ months[selectedMonthIndex] }}, every station ordered Tributary → Nearshore → Offshore.
-              Lake Lanao has no single inflow-to-outflow channel like a river — it's fed by 6 tributaries
-              around its perimeter with one outlet — so this uses zone as a categorical stand-in for
-              "distance from shore," not a real measured distance.
-            </p>
-            <TransectProfileChart
-              v-if="transectStations.some((s) => s.value !== null)"
-              :stations="transectStations"
-              :unit="selectedParam?.unit ?? ''"
-              :decimals="selectedParam?.decimals ?? 1"
-            />
-            <div v-else class="text-center text-grey-5 q-py-lg">No readings yet for {{ months[selectedMonthIndex] }}.</div>
-            <div class="row items-center justify-center q-gutter-md q-mt-sm">
-              <div class="row items-center no-wrap">
-                <span class="status-dot" style="background: #26a69a" />
-                <span class="text-caption text-grey-4 q-ml-xs">Tributary</span>
-              </div>
-              <div class="row items-center no-wrap">
-                <span class="status-dot" style="background: #42a5f5" />
-                <span class="text-caption text-grey-4 q-ml-xs">Nearshore</span>
-              </div>
-              <div class="row items-center no-wrap">
-                <span class="status-dot" style="background: #7e57c2" />
-                <span class="text-caption text-grey-4 q-ml-xs">Offshore</span>
-              </div>
-            </div>
-            <div class="text-caption text-grey-5 q-mt-sm">
-              <q-icon name="info" size="14px" class="q-mr-xs" />
-              Uses whatever depth is currently selected in the Reading Controls (tributary rivers are
-              always Surface). A break in the line means that station had no reading this month, not a
-              value of zero.
-            </div>
-          </template>
-
           <!-- Station × Month Compliance Grid -->
           <template v-else-if="analyticsVizType === 'compliance-grid'">
             <div class="text-white text-body2 text-weight-medium q-mb-xs">
@@ -911,20 +689,156 @@
               used everywhere else on this dashboard for {{ selectedParam?.label }} — not a separate
               composite index. Stations are ordered Tributary → Nearshore → Offshore.
             </p>
-            <StationMonthComplianceGrid
-              v-if="complianceGrid.rows.length"
-              :months="complianceGrid.months"
-              :rows="complianceGrid.rows"
-              :selected-site-id="selectedStationId"
-              :unit="selectedParam?.unit ?? ''"
-              :decimals="selectedParam?.decimals ?? 1"
-              @select-station="selectStation"
-            />
+            <div v-if="complianceGrid.rows.length" class="chart-inset">
+              <StationMonthComplianceGrid
+                :months="complianceGrid.months"
+                :rows="complianceGrid.rows"
+                :selected-site-id="selectedStationId"
+                :unit="selectedParam?.unit ?? ''"
+                :decimals="selectedParam?.decimals ?? 1"
+                @select-station="selectStation"
+              />
+            </div>
             <div v-else class="text-center text-grey-5 q-py-lg">No stations loaded yet.</div>
             <div class="text-caption text-grey-5 q-mt-sm">
               <q-icon name="info" size="14px" class="q-mr-xs" />
               Click a station's name to highlight it elsewhere on this dashboard. Hover a cell for its
               exact reading.
+            </div>
+          </template>
+
+          <!-- Composition Over Time -->
+          <template v-else-if="analyticsVizType === 'composition-over-time'">
+            <div class="row items-center justify-between q-mb-sm wrap">
+              <span class="text-white text-body2 text-weight-medium">
+                Composition Over Time{{ compositionStackBy === 'status' ? ` — ${selectedParam?.label}` : '' }}
+              </span>
+              <q-btn-toggle
+                v-model="compositionStackBy"
+                :options="compositionStackByOptions"
+                dense
+                no-caps
+                unelevated
+                toggle-color="teal-6"
+                color="grey-9"
+                text-color="grey-4"
+                class="composition-toggle"
+              />
+            </div>
+            <p class="text-grey-4 text-caption q-mb-md">
+              <template v-if="compositionStackBy === 'status'">
+                Trailing 13 months of approved {{ selectedParam?.label }} readings, stacked by how many fell
+                into each good/warning/serious/critical band that month.
+              </template>
+              <template v-else-if="compositionStackBy === 'station'">
+                Trailing 13 months of approved readings (any parameter), stacked by which station they were
+                sampled at — a view of sampling coverage over time, not water quality itself.
+              </template>
+              <template v-else>
+                Trailing 13 months of approved readings, stacked by which of the 13 parameters were recorded
+                — a data-completeness view, not water quality itself.
+              </template>
+            </p>
+            <div v-if="compositionResult.segments.length" class="chart-inset">
+              <StackedCompositionChart
+                :months="compositionResult.months"
+                :segments="compositionResult.segments"
+                :stack-by-label="compositionStackByLabel"
+              />
+            </div>
+            <div v-else class="text-center text-grey-5 q-py-lg">No readings yet for this window.</div>
+          </template>
+
+          <!-- Long-Term Trend -->
+          <template v-else-if="analyticsVizType === 'long-term-trend'">
+            <div class="row items-center justify-between q-mb-sm wrap">
+              <span class="text-white text-body2 text-weight-medium">
+                Long-Term Trend — {{ selectedParam?.label }}
+              </span>
+              <div class="row q-gutter-sm items-center">
+                <q-btn-toggle
+                  v-model="longTermTrendCompare"
+                  :options="[
+                    { label: 'No Comparison', value: 'none' },
+                    { label: 'By Zone', value: 'zone' },
+                    { label: 'By Station', value: 'station' },
+                  ]"
+                  dense
+                  no-caps
+                  unelevated
+                  toggle-color="teal-6"
+                  color="grey-9"
+                  text-color="grey-4"
+                />
+                <q-select
+                  v-if="longTermTrendCompare === 'zone'"
+                  v-model="longTermTrendZone"
+                  :options="['Nearshore', 'Offshore', 'Tributary']"
+                  dense
+                  outlined
+                  class="form-field"
+                  style="min-width: 140px"
+                />
+              </div>
+            </div>
+            <p class="text-grey-4 text-caption q-mb-md">
+              <template v-if="longTermTrendCompare === 'none'">
+                Every approved {{ selectedParam?.label }} reading's lake-wide monthly average, from the
+                earliest record to the latest — not just the trailing window used elsewhere on this
+                dashboard — with a linear-regression trend line fit to it.
+              </template>
+              <template v-else-if="longTermTrendCompare === 'zone'">
+                Lake-wide average vs. the {{ longTermTrendZone }} zone's own average, over the full
+                recorded history. The trend line is fit to the lake-wide line only.
+              </template>
+              <template v-else>
+                Lake-wide average vs. {{ selectedStationId ?? 'the selected station' }} (change the
+                station via Reading Controls below). The trend line is fit to the lake-wide line only.
+              </template>
+            </p>
+            <div v-if="longTermTrendResult.months.length" class="chart-inset">
+              <TrendLineChart
+                :months="longTermTrendResult.months"
+                :series="longTermTrendResult.series"
+                :trend="longTermTrendResult.trend"
+                :unit="selectedParam?.unit ?? ''"
+                :decimals="selectedParam?.decimals ?? 1"
+              />
+            </div>
+            <div v-else class="text-center text-grey-5 q-py-lg">No approved readings yet for this parameter.</div>
+          </template>
+
+          <!-- All-Parameter Trend Grid -->
+          <template v-else-if="analyticsVizType === 'all-param-trend-grid'">
+            <div class="text-white text-body2 text-weight-medium q-mb-xs">All-Parameter Trend Grid</div>
+            <p class="text-grey-4 text-caption q-mb-md">
+              Every parameter's own lake-wide average trend, trailing 13 months — same window and
+              averaging as the 13-Month Trend chart on the Overview tab. The dashed line (where shown)
+              is that parameter's DENR {{ WATER_QUALITY_CLASS_LABEL }} limit. Parameters with no data in
+              this window are skipped.
+            </p>
+            <div v-if="allParamTrends.length" class="row q-col-gutter-md">
+              <div v-for="entry in allParamTrends" :key="entry.param.key" class="col-12 col-sm-6 col-md-4">
+                <div class="text-grey-3 text-caption q-mb-xs">
+                  {{ entry.param.label }}{{ entry.param.unit ? ` (${entry.param.unit})` : '' }}
+                </div>
+                <div class="chart-inset">
+                  <ParameterTrendChart
+                    :months="entry.months"
+                    :values="entry.values"
+                    :unit="entry.param.unit"
+                    :decimals="entry.param.decimals"
+                    :color="paramColor(entry.param)"
+                    :guideline-value="guidelineFor(entry.param)"
+                  />
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-center text-grey-5 q-py-lg">No approved readings yet.</div>
+            <div class="text-caption text-grey-5 q-mt-md">
+              <q-icon name="info" size="14px" class="q-mr-xs" />
+              Each line's color reflects that parameter's current status (good/warning/serious/critical),
+              same scheme as everywhere else on this dashboard.
             </div>
           </template>
 
@@ -1050,8 +964,7 @@
             <q-icon name="place" size="14px" class="q-mr-xs" />Station
             <q-tooltip>
               Drives Vertical Depth Profile, Faceted Profiles, Multi-Depth Time-Series, Depth-Time
-              Isopleth, the 3D Surface Plot, and (when set) the Stoichiometric Ratio — same as
-              clicking a station on the map below.
+              Heatmap, and (when set) the Nutrient Ratio — same as clicking a station on the map below.
             </q-tooltip>
           </div>
           <q-select
@@ -1090,15 +1003,16 @@ import ParallelCoordinatesChart, {
 } from 'src/components/charts/ParallelCoordinatesChart.vue';
 import CorrelationHeatmap from 'src/components/charts/CorrelationHeatmap.vue';
 import DepthTimeIsopleth, { type IsoplethColumn } from 'src/components/charts/DepthTimeIsopleth.vue';
-import PCABiplot, { type PCAPoint } from 'src/components/charts/PCABiplot.vue';
-import Depth3DSurfacePlot from 'src/components/charts/Depth3DSurfacePlot.vue';
-import TransectProfileChart, {
-  type TransectStation,
-  type TransectZone,
-} from 'src/components/charts/TransectProfileChart.vue';
 import StationMonthComplianceGrid, {
   type ComplianceRow,
 } from 'src/components/charts/StationMonthComplianceGrid.vue';
+import StackedCompositionChart from 'src/components/charts/StackedCompositionChart.vue';
+import TrendLineChart from 'src/components/charts/TrendLineChart.vue';
+import {
+  buildCompositionOverTime,
+  buildLongTermTrend,
+  type CompositionStackBy,
+} from 'src/composables/useWaterQualityAnalytics';
 import {
   waterQualityParameterGroups,
   allWaterQualityParams,
@@ -1116,6 +1030,7 @@ import {
   TRIBUTARY_RIVER_SITES,
   TRIBUTARY_RIVER_SITE_IDS,
   getClassLimitReferenceValue,
+  WATER_QUALITY_CLASS_LABEL,
   type WaterQualityParam,
   type StatusLevel,
   type DepthReadingPoint,
@@ -1128,12 +1043,13 @@ import {
   selectedDepthM,
   depthProfileParamKeyA,
   depthProfileParamKeyB,
-  timeLagParamKeyA,
-  timeLagParamKeyB,
   readingMonthIndex,
   analyticsVizType,
   parallelFilterRules,
   allocateParallelFilterRuleId,
+  compositionStackBy,
+  longTermTrendCompare,
+  longTermTrendZone,
   type ParallelFilterRule,
 } from 'src/composables/useWaterQualityDashboardState';
 import {
@@ -1142,7 +1058,6 @@ import {
   getReading,
   getReadingCoverage,
   computeStationZoneAverages,
-  dateToMonthIndex,
   type ReadingLookup,
   type WaterQualityReading,
 } from 'src/composables/useWaterQualityReadings';
@@ -1221,9 +1136,14 @@ const controlsPanelOpen = ref(true);
 
 // ═══ TYPE OF ANALYTICS VISUALIZATION ═══
 // Every option below renders a real chart — grouped into 3 sections by the
-// question each one answers, since a flat list of 12 got hard to scan.
-// isHeader entries are non-selectable section labels (option-disable below),
-// rendered differently via the #option scoped slot.
+// question each one answers, since a flat list got hard to scan. Trimmed to
+// the most interpretable set (3D Surface Plot, PCA, and Time-Lagged
+// Cross-Correlation were cut — all three need a statistics background to
+// read correctly, which most visitors to this dashboard don't have); two
+// more were renamed away from jargon ("Isopleth" → "Heatmap",
+// "Stoichiometric" → "Nutrient Ratio"). isHeader entries are non-selectable
+// section labels (option-disable below), rendered differently via the
+// #option scoped slot.
 interface AnalyticsVizOption {
   label: string;
   value: string;
@@ -1238,9 +1158,9 @@ const analyticsVizOptions: AnalyticsVizOption[] = [
     description: 'Two parameters plotted against depth (Surface–50m) for the selected station and month.',
   },
   {
-    label: 'Depth-Time Isopleth',
+    label: 'Depth-Time Heatmap',
     value: 'depth-time-isopleth',
-    description: 'A depth-vs-time contour heatmap (Hovmöller diagram) — X: time, Y: depth (0m at top), color: parameter level, with contour lines connecting equal values.',
+    description: 'A depth-vs-time heatmap — X: time, Y: depth (0m at top), color: parameter level.',
   },
   {
     label: 'Multi-Depth Time-Series',
@@ -1248,14 +1168,9 @@ const analyticsVizOptions: AnalyticsVizOption[] = [
     description: 'One line per sampled depth layer (Surface, 5m, 10m, …, Bottom) plotted over time on a shared axis.',
   },
   {
-    label: 'Faceted Vertical Depth Profiles',
-    value: 'faceted-depth-profiles',
-    description: 'Small vertical depth-profile charts placed side by side in chronological order (Jan, Feb, Mar, …), each showing the same parameter that month.',
-  },
-  {
-    label: 'Interactive 3D Surface Plot',
-    value: '3d-surface-plot',
-    description: 'A 3D surface over time (X) and depth (Y), with parameter value as both height and color.',
+    label: 'All-Parameter Depth Profiles',
+    value: 'all-param-depth-profiles',
+    description: 'Every parameter gets its own depth-profile line chart (depth vs. value) for the selected station and month, with its DENR limit marked.',
   },
 
   { label: 'Cross-Station', value: '__group-cross__', description: '', isHeader: true },
@@ -1265,14 +1180,24 @@ const analyticsVizOptions: AnalyticsVizOption[] = [
     description: 'Parallel coordinates — all 13 parameters at once, one colored line per station, with optional range filters to highlight stations matching a rule.',
   },
   {
-    label: 'Transect / Distance-Gradient Profile',
-    value: 'transect-profile',
-    description: 'Parameter value across stations ordered Tributary → Nearshore → Offshore, to spot dilution/attenuation gradients as water moves from tributary inputs into the deep lake.',
-  },
-  {
     label: 'Station × Month Compliance Grid',
     value: 'compliance-grid',
     description: 'A stations-by-months grid colored by status for the selected parameter — a fast overview of which stations run persistently degraded vs. only seasonally.',
+  },
+  {
+    label: 'Composition Over Time',
+    value: 'composition-over-time',
+    description: 'A stacked bar chart of reading counts per month — pick whether the stack breaks down by Compliance Status, Station, or Parameter.',
+  },
+  {
+    label: 'Long-Term Trend',
+    value: 'long-term-trend',
+    description: 'Lake-wide average over its full recorded history (not just the trailing window), with a linear-regression trend line — optionally compared against one zone or station.',
+  },
+  {
+    label: 'All-Parameter Trend Grid',
+    value: 'all-param-trend-grid',
+    description: 'Every parameter gets its own 13-month lake-wide trend line chart, with its DENR limit marked.',
   },
 
   { label: 'Statistical Relationships', value: '__group-stats__', description: '', isHeader: true },
@@ -1280,21 +1205,6 @@ const analyticsVizOptions: AnalyticsVizOption[] = [
     label: 'Interactive Statistical Correlation',
     value: 'correlation-heatmap',
     description: 'A 13×13 grid of Pearson (r) or Spearman (ρ) correlation coefficients between every measured parameter.',
-  },
-  {
-    label: 'Time-Lagged Cross-Correlation',
-    value: 'time-lagged-correlation',
-    description: 'Correlation between parameters across shifted time steps (month t vs. t+1, t+2, …) to surface delayed relationships.',
-  },
-  {
-    label: 'Principal Component Analysis',
-    value: 'pca',
-    description: 'Reduces the 13 parameters to two principal axes (PC1, PC2) that explain most of the dataset’s variance, plotted as a biplot.',
-  },
-  {
-    label: 'Stoichiometric Ratio',
-    value: 'stoichiometric-ratio',
-    description: 'Derived ecological indices from raw nutrient values, such as the Nitrogen-to-Phosphorus (N:P) ratio.',
   },
 ];
 // analyticsVizType comes from useWaterQualityDashboardState now (session-persisted, see that file).
@@ -1322,12 +1232,11 @@ onMounted(() => {
   const zoneBySite = new Map<string, 'Nearshore' | 'Offshore'>();
 
   // Reuse the same depth-zone GeoJSON split as the interactive map: sites in
-  // shallower water (or along tributaries) count as nearshore, sites in the
-  // deeper open-water zone count as offshore.
+  // shallower water count as nearshore, sites in the deeper open-water zone
+  // count as offshore.
   void Promise.all([
     fetchZone('/geo/WQ-Sampling-Sites-Above-40m-Depth.geojson', 'Nearshore', zoneBySite),
     fetchZone('/geo/WQ-Sampling-Sites-Below-40m-Depth.geojson', 'Offshore', zoneBySite),
-    fetchZone('/geo/WQ-Sampling-Sites-Tributary.geojson', 'Nearshore', zoneBySite),
   ]).then(() =>
     fetch('/geo/WQ-All-Sampling-Sites.geojson')
       .then((res) => res.json())
@@ -1708,21 +1617,30 @@ const depthProfilePointsB = computed(() =>
     : [],
 );
 
-// ═══ FACETED VERTICAL DEPTH PROFILES (SMALL MULTIPLES) ═══
-// Same station as the Vertical Depth Profile chart above (depthProfileStationId)
-// — one small profile per month in the trailing window, months with zero
-// readings at this station/parameter are skipped rather than shown empty.
-const facetedProfiles = computed(() => {
+// ═══ ALL-PARAMETER DEPTH PROFILES (SMALL MULTIPLES) ═══
+// Same station/month as the Vertical Depth Profile chart, but every
+// parameter at once instead of the two picked via Parameter A/B — params
+// with no readings at this station/month are skipped rather than shown empty.
+const allParamDepthProfiles = computed(() => {
   const stationId = depthProfileStationId.value;
-  const param = selectedParam.value;
-  const result: { month: string; points: DepthReadingPoint[] }[] = [];
-  if (!stationId || !param) return result;
-  for (const i of trendIndices.value) {
-    const points = depthProfilePoints(stationId, param, i);
-    if (points.length > 0) result.push({ month: months[i]!, points });
+  const result: { param: WaterQualityParam; points: DepthReadingPoint[] }[] = [];
+  if (!stationId) return result;
+  for (const param of allWaterQualityParams) {
+    const points = depthProfilePoints(stationId, param, selectedMonthIndex.value);
+    if (points.length > 0) result.push({ param, points });
   }
   return result;
 });
+
+// ═══ ALL-PARAMETER TREND GRID (SMALL MULTIPLES) ═══
+// Same lake-wide trailing-13-month series the 13-Month Trend chart above
+// uses (trendSeries), but every parameter at once instead of just the
+// selected one.
+const allParamTrends = computed(() =>
+  allWaterQualityParams
+    .map((param) => ({ param, ...trendSeries(param) }))
+    .filter((t) => t.values.length > 0),
+);
 
 // ═══ MULTI-DEPTH TIME-SERIES ═══
 // One line per sampled depth, same station as the two charts above. A
@@ -1749,85 +1667,6 @@ const multiDepthSeries = computed<{ months: string[]; series: DepthSeries[] }>((
     values: trendIndices.value.map((i) => getReading(readingsLookup.value, stationId, i, param, depth)),
   }));
   return { months: monthsOut, series };
-});
-
-// ═══ STOICHIOMETRIC RATIO (NITROGEN : PHOSPHORUS) ═══
-// Converts each measured nutrient compound (as reported: NO3-, NO2-, NH3,
-// PO4^3-) to its elemental N/P mass via molar-mass ratios, then to the molar
-// N:P ratio limnologists compare against the Redfield ratio (16:1) — well
-// below it, nitrogen is the more likely growth-limiting nutrient for algae;
-// well above it, phosphorus is. Values near 16 aren't necessarily "balanced,"
-// just inconclusive from this ratio alone (real limitation needs a bioassay).
-const N_MOLAR_MASS = 14.007; // g/mol, elemental N
-const P_MOLAR_MASS = 30.974; // g/mol, elemental P
-const NO3_MOLAR_MASS = 62.004; // g/mol, NO3-
-const NO2_MOLAR_MASS = 46.005; // g/mol, NO2-
-const NH3_MOLAR_MASS = 17.031; // g/mol, NH3
-const PO4_MOLAR_MASS = 94.971; // g/mol, PO4^3-
-const REDFIELD_NP_RATIO = 16;
-
-const nitrateParam = allWaterQualityParams.find((p) => p.key === 'nitrate')!;
-const nitriteParam = allWaterQualityParams.find((p) => p.key === 'nitrite')!;
-const ammoniaParam = allWaterQualityParams.find((p) => p.key === 'ammonia')!;
-const phosphateParam = allWaterQualityParams.find((p) => p.key === 'phosphate')!;
-
-interface NPRatioResult {
-  totalNMgL: number | null;
-  totalPMgL: number | null;
-  molarRatio: number | null;
-}
-
-function paramValueAt(param: WaterQualityParam, siteId: string | null, monthIndex: number): number | null {
-  if (siteId) {
-    const site = sites.value.find((s) => s.siteId === siteId);
-    return site ? getReading(readingsLookup.value, siteId, monthIndex, param, depthForSite(site)) : null;
-  }
-  return lakeAverage(param, monthIndex);
-}
-
-function npRatioAt(siteId: string | null, monthIndex: number): NPRatioResult {
-  const nitrate = paramValueAt(nitrateParam, siteId, monthIndex);
-  const nitrite = paramValueAt(nitriteParam, siteId, monthIndex);
-  const ammonia = paramValueAt(ammoniaParam, siteId, monthIndex);
-  const phosphate = paramValueAt(phosphateParam, siteId, monthIndex);
-
-  const nParts = [
-    nitrate !== null ? nitrate * (N_MOLAR_MASS / NO3_MOLAR_MASS) : null,
-    nitrite !== null ? nitrite * (N_MOLAR_MASS / NO2_MOLAR_MASS) : null,
-    ammonia !== null ? ammonia * (N_MOLAR_MASS / NH3_MOLAR_MASS) : null,
-  ].filter((v): v is number => v !== null);
-  const totalNMgL = nParts.length > 0 ? nParts.reduce((sum, v) => sum + v, 0) : null;
-  const totalPMgL = phosphate !== null ? phosphate * (P_MOLAR_MASS / PO4_MOLAR_MASS) : null;
-
-  const molarRatio =
-    totalNMgL !== null && totalPMgL !== null && totalPMgL > 0
-      ? totalNMgL / N_MOLAR_MASS / (totalPMgL / P_MOLAR_MASS)
-      : null;
-
-  return { totalNMgL, totalPMgL, molarRatio };
-}
-
-const currentNPRatio = computed(() => npRatioAt(selectedStationId.value, selectedMonthIndex.value));
-
-const npRatioInterpretation = computed(() => {
-  const ratio = currentNPRatio.value.molarRatio;
-  if (ratio === null) return null;
-  if (ratio < 12) return { label: 'Nitrogen-limited tendency', color: '#4fc3f7' };
-  if (ratio > 20) return { label: 'Phosphorus-limited tendency', color: '#ff8a65' };
-  return { label: 'Near-balanced (~Redfield)', color: '#81c784' };
-});
-
-const npRatioTrend = computed(() => {
-  const monthsOut: string[] = [];
-  const valuesOut: number[] = [];
-  for (const i of trendIndices.value) {
-    const result = npRatioAt(selectedStationId.value, i);
-    if (result.molarRatio !== null) {
-      monthsOut.push(months[i]!);
-      valuesOut.push(result.molarRatio);
-    }
-  }
-  return { months: monthsOut, values: valuesOut };
 });
 
 // ═══ STATION COMPARISON — PARALLEL COORDINATES ═══
@@ -1901,25 +1740,12 @@ const parallelMatchedSiteIds = computed<string[]>(() => {
     .map((site) => site.siteId);
 });
 
-// ═══ TRANSECT / DISTANCE-GRADIENT PROFILE ═══
-// Lake Lanao has no single inflow -> outflow channel like a river (6
-// tributaries feed it around its perimeter, one outlet), so "distance along
-// the transect" is this categorical zone order rather than a fabricated
-// continuous distance metric.
+// Zone order (Tributary → Nearshore → Offshore) — shared by the Compliance
+// Grid and Long-Term Trend's zone comparison below.
 const ZONE_ORDER: Record<Site['zone'], number> = { Tributary: 0, Nearshore: 1, Offshore: 2 };
 const zoneOrderedSites = computed(() =>
   [...sites.value].sort((a, b) => ZONE_ORDER[a.zone] - ZONE_ORDER[b.zone] || a.siteId.localeCompare(b.siteId)),
 );
-
-const transectStations = computed<TransectStation[]>(() => {
-  const param = selectedParam.value;
-  if (!param) return [];
-  return zoneOrderedSites.value.map((site) => ({
-    siteId: site.siteId,
-    zone: site.zone as TransectZone,
-    value: getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site)),
-  }));
-});
 
 // ═══ STATION × MONTH COMPLIANCE GRID ═══
 // Reuses the same single-parameter good/warning/serious/critical status
@@ -1940,6 +1766,67 @@ const complianceGrid = computed<{ months: string[]; rows: ComplianceRow[] }>(() 
     }),
   }));
   return { months: monthsOut, rows };
+});
+
+// ═══ COMPOSITION OVER TIME (stacked bar) ═══
+// Same trailing-13-month window as the Compliance Grid, for consistency —
+// readings are raw sample rows (rawReadings), not the per-site/param lookup,
+// since "by station"/"by parameter" need to count rows directly rather than
+// a single parameter's values.
+const compositionResult = computed(() => {
+  const param = selectedParam.value;
+  if (!param) return { months: [], segments: [] };
+  const monthLabels = trendIndices.value.map((i) => months[i]!);
+  return buildCompositionOverTime(
+    rawReadings.value,
+    zoneOrderedSites.value,
+    param,
+    compositionStackBy.value,
+    trendIndices.value,
+    monthLabels,
+  );
+});
+
+const compositionStackByOptions: { label: string; value: CompositionStackBy }[] = [
+  { label: 'Compliance Status', value: 'status' },
+  { label: 'Station', value: 'station' },
+  { label: 'Parameter', value: 'parameter' },
+];
+
+const compositionStackByLabel = computed(
+  () => compositionStackByOptions.find((o) => o.value === compositionStackBy.value)?.label ?? 'Category',
+);
+
+// ═══ LONG-TERM TREND ═══
+const longTermTrendResult = computed(() => {
+  const param = selectedParam.value;
+  if (!param) return { months: [], series: [], trend: null };
+
+  // Same blue/orange pairing as Vertical Depth Profile's Parameter A/B —
+  // reusing the dashboard's own established "comparing two things" colors
+  // rather than introducing a new one-off pair for this chart.
+  const groups: { key: string; label: string; color: string; filter: (r: WaterQualityReading) => boolean }[] = [
+    { key: 'lake', label: 'Lake-wide average', color: '#4fc3f7', filter: () => true },
+  ];
+  if (longTermTrendCompare.value === 'zone') {
+    const zoneSiteIds = new Set(sites.value.filter((s) => s.zone === longTermTrendZone.value).map((s) => s.siteId));
+    groups.push({
+      key: 'zone',
+      label: `${longTermTrendZone.value} average`,
+      color: '#ff8a65',
+      filter: (r) => zoneSiteIds.has(r.siteId),
+    });
+  } else if (longTermTrendCompare.value === 'station' && selectedStationId.value) {
+    const stationId = selectedStationId.value;
+    groups.push({
+      key: 'station',
+      label: stationId,
+      color: '#ff8a65',
+      filter: (r) => r.siteId === stationId,
+    });
+  }
+
+  return buildLongTermTrend(rawReadings.value, param, groups, (idx) => months[idx] ?? `#${idx}`);
 });
 
 // ═══ INTERACTIVE STATISTICAL CORRELATION (13×13 PEARSON MATRIX) ═══
@@ -1996,71 +1883,7 @@ const correlationMatrix = computed(() =>
   ),
 );
 
-// ═══ TIME-LAGGED CROSS-CORRELATION ═══
-// Reuses pearsonCorrelation above, but on lake-wide MONTHLY series rather
-// than raw per-reading pairs — a time lag is inherently a per-month
-// relationship. Spans the platform's full recorded history (not just the
-// trailing 13-month window everything else on this page uses), since
-// correlating a shifted series needs as many month-pairs as possible,
-// especially at the higher lags where fewer pairs are available at all.
-const MAX_TIME_LAG = 6;
-
-const timeLagParamA = computed(
-  () => allWaterQualityParams.find((p) => p.key === timeLagParamKeyA.value) ?? null,
-);
-const timeLagParamB = computed(
-  () => allWaterQualityParams.find((p) => p.key === timeLagParamKeyB.value) ?? null,
-);
-
-const maxDataMonthIndex = computed(() => {
-  if (rawReadings.value.length === 0) return -1;
-  return Math.max(...rawReadings.value.map((r) => dateToMonthIndex(r.dateObserved)));
-});
-
-function fullLakeSeries(param: WaterQualityParam): (number | null)[] {
-  const result: (number | null)[] = [];
-  for (let i = 0; i <= maxDataMonthIndex.value; i++) result.push(lakeAverage(param, i));
-  return result;
-}
-
-interface TimeLagResult {
-  lag: number;
-  r: number | null;
-  n: number;
-}
-
-const timeLagResults = computed<TimeLagResult[]>(() => {
-  const paramA = timeLagParamA.value;
-  const paramB = timeLagParamB.value;
-  if (!paramA || !paramB) return [];
-
-  const seriesA = fullLakeSeries(paramA);
-  const seriesB = fullLakeSeries(paramB);
-
-  const results: TimeLagResult[] = [];
-  for (let lag = 0; lag <= MAX_TIME_LAG; lag++) {
-    const xs: number[] = [];
-    const ys: number[] = [];
-    for (let t = 0; t + lag < seriesA.length; t++) {
-      const a = seriesA[t];
-      const b = seriesB[t + lag];
-      if (a !== null && a !== undefined && b !== null && b !== undefined) {
-        xs.push(a);
-        ys.push(b);
-      }
-    }
-    results.push({ lag, r: pearsonCorrelation(xs, ys), n: xs.length });
-  }
-  return results;
-});
-
-const bestTimeLag = computed<TimeLagResult | null>(() => {
-  const valid = timeLagResults.value.filter((res) => res.r !== null);
-  if (valid.length === 0) return null;
-  return valid.reduce((best, cur) => (Math.abs(cur.r!) > Math.abs(best.r!) ? cur : best));
-});
-
-// ═══ DEPTH-TIME ISOPLETH ═══
+// ═══ DEPTH-TIME HEATMAP ═══
 // Same station/parameter as the Vertical Depth Profile chart — one column
 // per month in the trailing window, real depth readings only.
 const isoplethColumns = computed<IsoplethColumn[]>(() => {
@@ -2073,127 +1896,6 @@ const isoplethColumns = computed<IsoplethColumn[]>(() => {
   }));
 });
 
-// ═══ PRINCIPAL COMPONENT ANALYSIS ═══
-// Runs on the same 13x13 Pearson correlation matrix already computed above
-// (pairwise-complete, so it works even though few if any readings have all
-// 13 parameters filled in — a strict complete-rows requirement would likely
-// leave almost nothing to analyze). This is a loadings plot only (how much
-// each parameter contributes to PC1/PC2) — not a full biplot with individual
-// sample points, since plotting those would need per-row values for every
-// parameter, which the pairwise-complete approach above doesn't give us.
-//
-// No linear-algebra library is available in this project, so this
-// implements the classic Jacobi eigenvalue algorithm directly — the
-// standard, numerically stable method for diagonalizing a real symmetric
-// matrix (which a correlation matrix always is). See e.g. Numerical Recipes
-// §11.1 for the reference algorithm this follows.
-function jacobiEigenDecomposition(
-  matrix: number[][],
-  maxIterations = 100,
-): { eigenvalues: number[]; eigenvectors: number[][] } {
-  const n = matrix.length;
-  const A = matrix.map((row) => row.slice());
-  const V: number[][] = Array.from({ length: n }, (_, i) =>
-    Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)),
-  );
-
-  function offDiagonalNorm(): number {
-    let sum = 0;
-    for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) {
-        if (i !== j) sum += A[i]![j]! * A[i]![j]!;
-      }
-    }
-    return Math.sqrt(sum);
-  }
-
-  for (let iter = 0; iter < maxIterations; iter++) {
-    if (offDiagonalNorm() < 1e-9) break;
-
-    let p = 0;
-    let q = 1;
-    let maxVal = 0;
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        if (Math.abs(A[i]![j]!) > maxVal) {
-          maxVal = Math.abs(A[i]![j]!);
-          p = i;
-          q = j;
-        }
-      }
-    }
-    if (maxVal < 1e-9) break;
-
-    const app = A[p]![p]!;
-    const aqq = A[q]![q]!;
-    const apq = A[p]![q]!;
-    const theta = (aqq - app) / (2 * apq);
-    const t = (theta >= 0 ? 1 : -1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
-    const c = 1 / Math.sqrt(t * t + 1);
-    const s = t * c;
-
-    // Rotate columns p,q of A (A := A * J)
-    for (let i = 0; i < n; i++) {
-      const aip = A[i]![p]!;
-      const aiq = A[i]![q]!;
-      A[i]![p] = c * aip - s * aiq;
-      A[i]![q] = s * aip + c * aiq;
-    }
-    // Rotate rows p,q of A (A := J^T * A) — reads the already column-rotated A
-    for (let j = 0; j < n; j++) {
-      const apj = A[p]![j]!;
-      const aqj = A[q]![j]!;
-      A[p]![j] = c * apj - s * aqj;
-      A[q]![j] = s * apj + c * aqj;
-    }
-    // Accumulate the rotation into V so its columns end up as eigenvectors
-    for (let i = 0; i < n; i++) {
-      const vip = V[i]![p]!;
-      const viq = V[i]![q]!;
-      V[i]![p] = c * vip - s * viq;
-      V[i]![q] = s * vip + c * viq;
-    }
-  }
-
-  const eigenvalues = Array.from({ length: n }, (_, i) => A[i]![i]!);
-  return { eigenvalues, eigenvectors: V };
-}
-
-interface PCAResult {
-  points: PCAPoint[];
-  varianceExplainedPct1: number;
-  varianceExplainedPct2: number;
-}
-
-const pcaResult = computed<PCAResult | null>(() => {
-  // pearsonCorrelation returns null (not 0) on too-few-pairs; substituting 0
-  // for a null cell keeps the matrix numeric so the decomposition can run,
-  // at the cost of treating a data-starved pair as "uncorrelated" rather
-  // than "unknown" — flagged in the note below the chart.
-  const n = allWaterQualityParams.length;
-  const matrix = correlationMatrix.value.map((row) => row.map((cell) => cell.r ?? 0));
-  if (matrix.length !== n) return null;
-
-  const { eigenvalues, eigenvectors } = jacobiEigenDecomposition(matrix);
-  const order = eigenvalues.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
-  if (order.length < 2) return null;
-  const idx1 = order[0]!.i;
-  const idx2 = order[1]!.i;
-  const totalVariance = eigenvalues.reduce((sum, v) => sum + v, 0);
-
-  const points: PCAPoint[] = allWaterQualityParams.map((p, i) => ({
-    key: p.key,
-    label: p.label,
-    pc1: eigenvectors[i]![idx1]!,
-    pc2: eigenvectors[i]![idx2]!,
-  }));
-
-  return {
-    points,
-    varianceExplainedPct1: totalVariance > 0 ? (order[0]!.v / totalVariance) * 100 : 0,
-    varianceExplainedPct2: totalVariance > 0 ? (order[1]!.v / totalVariance) * 100 : 0,
-  };
-});
 </script>
 
 <style scoped>
@@ -2209,9 +1911,10 @@ const pcaResult = computed<PCAResult | null>(() => {
 }
 
 .view-tabs {
-  background: rgba(255, 255, 255, 0.08);
+  background: #ffffff;
+  border: 1px solid #e1e6ed;
   border-radius: 12px;
-  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 3px rgba(16, 32, 64, 0.08);
 }
 
 .view-tab-panels {
@@ -2355,15 +2058,62 @@ const pcaResult = computed<PCAResult | null>(() => {
   text-shadow: 0px 2px 5px rgba(0, 0, 0, 0.4);
 }
 
-.bg-overlay {
-  background: rgba(0, 0, 0, 0.55);
+/* Replaces the old hotlinked-photo + dark-overlay background — a plain
+   light page, same tone as the Download Center, so cards and chart text
+   actually stand out instead of competing with a busy dark image. */
+.dashboard-page {
+  background: #eef1f5;
+  align-items: stretch;
 }
 
 .glass-morph {
-  background: rgba(255, 255, 255, 0.1) !important;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #ffffff !important;
+  border: 1px solid #e1e6ed;
   border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(16, 32, 64, 0.08);
+}
+
+/* Quasar's text-white/text-grey-* utility classes are used throughout this
+   page's markup for what used to be light-on-dark-glass text — remapped
+   here to dark-on-white instead of rewriting every element's classes. */
+.glass-morph .text-white {
+  color: #16306b !important;
+}
+.glass-morph .text-grey-3 {
+  color: #2c3a4a !important;
+}
+.glass-morph .text-grey-4 {
+  color: #5c6b7a !important;
+}
+.glass-morph .text-grey-5 {
+  color: #6b7686 !important;
+}
+.glass-morph .text-grey-6 {
+  color: #8591a0 !important;
+}
+.glass-morph .text-grey-2 {
+  color: #9aa5b1 !important;
+}
+/* Pastel -3 icon/accent colors (teal-3, blue-3, orange-3) read fine on dark
+   glass but wash out on white — darkened to solid, legible equivalents. */
+.glass-morph .text-teal-3 {
+  color: #00897b !important;
+}
+.glass-morph .text-blue-3 {
+  color: #1976d2 !important;
+}
+.glass-morph .text-orange-3 {
+  color: #ef6c00 !important;
+}
+
+/* Chart-rendering areas keep their own dark background — every chart
+   component's internal colors (gridlines, axis labels, data lines) are
+   tuned for a dark backdrop and shared with the Download Center, so this
+   avoids re-theming 13 chart components individually. */
+.chart-inset {
+  background: #16212e;
+  border-radius: 10px;
+  padding: 12px;
 }
 
 .month-tick-row span {
@@ -2379,20 +2129,20 @@ const pcaResult = computed<PCAResult | null>(() => {
 }
 
 .param-tile {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #f4f6f8 !important;
+  border: 1px solid #e1e6ed;
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .param-tile:hover {
-  background: rgba(255, 255, 255, 0.12) !important;
+  background: #e9edf1 !important;
 }
 
 .param-tile--active {
   border-color: #26a69a;
-  background: rgba(38, 166, 154, 0.18) !important;
+  background: rgba(38, 166, 154, 0.14) !important;
 }
 
 .status-dot {
@@ -2444,11 +2194,11 @@ const pcaResult = computed<PCAResult | null>(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.06);
+  background: #f4f6f8;
   border: 1px solid transparent;
   border-radius: 999px;
   padding: 3px 10px 3px 8px;
-  color: rgba(255, 255, 255, 0.85);
+  color: #2c3a4a;
   font-size: 0.7rem;
   line-height: 1.4;
   cursor: pointer;
@@ -2456,13 +2206,13 @@ const pcaResult = computed<PCAResult | null>(() => {
 }
 
 .parallel-legend__item:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: #e9edf1;
 }
 
 .parallel-legend__item--active {
-  background: rgba(38, 166, 154, 0.18);
+  background: rgba(38, 166, 154, 0.16);
   border-color: rgba(38, 166, 154, 0.6);
-  color: white;
+  color: #00695c;
 }
 
 .parallel-legend__item--dim {
@@ -2477,7 +2227,7 @@ const pcaResult = computed<PCAResult | null>(() => {
 }
 
 .filter-rule-chip {
-  background: rgba(255, 255, 255, 0.06);
+  background: #f4f6f8;
   border-radius: 8px;
   padding: 4px 6px;
 }
@@ -2494,20 +2244,25 @@ const pcaResult = computed<PCAResult | null>(() => {
 }
 
 .concern-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: #f4f6f8;
 }
 
 .concern-item--active {
-  background: rgba(38, 166, 154, 0.18);
+  background: rgba(38, 166, 154, 0.14);
   outline: 1px solid rgba(38, 166, 154, 0.5);
 }
 
-.form-field :deep(.q-field__control) {
-  background: rgba(255, 255, 255, 0.06);
+.glass-morph .form-field :deep(.q-field__control) {
+  background: #f4f6f8;
 }
 
-.form-field :deep(.q-field__label) {
-  color: rgba(255, 255, 255, 0.5);
+.glass-morph .form-field :deep(.q-field__label) {
+  color: #6b7686;
+}
+
+.glass-morph .form-field :deep(.q-field__native),
+.glass-morph .form-field :deep(.q-field__input) {
+  color: #16306b;
 }
 </style>
 
@@ -2516,13 +2271,16 @@ const pcaResult = computed<PCAResult | null>(() => {
      attribute — a scoped rule here would silently never match it. -->
 <style>
 .viz-picker-popup {
-  background: #1a1f23;
+  background: #ffffff;
+}
+.viz-picker-popup .text-teal-3 {
+  color: #00897b !important;
 }
 .viz-picker-group-header {
   min-height: 28px;
   padding-top: 10px;
   padding-bottom: 2px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid #e1e6ed;
 }
 .viz-picker-group-header:first-child {
   border-top: none;

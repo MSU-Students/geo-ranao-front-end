@@ -147,14 +147,14 @@ const columns = computed(() =>
   right: 6px;
   transform: translateY(-50%);
   font-size: 0.62rem;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .isopleth__columns {
   flex: 1;
   display: flex;
   gap: 1px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .isopleth__col {
@@ -191,7 +191,7 @@ const columns = computed(() =>
   flex: 1;
   text-align: center;
   font-size: 0.6rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .isopleth__legend {
@@ -206,7 +206,7 @@ const columns = computed(() =>
 
 .isopleth__legend-label {
   font-size: 0.66rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.78);
   white-space: nowrap;
 }
 

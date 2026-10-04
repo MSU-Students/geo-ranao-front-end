@@ -198,12 +198,12 @@ function onMouseMove(e: MouseEvent) {
 }
 
 .depth-chart__grid {
-  stroke: rgba(255, 255, 255, 0.1);
+  stroke: rgba(255, 255, 255, 0.2);
   stroke-width: 1;
 }
 
 .depth-chart__axis-label {
-  fill: rgba(255, 255, 255, 0.55);
+  fill: rgba(255, 255, 255, 0.75);
   font-size: 8px;
 }
 

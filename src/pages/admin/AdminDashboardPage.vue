@@ -372,6 +372,13 @@
                       <q-tooltip>View Soundings ({{ props.row.bathymetryPoints.length }})</q-tooltip>
                     </q-btn>
                     <q-btn
+                      v-if="props.row.photos && props.row.photos.length"
+                      flat round dense icon="photo_camera" color="teal-4" size="sm"
+                      @click="openBatchDetail(props.row)"
+                    >
+                      <q-tooltip>View Photos ({{ props.row.photos.length }})</q-tooltip>
+                    </q-btn>
+                    <q-btn
                       v-if="props.row.status === 'pending'"
                       flat round dense icon="check_circle" color="positive" size="sm"
                       @click="handleApproveUpload(props.row)"
@@ -757,6 +764,24 @@
             </tbody>
           </q-markup-table>
         </q-card-section>
+        <q-card-section v-else-if="batchDetailItem.type === 'fish'" style="max-height: 420px; overflow-y: auto">
+          <div class="row q-gutter-sm">
+            <q-img
+              v-for="photo in batchDetailItem.photos ?? []"
+              :key="photo.id"
+              :src="fishPhotoUrl(photo)"
+              class="review-photo-thumb cursor-pointer"
+              fit="cover"
+              @click="openFishPhotoFullSize(photo)"
+            >
+              <template #error>
+                <div class="absolute-full flex flex-center bg-grey-3 text-grey-6">
+                  <q-icon name="broken_image" size="sm" />
+                </div>
+              </template>
+            </q-img>
+          </div>
+        </q-card-section>
         <q-card-section v-else style="max-height: 420px; overflow-y: auto">
           <q-list bordered separator>
             <q-expansion-item
@@ -865,6 +890,7 @@ import {
 import { loadMunicipalZones } from 'src/composables/useMunicipalZones';
 import { generateWaterQualitySummaryReport } from 'src/composables/useWaterQualitySummaryReport';
 import { generateFishObservationSummaryReport } from 'src/composables/useFishObservationSummaryReport';
+import { fishPhotoUrl, type FishObservationPhoto } from 'src/composables/useFishObservations';
 
 const $q = useQuasar();
 const router = useRouter();
@@ -1100,6 +1126,10 @@ const batchDetailShow = ref(false);
 function openBatchDetail(item: UploadReviewItem) {
   batchDetailItem.value = item;
   batchDetailShow.value = true;
+}
+
+function openFishPhotoFullSize(photo: FishObservationPhoto) {
+  window.open(fishPhotoUrl(photo), '_blank', 'noopener');
 }
 
 const bathymetryDepthRange = computed(() => {
@@ -1615,6 +1645,13 @@ const recentExports = computed(() =>
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 16px;
+}
+
+.review-photo-thumb {
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .bg-overlay {

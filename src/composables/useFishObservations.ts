@@ -54,9 +54,12 @@ export interface FishObservationSummary {
 
 // Photo streaming is deliberately unauthenticated (see the API's
 // fish-observations.controller.ts) so a plain <img> tag can use this URL
-// directly without attaching a Bearer header.
+// directly without attaching a Bearer header. Built from api.defaults.baseURL
+// (already resolved with boot/axios.ts's dev fallback) rather than reading
+// import.meta.env.VITE_API_URL directly — that env var is allowed to be
+// unset in local dev, which would silently produce an "undefined/..." URL.
 export function fishPhotoUrl(photo: Pick<FishObservationPhoto, 'id' | 'observationId'>): string {
-  return `${import.meta.env.VITE_API_URL}/fish-observations/${photo.observationId}/photos/${photo.id}`;
+  return `${api.defaults.baseURL}/fish-observations/${photo.observationId}/photos/${photo.id}`;
 }
 
 // "7.9823, 124.2701" -> { lat, lng } — the API stores/validates this as one

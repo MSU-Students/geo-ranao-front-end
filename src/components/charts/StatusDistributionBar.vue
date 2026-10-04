@@ -52,7 +52,7 @@ const segments = computed(() =>
   height: 14px;
   border-radius: 7px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.08);
+  background: #e1e6ed;
 }
 
 .status-bar__segment {

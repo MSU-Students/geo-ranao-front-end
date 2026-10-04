@@ -209,7 +209,7 @@ function onMouseMove(e: MouseEvent) {
 
 .trend-chart__x-label {
   font-size: 0.65rem;
-  color: #898781;
+  color: #c7c5bc;
   flex: 1;
   text-align: center;
 }
@@ -233,7 +233,7 @@ function onMouseMove(e: MouseEvent) {
 }
 
 .trend-chart__tooltip-month {
-  color: #c3c2b7;
+  color: #d8d6cc;
   font-size: 0.65rem;
 }
 

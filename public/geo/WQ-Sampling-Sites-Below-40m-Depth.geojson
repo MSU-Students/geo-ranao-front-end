@@ -5,7 +5,9 @@
 "features": [
 { "type": "Feature", "properties": { "SITE_ID": "S10A", "STATION_ID": "STATION-10", "LONGITUDE": 124.261278, "LATITUDE": 7.959833 }, "geometry": { "type": "Point", "coordinates": [ 124.261278, 7.959833 ] } },
 { "type": "Feature", "properties": { "SITE_ID": "S10B", "STATION_ID": "STATION-10", "LONGITUDE": 124.246167, "LATITUDE": 7.944861 }, "geometry": { "type": "Point", "coordinates": [ 124.246167, 7.944861 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "S11A", "STATION_ID": "STATION-11", "LONGITUDE": 124.286, "LATITUDE": 7.984306 }, "geometry": { "type": "Point", "coordinates": [ 124.286, 7.984306 ] } },
 { "type": "Feature", "properties": { "SITE_ID": "S11B", "STATION_ID": "STATION-11", "LONGITUDE": 124.284639, "LATITUDE": 7.957778 }, "geometry": { "type": "Point", "coordinates": [ 124.284639, 7.957778 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "S12A", "STATION_ID": "STATION-12", "LONGITUDE": 124.327889, "LATITUDE": 7.985667 }, "geometry": { "type": "Point", "coordinates": [ 124.327889, 7.985667 ] } },
 { "type": "Feature", "properties": { "SITE_ID": "S12B", "STATION_ID": "STATION-12", "LONGITUDE": 124.32925, "LATITUDE": 7.961861 }, "geometry": { "type": "Point", "coordinates": [ 124.32925, 7.961861 ] } }
 ]
 }

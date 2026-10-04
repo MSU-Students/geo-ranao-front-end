@@ -422,6 +422,15 @@
                     <template #prepend><q-icon name="straighten" color="orange-4" /></template>
                   </q-input>
                 </div>
+                <div class="col-12">
+                  <q-file
+                    v-model="form.others.photos"
+                    label="Photo"
+                    dark outlined multiple accept="image/*" class="form-field" counter
+                  >
+                    <template #prepend><q-icon name="photo_camera" color="orange-4" /></template>
+                  </q-file>
+                </div>
               </div>
             </template>
 
@@ -534,6 +543,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 import BackButton from 'src/components/BackButton.vue';
 import { submitFishObservation, type ConservationStatus } from 'src/composables/useFishObservations';
+import { extractErrorMessage } from 'src/utils/errors';
 
 const $q = useQuasar();
 const router = useRouter();
@@ -611,6 +621,7 @@ const form = reactive({
     weight: null as number | null,
     number: null as number | null,
     size: '',
+    photos: null as File[] | null,
   },
   dateObserved: '',
   conservationStatus: 'NOT_EVALUATED' as ConservationStatus,
@@ -643,6 +654,7 @@ function resetForm() {
     weight: null,
     number: null,
     size: '',
+    photos: null,
   };
   form.dateObserved = '';
   form.conservationStatus = 'NOT_EVALUATED';
@@ -728,6 +740,7 @@ async function handleSubmit() {
     if (form.others.weight !== null) data.append('weightG', String(form.others.weight));
     if (form.others.number !== null) data.append('count', String(form.others.number));
     if (form.others.size) data.append('sizeCategory', form.others.size);
+    photos = form.others.photos;
   } else {
     return;
   }
@@ -752,7 +765,7 @@ async function handleSubmit() {
   } catch (err) {
     $q.notify({
       type: 'negative',
-      message: err instanceof Error ? err.message : 'Failed to submit fish observation.',
+      message: extractErrorMessage(err, 'Failed to submit fish observation.'),
       position: 'top',
       timeout: 4000,
     });

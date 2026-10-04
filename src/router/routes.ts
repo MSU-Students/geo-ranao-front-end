@@ -7,6 +7,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('layouts/MainLayout.vue'),
     children: [
       { path: '', component: () => import('pages/IndexPage.vue') },
+      { path: '/download', component: () => import('pages/DownloadCenterPage.vue') },
       { path: '/dashboard/fish', component: () => import('pages/dashboard/FishDashboardPage.vue') },
       {
         path: '/dashboard/water-quality',
@@ -44,6 +45,7 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: 'login', component: () => import('pages/auth/LoginPage.vue') },
       { path: 'signup', component: () => import('pages/auth/SignupPage.vue') },
+      { path: 'google/complete', component: () => import('pages/auth/GoogleCompletePage.vue') },
       { path: 'profile', component: () => import('pages/auth/ProfilePage.vue') },
       {
         path: 'forgot-password',

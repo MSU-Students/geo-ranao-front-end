@@ -39,7 +39,7 @@
         :key="si"
         :points="seg"
         fill="none"
-        stroke="rgba(255,255,255,0.55)"
+        stroke="rgba(255,255,255,0.75)"
         stroke-width="1.5"
       />
       <g v-for="(p, pi) in points" :key="pi">
@@ -192,12 +192,12 @@ const tickIndices = computed(() => {
 }
 
 .transect-chart__grid {
-  stroke: rgba(255, 255, 255, 0.1);
+  stroke: rgba(255, 255, 255, 0.2);
   stroke-width: 1;
 }
 
 .transect-chart__axis-label {
-  fill: rgba(255, 255, 255, 0.6);
+  fill: rgba(255, 255, 255, 0.78);
   font-size: 9px;
 }
 

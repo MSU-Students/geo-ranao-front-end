@@ -16,7 +16,10 @@
 { "type": "Feature", "properties": { "SITE_ID": "S6A", "STATION_ID": "STATION-6", "LONGITUDE": 124.233806, "LATITUDE": 7.857139 }, "geometry": { "type": "Point", "coordinates": [ 124.233806, 7.857139 ] } },
 { "type": "Feature", "properties": { "SITE_ID": "S6B", "STATION_ID": "STATION-6", "LONGITUDE": 124.255111, "LATITUDE": 7.866667 }, "geometry": { "type": "Point", "coordinates": [ 124.255111, 7.866667 ] } },
 { "type": "Feature", "properties": { "SITE_ID": "S7A", "STATION_ID": "STATION-7", "LONGITUDE": 124.288056, "LATITUDE": 7.869389 }, "geometry": { "type": "Point", "coordinates": [ 124.288056, 7.869389 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "S7B", "STATION_ID": "STATION-7", "LONGITUDE": 124.319639, "LATITUDE": 7.84625 }, "geometry": { "type": "Point", "coordinates": [ 124.319639, 7.84625 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "S8A", "STATION_ID": "STATION-8", "LONGITUDE": 124.219389, "LATITUDE": 7.910861 }, "geometry": { "type": "Point", "coordinates": [ 124.219389, 7.910861 ] } },
 { "type": "Feature", "properties": { "SITE_ID": "S8B", "STATION_ID": "STATION-8", "LONGITUDE": 124.249611, "LATITUDE": 7.902694 }, "geometry": { "type": "Point", "coordinates": [ 124.249611, 7.902694 ] } },
-{ "type": "Feature", "properties": { "SITE_ID": "S9A", "STATION_ID": "STATION-9", "LONGITUDE": 124.281194, "LATITUDE": 7.893861 }, "geometry": { "type": "Point", "coordinates": [ 124.281194, 7.893861 ] } }
+{ "type": "Feature", "properties": { "SITE_ID": "S9A", "STATION_ID": "STATION-9", "LONGITUDE": 124.281194, "LATITUDE": 7.893861 }, "geometry": { "type": "Point", "coordinates": [ 124.281194, 7.893861 ] } },
+{ "type": "Feature", "properties": { "SITE_ID": "S9B", "STATION_ID": "STATION-9", "LONGITUDE": 124.318083, "LATITUDE": 7.898028 }, "geometry": { "type": "Point", "coordinates": [ 124.318083, 7.898028 ] } }
 ]
 }

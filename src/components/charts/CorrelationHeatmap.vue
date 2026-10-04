@@ -78,7 +78,7 @@ function textIsLight(r: number | null): boolean {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   font-size: 0.62rem;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.8);
   text-align: right;
   padding-bottom: 4px;
   white-space: nowrap;
@@ -88,7 +88,7 @@ function textIsLight(r: number | null): boolean {
 
 .corr-heatmap__row-label {
   font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.8);
   display: flex;
   align-items: center;
   padding-right: 6px;
@@ -124,7 +124,7 @@ function textIsLight(r: number | null): boolean {
 
 .corr-heatmap__legend-label {
   font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .corr-heatmap__legend-gradient {

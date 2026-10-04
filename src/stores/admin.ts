@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import axios from 'axios';
 import { api } from 'src/boot/axios';
+import { extractErrorMessage } from 'src/utils/errors';
 import type { WaterQualityUploadRow } from 'src/composables/useWaterQualityUpload';
 import { allWaterQualityParams, getReadingWarnings } from 'src/composables/useWaterQualityModel';
 import {
@@ -10,6 +10,7 @@ import {
   rejectFishObservation,
   deleteFishObservation,
   type FishObservation,
+  type FishObservationPhoto,
 } from 'src/composables/useFishObservations';
 import {
   fetchWaterQualityReadings,
@@ -87,6 +88,8 @@ export interface UploadReviewItem {
   bathymetryPoints?: DepthPoint[] | undefined;
   /** Bathymetry only — how many raw rows were dropped during client-side cleaning. */
   cleanedCount?: number | undefined;
+  /** Fish Observation only — lets the review UI show the submitted photos. */
+  photos?: FishObservationPhoto[] | undefined;
 }
 
 // ── Backend shapes (from geo-ranao-api) ──
@@ -162,16 +165,6 @@ function readingToRow(r: WaterQualityReading): WaterQualityUploadRow {
   };
 }
 
-function extractErrorMessage(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    const data = err.response?.data as { message?: string | string[] } | undefined;
-    const msg = data?.message;
-    if (Array.isArray(msg)) return msg.join(', ');
-    if (typeof msg === 'string') return msg;
-  }
-  return fallback;
-}
-
 let nextLogId = 1000;
 
 export const useAdminStore = defineStore('admin', () => {
@@ -225,6 +218,7 @@ export const useAdminStore = defineStore('admin', () => {
       status: mapReviewStatus(f.reviewStatus),
     };
     if (f.reviewNote) item.reviewNote = f.reviewNote;
+    if (f.photos.length) item.photos = f.photos;
     return item;
   }
 

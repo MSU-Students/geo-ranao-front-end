@@ -382,28 +382,38 @@
                   class="base-layer-toggle q-mb-md"
                 />
 
-                <template v-if="authStore.isLoggedIn">
-                  <q-btn
-                    color="teal"
-                    label="Export Map as Image"
-                    icon="download"
-                    unelevated
-                    rounded
-                    dense
-                    :loading="exportingMap"
-                    class="full-width q-mb-xs"
-                    @click="exportMapImage"
-                  />
-                  <div class="text-caption text-grey-6 q-mb-md">
-                    Captures exactly what's on screen — pan, zoom, and toggle layers first. Only works
-                    on the OpenStreetMap base layer (Google's tiles can't be captured this way).
-                  </div>
-                </template>
-                <!-- Report/map downloads are a researcher & admin tool — a logged-out
-                     visitor sees why the option isn't here instead of it just vanishing. -->
-                <div v-else class="text-caption text-grey-6 q-mb-md">
-                  <q-icon name="lock" size="12px" class="q-mr-xs" />
-                  Log in as a researcher or admin to export the map as an image.
+                <!-- Open to everyone — this is a client-side screenshot of what's
+                     already publicly on screen, not a data export, so it never
+                     needed the login gate it used to have. -->
+                <q-btn
+                  color="teal"
+                  label="Export Map as Image"
+                  icon="download"
+                  unelevated
+                  rounded
+                  dense
+                  :loading="exportingMap"
+                  class="full-width q-mb-xs"
+                  @click="exportMapImage"
+                />
+                <div class="text-caption text-grey-6 q-mb-md">
+                  Captures exactly what's on screen — pan, zoom, and toggle layers first. Only works
+                  on the OpenStreetMap base layer (Google's tiles can't be captured this way).
+                </div>
+
+                <q-btn
+                  color="primary"
+                  label="Download Center"
+                  icon="summarize"
+                  outline
+                  rounded
+                  dense
+                  class="full-width q-mb-xs"
+                  to="/download"
+                />
+                <div class="text-caption text-grey-6 q-mb-md">
+                  Filter by parameter, station, tributary, depth, and date, preview it, then download a
+                  report or a map — reports and maps only, not the underlying raw data.
                 </div>
                 <q-separator class="q-mb-md" />
 
@@ -594,6 +604,28 @@
                   </q-item-section>
                 </q-item>
               </q-list>
+
+              <div v-if="selectedFish.photos?.length" class="q-mt-md">
+                <div class="text-caption text-grey-6 q-mb-xs">
+                  <q-icon name="photo_camera" size="xs" class="q-mr-xs" />Photos
+                </div>
+                <div class="row q-gutter-xs">
+                  <q-img
+                    v-for="photo in selectedFish.photos"
+                    :key="photo.id"
+                    :src="fishPhotoUrl(photo)"
+                    class="fish-photo-thumb cursor-pointer"
+                    fit="cover"
+                    @click="openFishPhoto(photo)"
+                  >
+                    <template #error>
+                      <div class="absolute-full flex flex-center bg-grey-3 text-grey-6">
+                        <q-icon name="broken_image" size="sm" />
+                      </div>
+                    </template>
+                  </q-img>
+                </div>
+              </div>
 
               <div class="q-mt-lg">
                 <div class="text-caption text-grey-6 q-mb-xs">Conservation Status</div>
@@ -832,9 +864,11 @@ import {
 import {
   fetchFishObservations,
   parseCoordinates,
+  fishPhotoUrl,
   CONSERVATION_STATUS_LABELS,
   CONSERVATION_STATUS_SHORT,
   type FishObservation,
+  type FishObservationPhoto,
 } from 'src/composables/useFishObservations';
 import { mapLayers, LAYER_PANE_Z_ORDER } from 'src/composables/useMapLayersState';
 import {
@@ -880,13 +914,23 @@ const STATUS_PIN_COLORS: Record<string, string> = {
 // Fish marker: same circle size/proportions/drop-shadow as the water-quality
 // pins below (36 viewBox, r=16, 24px icon) — a small fish glyph stands in for
 // the droplet/wave glyph so the two marker families read as one visual system.
-function fishPinSvg(color: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 36 36">
+const FISH_PIN_SIZE = 17; // smaller than the 24px water-quality pins on purpose — water quality is this map's priority layer, fish pins should read as secondary
+// Gold ring + pulse, same visual language as the water pins' "needs
+// attention" indicator (see attentionSvgFragments/.wq-pulse-ring below) —
+// shown only while the "Fish With Photos" layer is switched on, so it reads
+// as that layer's effect rather than a permanent property of the pin.
+const FISH_PHOTO_HIGHLIGHT_COLOR = '#FFC107';
+function fishPinSvg(color: string, highlight: boolean): string {
+  const pulse = highlight
+    ? `<circle class="wq-pulse-ring" cx="18" cy="18" r="16" fill="${FISH_PHOTO_HIGHLIGHT_COLOR}"/>`
+    : '';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${FISH_PIN_SIZE}" height="${FISH_PIN_SIZE}" viewBox="0 0 36 36">
     <filter id="fs" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
     </filter>
+    ${pulse}
     <circle cx="18" cy="18" r="16"
-            fill="${color}" stroke="#fff" stroke-width="2" filter="url(#fs)"/>
+            fill="${color}" stroke="${highlight ? FISH_PHOTO_HIGHLIGHT_COLOR : '#fff'}" stroke-width="${highlight ? 3 : 2}" filter="url(#fs)"/>
     <g transform="translate(18,18) scale(0.85)" fill="#fff">
       <ellipse rx="7" ry="4" />
       <polygon points="7,-1 11,-4 11,4 7,1" />
@@ -897,20 +941,22 @@ function fishPinSvg(color: string): string {
 
 const fishPinIconCache = new Map<string, L.DivIcon>();
 
-function makeFishIcon(statusShort: string): L.DivIcon {
+function makeFishIcon(statusShort: string, highlight: boolean): L.DivIcon {
   const color = STATUS_PIN_COLORS[statusShort] ?? '#78909C';
-  let icon = fishPinIconCache.get(color);
+  const cacheKey = `${color}|${highlight ? 'hl' : ''}`;
+  let icon = fishPinIconCache.get(cacheKey);
   if (icon) return icon;
 
+  const half = FISH_PIN_SIZE / 2;
   icon = L.divIcon({
     className: '',
-    html: fishPinSvg(color),
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -12],
-    tooltipAnchor: [0, -12],
+    html: fishPinSvg(color, highlight),
+    iconSize: [FISH_PIN_SIZE, FISH_PIN_SIZE],
+    iconAnchor: [half, half],
+    popupAnchor: [0, -half],
+    tooltipAnchor: [0, -half],
   });
-  fishPinIconCache.set(color, icon);
+  fishPinIconCache.set(cacheKey, icon);
   return icon;
 }
 
@@ -922,9 +968,11 @@ function makeFishIcon(statusShort: string): L.DivIcon {
 // distance) and spiderfies any that are still coincident at max zoom.
 function makeFishClusterIcon(cluster: L.MarkerCluster): L.DivIcon {
   const count = cluster.getChildCount();
-  const size = count < 10 ? 30 : count < 25 ? 38 : 46;
+  // Scaled down to match the smaller individual fish pins (FISH_PIN_SIZE) —
+  // was 30/38/46.
+  const size = count < 10 ? 24 : count < 25 ? 30 : 38;
   const r = size / 2 - 2;
-  const fontSize = count < 10 ? 12 : count < 25 ? 13 : 14;
+  const fontSize = count < 10 ? 10 : count < 25 ? 11 : 12;
   const html = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
     <filter id="cs" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.35"/>
@@ -956,9 +1004,14 @@ function attentionSvgFragments(color: string, attention: StatusLevel | null | un
   };
 }
 
-// Water-quality marker: circle with a water droplet inside. Recolorable —
-// when a parameter is selected (Water tab → Color Sites By Parameter), each
-// site's pin switches to its good/warning/serious/critical status color.
+// Water-quality marker: rounded diamond with a water droplet inside.
+// Recolorable — when a parameter is selected (Water tab → Color Sites By
+// Parameter), each site's pin switches to its good/warning/serious/critical
+// status color. Deliberately NOT a circle: fish observation pins (see
+// fishPinSvg above) are circles in the same 24px footprint, and the two
+// layers' points often sit close together or exactly coincide on the lake —
+// a different silhouette keeps them tellable apart at a glance even when
+// stacked, where color/glyph alone wasn't enough to read quickly.
 const WATER_PIN_COLOR = '#0277BD'; // rich cerulean blue — default when no parameter is selected
 const waterPinIconCache = new Map<string, L.DivIcon>();
 
@@ -973,8 +1026,9 @@ function makeWaterPinIcon(color: string, attention?: StatusLevel | null): L.DivI
       <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-opacity="0.3"/>
     </filter>
     ${pulse}
-    <circle cx="18" cy="18" r="16"
-            fill="${color}" stroke="#fff" stroke-width="2" filter="url(#ws)"/>
+    <rect x="7" y="7" width="22" height="22" rx="3"
+          fill="${color}" stroke="#fff" stroke-width="2" filter="url(#ws)"
+          transform="rotate(45 18 18)"/>
     <path d="M18 9 Q22 15 22 18.5 A4 4 0 0 1 14 18.5 Q14 15 18 9Z"
           fill="#fff" opacity="0.95"/>
     ${badge}
@@ -1124,7 +1178,7 @@ interface Fish {
   bodyDepth?: string;
   municipal?: string;
   barangay?: string;
-  photos?: string;
+  photos?: FishObservationPhoto[];
   /** Municipality whose water-zone polygon actually contains this sighting's
    *  coordinates (see useMunicipalZones.ts) — computed automatically, not
    *  typed in by the researcher. This is what municipality markers use to
@@ -1163,6 +1217,7 @@ function toMapFish(obs: FishObservation, zones: MunicipalZone[]): Fish | null {
   };
   const zoneMunicipality = findMunicipalityForPoint(coords.lat, coords.lng, zones);
   if (zoneMunicipality) fish.zoneMunicipality = zoneMunicipality;
+  if (obs.photos?.length) fish.photos = obs.photos;
   if (type === 'general') {
     if (obs.depthM != null) fish.depth = `${obs.depthM} m`;
     if (obs.count != null) fish.number = String(obs.count);
@@ -1250,7 +1305,6 @@ const selectedFishDetails = computed(() => {
     { label: 'True Length (TL)', value: f.length, icon: 'straighten' },
     { label: 'Body Depth (BD)', value: f.bodyDepth || '-', icon: 'height' },
     { label: 'Weight (W)', value: f.weight, icon: 'scale' },
-    { label: 'Photos', value: f.photos || 'None', icon: 'photo_camera' },
     { label: 'Municipal', value: f.municipal || '-', icon: 'location_city' },
     { label: 'Barangay', value: f.barangay || '-', icon: 'holiday_village' },
     { label: 'Date Recorded', value: f.date, icon: 'calendar_today' },
@@ -1863,6 +1917,14 @@ function buildWqInterpolatedLayer() {
     map.removeLayer(wqInterpolatedLayerGroup);
     wqInterpolatedLayerGroup = null;
   }
+  // Skip the IDW grid + canvas blur entirely while this layer is switched
+  // off — it used to run on every parameter/month/depth change regardless
+  // of visibility, which meant a full ~220x90-cell interpolation pass (and
+  // a canvas blur on top) blocked the main thread for a layer nobody could
+  // even see. Rebuilt lazily the moment the layer is switched on — see the
+  // mapLayers watcher below.
+  const layerActive = mapLayers.value.find((l) => l.id === 'wqInterpolated')?.active ?? false;
+  if (!layerActive) return;
   const param = selectedColorParam.value;
   if (!param || lakePolygonRings.length === 0 || waterQualitySites.value.length === 0) return;
 
@@ -1983,6 +2045,18 @@ function wqChoroplethTooltip(feature: GeoJSON.Feature | undefined): string {
 
 function buildWqChoroplethLayer() {
   if (!map) return;
+  // Same reasoning as buildWqInterpolatedLayer() — skip the refetch/restyle
+  // entirely while this layer is off instead of doing it on every
+  // parameter/month/depth change for a layer nobody can see. Rebuilt lazily
+  // when switched on — see the mapLayers watcher below.
+  const layerActive = mapLayers.value.find((l) => l.id === 'wqChoropleth')?.active ?? false;
+  if (!layerActive) {
+    if (wqChoroplethLayerGroup) {
+      map.removeLayer(wqChoroplethLayerGroup);
+      wqChoroplethLayerGroup = null;
+    }
+    return;
+  }
   fetch('/geo/Lake-Station.geojson')
     .then((res) => res.json())
     .then((geojson: GeoJSON.FeatureCollection) => {
@@ -2280,9 +2354,19 @@ function closeDetailPanel() {
   selectedWaterSite.value = null;
 }
 
+// Full-size view is just the same signed-URL-redirect endpoint in a new tab
+// — no lightbox needed for one or two photos per observation, and it keeps
+// the redirect's short-lived signed URL out of any component state.
+function openFishPhoto(photo: FishObservationPhoto) {
+  window.open(fishPhotoUrl(photo), '_blank', 'noopener');
+}
+
 // ═══ MAP INITIALIZATION ═══
 const LAKE_LANAO_CENTER: [number, number] = [7.893111, 124.272778];
-const DEFAULT_ZOOM = 12;
+// Zoom 11 is the level where the scale control (bottom-left) reads "10 km"
+// at Lake Lanao's latitude — the default view, and what "Reset View" below
+// returns to.
+const DEFAULT_ZOOM = 11;
 
 // Jumps the map back to Lake Lanao — an easy way back after panning/zooming away.
 function resetMapView() {
@@ -2394,7 +2478,6 @@ function initMap() {
   Promise.all([
     fetchDepthZone('/geo/WQ-Sampling-Sites-Above-40m-Depth.geojson', 'Above 40m Depth'),
     fetchDepthZone('/geo/WQ-Sampling-Sites-Below-40m-Depth.geojson', 'Below 40m Depth'),
-    fetchDepthZone('/geo/WQ-Sampling-Sites-Tributary.geojson', 'Tributary'),
   ])
     .then(() => {
       return fetch('/geo/WQ-All-Sampling-Sites.geojson')
@@ -2519,7 +2602,6 @@ function syncLayerVisibility() {
   if (!map) return;
 
   const layerGroups: Record<string, L.Layer | null> = {
-    fish: fishLayerGroup,
     lakeBoundary: lakeBoundaryLayerGroup,
     wqAll: wqAllLayerGroup,
     lakeStations: lakeStationsLayerGroup,
@@ -2546,6 +2628,23 @@ function syncLayerVisibility() {
       if (!map.hasLayer(group)) map.addLayer(group);
     } else {
       if (map.hasLayer(group)) map.removeLayer(group);
+    }
+  }
+
+  // Fish layer group's map visibility depends on EITHER toggle — "Fish With
+  // Photos" can show photo-having fish independently of the main Fish
+  // Observations toggle, so the group can't just follow "fish".active like
+  // every other layer in the generic loop above (that's why it was pulled
+  // out of layerGroups). Which markers are actually inside the group is
+  // decided in renderFishMarkers(); this just decides whether that group is
+  // on the map at all.
+  if (fishLayerGroup) {
+    const fishActive = mapLayers.value.find((l) => l.id === 'fish')?.active ?? false;
+    const fishPhotosActive = mapLayers.value.find((l) => l.id === 'fishPhotos')?.active ?? false;
+    if (fishActive || fishPhotosActive) {
+      if (!map.hasLayer(fishLayerGroup)) map.addLayer(fishLayerGroup);
+    } else if (map.hasLayer(fishLayerGroup)) {
+      map.removeLayer(fishLayerGroup);
     }
   }
 
@@ -2591,8 +2690,20 @@ function renderFishMarkers() {
   if (!fishLayerGroup) return;
   fishLayerGroup.clearLayers();
 
+  // "Fish With Photos" is independent of "Fish Observations" — turning it on
+  // shows photo-having fish even if the main layer is off, and turning the
+  // main layer off no longer hides them. A fish is drawn if either toggle
+  // says it should be; it's drawn highlighted only when it's showing (at
+  // least in part) because of the photos toggle.
+  const fishActive = mapLayers.value.find((l) => l.id === 'fish')?.active ?? false;
+  const fishPhotosActive = mapLayers.value.find((l) => l.id === 'fishPhotos')?.active ?? false;
+
   filteredSpecies.value.forEach((fish) => {
-    const icon = makeFishIcon(fish.statusShort);
+    const hasPhotos = (fish.photos?.length ?? 0) > 0;
+    const showForPhotos = fishPhotosActive && hasPhotos;
+    if (!fishActive && !showForPhotos) return;
+
+    const icon = makeFishIcon(fish.statusShort, showForPhotos);
 
     const marker = L.marker([fish.lat, fish.lng], { icon, pane: 'pane-fish' });
     marker.bindPopup(`
@@ -2626,9 +2737,35 @@ onMounted(() => {
 });
 
 // Watch layer toggle changes and sync map visibility
+let prevFishActive = mapLayers.value.find((l) => l.id === 'fish')?.active ?? false;
+let prevFishPhotosActive = mapLayers.value.find((l) => l.id === 'fishPhotos')?.active ?? false;
 watch(
   mapLayers,
   () => {
+    // The interpolated/choropleth builds are gated behind their own active
+    // flag (see buildWqInterpolatedLayer/buildWqChoroplethLayer) to avoid
+    // doing that work while hidden — so switching one on from here has to
+    // explicitly (re)build it, since none of the data/filter watchers that
+    // normally trigger a build fire just from a toggle click.
+    const wqInterpolatedActive = mapLayers.value.find((l) => l.id === 'wqInterpolated')?.active ?? false;
+    if (wqInterpolatedActive && !wqInterpolatedLayerGroup) buildWqInterpolatedLayer();
+    const wqChoroplethActive = mapLayers.value.find((l) => l.id === 'wqChoropleth')?.active ?? false;
+    if (wqChoroplethActive && !wqChoroplethLayerGroup) buildWqChoroplethLayer();
+
+    // Only re-render fish markers when one of these two flags actually
+    // flipped — this watcher also fires on every opacity-slider tick for
+    // any layer, and rebuilding all ~164 fish markers (clearLayers +
+    // recreate) on each of those would be wasteful and visibly janky while
+    // dragging. Both flags matter now: renderFishMarkers() decides which
+    // markers to draw from the combination of the two (see there).
+    const fishActive = mapLayers.value.find((l) => l.id === 'fish')?.active ?? false;
+    const fishPhotosActive = mapLayers.value.find((l) => l.id === 'fishPhotos')?.active ?? false;
+    if (fishActive !== prevFishActive || fishPhotosActive !== prevFishPhotosActive) {
+      prevFishActive = fishActive;
+      prevFishPhotosActive = fishPhotosActive;
+      renderFishMarkers();
+    }
+
     syncLayerVisibility();
   },
   { deep: true },
@@ -3215,6 +3352,13 @@ function buildMunicipalityMarkers() {
   width: 340px;
   z-index: 1000;
   pointer-events: auto;
+}
+
+.fish-photo-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 /* ═══════════════════════════════════ */

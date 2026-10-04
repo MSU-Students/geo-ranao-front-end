@@ -190,12 +190,12 @@ const seriesRender = computed(() =>
 }
 
 .parallel-coords__axis-line {
-  stroke: rgba(255, 255, 255, 0.22);
+  stroke: rgba(255, 255, 255, 0.35);
   stroke-width: 1.5;
 }
 
 .parallel-coords__axis-range {
-  fill: rgba(255, 255, 255, 0.45);
+  fill: rgba(255, 255, 255, 0.65);
   font-size: 8px;
 }
 

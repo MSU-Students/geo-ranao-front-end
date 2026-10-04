@@ -31,15 +31,17 @@ export const depthProfileParamKeyB = ref(
   allWaterQualityParams.find((p) => p.key === 'dissolvedOxygen')?.key ?? allWaterQualityParams[1]!.key,
 );
 
-export const timeLagParamKeyA = ref(
-  allWaterQualityParams.find((p) => p.key === 'phosphate')?.key ?? allWaterQualityParams[0]!.key,
-);
-export const timeLagParamKeyB = ref(
-  allWaterQualityParams.find((p) => p.key === 'chlorophyll')?.key ?? allWaterQualityParams[1]!.key,
-);
-
-// Which of the 12 Advanced Analytics visualization types is showing.
+// Which Advanced Analytics visualization type is showing.
 export const analyticsVizType = ref<string>('vertical-depth-profile');
+
+// Composition Over Time's stack dimension — Status/Station/Parameter.
+export const compositionStackBy = ref<'status' | 'station' | 'parameter'>('status');
+
+// Long-Term Trend's optional second comparison line — off by default
+// (lake-wide average + trend line only), or compare against one zone
+// average or one station (reuses selectedStationId when set to 'station').
+export const longTermTrendCompare = ref<'none' | 'zone' | 'station'>('none');
+export const longTermTrendZone = ref<'Nearshore' | 'Offshore' | 'Tributary'>('Nearshore');
 
 // Station Comparison's range filters (e.g. "Temperature > 28 AND Dissolved
 // Oxygen < 4") — the id counter stays private to this module since an

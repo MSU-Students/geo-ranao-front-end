@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import axios from 'axios';
 import { api, AUTH_TOKEN_KEY } from 'src/boot/axios';
+import { extractErrorMessage } from 'src/utils/errors';
 
 export type ResearcherStatus = 'pending' | 'verified' | 'suspended' | 'rejected';
 
@@ -55,16 +55,6 @@ function mapUser(u: BackendUser): AuthUser {
   return authUser;
 }
 
-function extractErrorMessage(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    const data = err.response?.data as { message?: string | string[] } | undefined;
-    const msg = data?.message;
-    if (Array.isArray(msg)) return msg.join(', ');
-    if (typeof msg === 'string') return msg;
-  }
-  return fallback;
-}
-
 export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = ref(false);
   const user = ref<AuthUser | null>(null);
@@ -114,6 +104,45 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Finishes a brand-new Google sign-up (the pendingToken comes from the
+  // /auth/google/callback -> /auth/signup?googleToken=... redirect) — same
+  // pending-admin-review outcome as signup() above, just carrying the
+  // Google-verified identity instead of a password.
+  async function completeGoogleSignup(
+    pendingToken: string,
+    affiliation: string,
+    departmentRole: string,
+    purposeOfRequest: string,
+  ): Promise<void> {
+    try {
+      await api.post('/auth/google/complete-profile', {
+        pendingToken,
+        affiliation,
+        departmentRole: departmentRole || undefined,
+        purposeOfRequest,
+      });
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, 'Registration failed. Please try again.'));
+    }
+  }
+
+  // Stores a token the backend already issued directly (the
+  // /auth/google/callback -> /auth/google/complete?token=... redirect for an
+  // existing, approved Google-linked account) and loads the matching
+  // profile — the Google-flow equivalent of login(), which has no
+  // email/password to post since Google already proved the identity.
+  async function loginWithToken(token: string): Promise<void> {
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    try {
+      const { data } = await api.get<BackendUser>('/auth/profile');
+      user.value = mapUser(data);
+      isLoggedIn.value = true;
+    } catch (err) {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      throw new Error(extractErrorMessage(err, 'Google sign-in failed.'));
+    }
+  }
+
   async function restoreSession(): Promise<void> {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
     if (!token) {
@@ -139,5 +168,16 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null;
   }
 
-  return { isLoggedIn, user, authReady, displayName, login, signup, logout, restoreSession };
+  return {
+    isLoggedIn,
+    user,
+    authReady,
+    displayName,
+    login,
+    signup,
+    completeGoogleSignup,
+    loginWithToken,
+    logout,
+    restoreSession,
+  };
 });

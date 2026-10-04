@@ -73,7 +73,7 @@ const NO_DATA_COLOR = '#78909c';
   max-height: 420px;
   overflow-y: auto;
   overflow-x: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
 }
 
@@ -96,7 +96,7 @@ const NO_DATA_COLOR = '#78909c';
   z-index: 1;
   background: rgba(20, 20, 20, 0.9);
   font-size: 0.62rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.78);
   text-align: center;
   padding: 4px 0;
   white-space: nowrap;

@@ -30,12 +30,18 @@
         >
           <!-- ═══ STEP 1 — BASIC IDENTITY ═══ -->
           <q-step name="identity" title="Basic Identity" icon="badge" :done="step !== 'identity'">
+            <q-banner v-if="isGoogleSignup" dense class="bg-green-1 text-green-9 q-mb-md rounded-borders">
+              <template #avatar><q-icon name="check_circle" color="green-9" /></template>
+              Signed in with Google as {{ formData.email }}. Just a few more details for your application.
+            </q-banner>
+
             <q-input
               filled
               v-model="formData.fullName"
               label="Full Name *"
               lazy-rules
               class="q-mb-sm"
+              :readonly="isGoogleSignup"
               :rules="[(val) => (val && val.trim().length > 1) || 'Full name is required']"
             >
               <template v-slot:prepend><q-icon name="person" /></template>
@@ -48,6 +54,7 @@
               label="Email Address *"
               lazy-rules
               class="q-mb-sm"
+              :readonly="isGoogleSignup"
               :rules="[
                 (val) => !!val || 'Email is required',
                 (val) => isValidEmail(val) || 'Invalid email',
@@ -57,47 +64,49 @@
               <template v-slot:prepend><q-icon name="email" /></template>
             </q-input>
 
-            <q-input
-              filled
-              v-model="formData.password"
-              :type="showPassword ? 'text' : 'password'"
-              label="Password *"
-              lazy-rules
-              class="q-mb-sm"
-              :rules="[
-                (val) => (val && val.length >= 8) || 'Password must be at least 8 characters',
-              ]"
-            >
-              <template v-slot:prepend><q-icon name="lock" /></template>
-              <template v-slot:append>
-                <q-icon
-                  :name="showPassword ? 'visibility' : 'visibility_off'"
-                  class="cursor-pointer"
-                  @click="showPassword = !showPassword"
-                />
-              </template>
-            </q-input>
+            <template v-if="!isGoogleSignup">
+              <q-input
+                filled
+                v-model="formData.password"
+                :type="showPassword ? 'text' : 'password'"
+                label="Password *"
+                lazy-rules
+                class="q-mb-sm"
+                :rules="[
+                  (val) => (val && val.length >= 8) || 'Password must be at least 8 characters',
+                ]"
+              >
+                <template v-slot:prepend><q-icon name="lock" /></template>
+                <template v-slot:append>
+                  <q-icon
+                    :name="showPassword ? 'visibility' : 'visibility_off'"
+                    class="cursor-pointer"
+                    @click="showPassword = !showPassword"
+                  />
+                </template>
+              </q-input>
 
-            <q-input
-              filled
-              v-model="formData.confirmPassword"
-              :type="showConfirmPassword ? 'text' : 'password'"
-              label="Confirm Password *"
-              lazy-rules
-              :rules="[
-                (val) => !!val || 'Please confirm your password',
-                (val) => val === formData.password || 'Passwords do not match',
-              ]"
-            >
-              <template v-slot:prepend><q-icon name="lock" /></template>
-              <template v-slot:append>
-                <q-icon
-                  :name="showConfirmPassword ? 'visibility' : 'visibility_off'"
-                  class="cursor-pointer"
-                  @click="showConfirmPassword = !showConfirmPassword"
-                />
-              </template>
-            </q-input>
+              <q-input
+                filled
+                v-model="formData.confirmPassword"
+                :type="showConfirmPassword ? 'text' : 'password'"
+                label="Confirm Password *"
+                lazy-rules
+                :rules="[
+                  (val) => !!val || 'Please confirm your password',
+                  (val) => val === formData.password || 'Passwords do not match',
+                ]"
+              >
+                <template v-slot:prepend><q-icon name="lock" /></template>
+                <template v-slot:append>
+                  <q-icon
+                    :name="showConfirmPassword ? 'visibility' : 'visibility_off'"
+                    class="cursor-pointer"
+                    @click="showConfirmPassword = !showConfirmPassword"
+                  />
+                </template>
+              </q-input>
+            </template>
 
             <q-stepper-navigation class="text-right">
               <q-btn
@@ -199,25 +208,27 @@
           </q-step>
         </q-stepper>
 
-        <div class="relative-position q-my-lg">
-          <q-separator />
-          <div class="absolute-center bg-white q-px-sm text-grey-7 text-caption">OR</div>
-        </div>
+        <template v-if="!isGoogleSignup">
+          <div class="relative-position q-my-lg">
+            <q-separator />
+            <div class="absolute-center bg-white q-px-sm text-grey-7 text-caption">OR</div>
+          </div>
 
-        <q-btn
-          outline
-          color="grey-8"
-          class="full-width bg-white text-weight-medium"
-          @click="loginWithGoogle"
-          no-caps
-          rounded
-        >
-          <q-img
-            src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/google/google-original.svg"
-            style="width: 18px; margin-right: 12px"
-          />
-          Continue with Google
-        </q-btn>
+          <q-btn
+            outline
+            color="grey-8"
+            class="full-width bg-white text-weight-medium"
+            @click="loginWithGoogle"
+            no-caps
+            rounded
+          >
+            <q-img
+              src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/google/google-original.svg"
+              style="width: 18px; margin-right: 12px"
+            />
+            Continue with Google
+          </q-btn>
+        </template>
       </q-card-section>
 
       <q-card-section class="text-center q-pt-none">
@@ -239,12 +250,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
+import { api } from 'src/boot/axios';
 import BackButton from 'src/components/BackButton.vue';
 
+const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
 const authStore = useAuthStore();
@@ -262,6 +275,23 @@ const formData = reactive({
   affiliation: '',
   departmentRole: '',
   purposeOfRequest: '',
+});
+
+// Set when arriving from the backend's /auth/google/callback redirect for a
+// brand-new Google identity (see GoogleStrategy / AuthService in the API) —
+// email/fullName are pre-filled and locked (Google already verified them),
+// password drops out of the form entirely, and submitting calls
+// completeGoogleSignup() instead of signup().
+const googleToken = ref<string | null>(null);
+const isGoogleSignup = computed(() => !!googleToken.value);
+
+onMounted(() => {
+  const token = route.query.googleToken;
+  if (typeof token === 'string' && token) {
+    googleToken.value = token;
+    formData.fullName = typeof route.query.fullName === 'string' ? route.query.fullName : '';
+    formData.email = typeof route.query.email === 'string' ? route.query.email : '';
+  }
 });
 
 const isValidEmail = (email: string) => {
@@ -295,14 +325,14 @@ function getEmailDomainError(email: string): string | null {
   return null;
 }
 
-const canContinueIdentity = computed(
-  () =>
+const canContinueIdentity = computed(() => {
+  const identityValid =
     formData.fullName.trim().length > 1 &&
     isValidEmail(formData.email) &&
-    !getEmailDomainError(formData.email) &&
-    formData.password.length >= 8 &&
-    formData.confirmPassword === formData.password,
-);
+    !getEmailDomainError(formData.email);
+  if (isGoogleSignup.value) return identityValid;
+  return identityValid && formData.password.length >= 8 && formData.confirmPassword === formData.password;
+});
 
 const canContinueInstitution = computed(() => !!formData.affiliation.trim());
 
@@ -338,14 +368,23 @@ async function handleSignup() {
 
   submitting.value = true;
   try {
-    await authStore.signup(
-      formData.fullName,
-      formData.email,
-      formData.password,
-      formData.affiliation,
-      formData.departmentRole,
-      formData.purposeOfRequest,
-    );
+    if (isGoogleSignup.value) {
+      await authStore.completeGoogleSignup(
+        googleToken.value!,
+        formData.affiliation,
+        formData.departmentRole,
+        formData.purposeOfRequest,
+      );
+    } else {
+      await authStore.signup(
+        formData.fullName,
+        formData.email,
+        formData.password,
+        formData.affiliation,
+        formData.departmentRole,
+        formData.purposeOfRequest,
+      );
+    }
 
     $q.notify({
       message: 'Application submitted!',
@@ -371,14 +410,9 @@ async function handleSignup() {
   }
 }
 
-const loginWithGoogle = () => {
-  // Logic to trigger Google Auth
-  $q.notify({
-    message: 'Connecting to Google Services...',
-    color: 'info',
-    icon: 'auth',
-  });
-};
+function loginWithGoogle() {
+  window.location.href = `${api.defaults.baseURL}/auth/google`;
+}
 
 function handleLogin() {
   router.push('/auth/login').catch((err) => {
