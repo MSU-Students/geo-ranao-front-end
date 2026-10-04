@@ -820,72 +820,38 @@
       </q-btn>
     </transition>
 
-    <!-- ═══ FISH TIME-SERIES FLOATING CONTROL BAR (Bottom-Center) ═══ -->
+    <!-- ═══ FISH YEAR FILTER (Bottom-Center) ═══ -->
     <div
       v-if="fishAvailableYears.length > 0"
       class="fish-year-control-bar"
       :class="{ 'fish-year-control-bar--shifted-left': showPanel, 'fish-year-control-bar--shifted-right': !!(selectedFish || selectedWaterSite) }"
     >
-      <div class="row items-center q-gutter-x-xs no-wrap">
-        <q-btn
-          flat
+      <div class="row items-center q-gutter-x-sm no-wrap">
+        <!-- Year label -->
+        <div class="text-caption text-weight-bold text-grey-8 no-wrap" style="white-space:nowrap">
+          <q-icon name="set_meal" color="teal-8" size="xs" class="q-mr-xs" />Fish Year:
+        </div>
+
+        <!-- Simple year dropdown -->
+        <q-select
+          :model-value="fishYear"
+          :options="fishYearSelectOptions"
+          emit-value
+          map-options
           dense
-          round
-          icon="skip_previous"
-          size="sm"
-          color="teal-9"
-          :disable="fishAvailableYears.length === 0 || (fishYear !== null && fishYear <= minFishYear)"
-          @click="fishYearStep(-1)"
-        >
-          <q-tooltip>Previous Year</q-tooltip>
-        </q-btn>
-
-        <q-btn
-          flat
-          dense
-          round
-          :icon="fishYearPlaying ? 'pause' : 'play_arrow'"
-          size="sm"
-          :color="fishYearPlaying ? 'amber-9' : 'teal-9'"
-          @click="toggleFishYearPlay"
-        >
-          <q-tooltip>{{ fishYearPlaying ? 'Pause Animation' : 'Play Time-Series Animation' }}</q-tooltip>
-        </q-btn>
-
-        <q-btn
-          flat
-          dense
-          round
-          icon="skip_next"
-          size="sm"
-          color="teal-9"
-          :disable="fishAvailableYears.length === 0 || (fishYear !== null && fishYear >= fishAvailableYears[fishAvailableYears.length - 1]!)"
-          @click="fishYearStep(1)"
-        >
-          <q-tooltip>Next Year</q-tooltip>
-        </q-btn>
-
-        <q-separator vertical class="q-mx-xs" />
-
-        <YearPicker
-          v-if="fishYear !== null"
-          v-model="displayFishYear"
-          :min-year="minFishYear"
-        />
-
-        <q-btn
-          :flat="fishYear !== null"
-          :unelevated="fishYear === null"
-          dense
+          outlined
           no-caps
-          size="sm"
-          :color="fishYear === null ? 'teal' : 'grey-8'"
-          label="All Years"
-          class="q-px-sm"
-          @click="fishYear = null"
+          options-dense
+          style="min-width: 110px"
+          class="fish-year-select"
+          @update:model-value="fishYear = $event"
         >
-          <q-tooltip>Show all recorded observations across all years</q-tooltip>
-        </q-btn>
+          <template #selected>
+            <span class="text-weight-bold text-teal-9">
+              {{ fishYear === null ? 'All Years' : String(fishYear) }}
+            </span>
+          </template>
+        </q-select>
 
         <q-separator vertical class="q-mx-xs" />
 
@@ -904,13 +870,13 @@
             { label: 'Cumulative', value: 'cumulative' }
           ]"
         >
-          <q-tooltip>Toggle between single-year view and cumulative view through that year</q-tooltip>
+          <q-tooltip>Year: only that year · Cumulative: all years up to and including that year</q-tooltip>
         </q-btn-toggle>
 
         <q-separator vertical class="q-mx-xs" />
 
-        <!-- Quick Observation Count Indicator -->
-        <div class="text-caption text-weight-bold text-teal-10 q-px-xs no-wrap">
+        <!-- Observation count -->
+        <div class="text-caption text-weight-bold text-teal-10 no-wrap">
           {{ filteredSpecies.length }} <span class="text-weight-regular text-grey-7">on map</span>
         </div>
       </div>
@@ -1445,6 +1411,17 @@ const displayFishYear = computed<number>({
   set: (val: number) => {
     fishYear.value = val;
   },
+});
+
+// Options for the simplified year dropdown in the floating bar.
+const fishYearSelectOptions = computed(() => {
+  const opts: { label: string; value: number | null }[] = [
+    { label: 'All Years', value: null },
+  ];
+  for (const yr of [...fishAvailableYears.value].sort((a, b) => b - a)) {
+    opts.push({ label: String(yr), value: yr });
+  }
+  return opts;
 });
 
 // selectedFishDetails with year-filtered date shown as "Undated" when null
