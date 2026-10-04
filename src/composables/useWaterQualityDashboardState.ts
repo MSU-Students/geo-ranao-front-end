@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { allWaterQualityParams, READING_START_YEAR } from 'src/composables/useWaterQualityModel';
+import { dateToMonthIndex, type WaterQualityReading } from 'src/composables/useWaterQualityReadings';
 
 // Module-level, not component-level — a ref declared inside the dashboard
 // page's <script setup> gets re-created (and reset to its initial value)
@@ -12,14 +13,44 @@ import { allWaterQualityParams, READING_START_YEAR } from 'src/composables/useWa
 export const selectedParamKey = ref(allWaterQualityParams[0]!.key);
 
 // Reading Period: pick a year (2025 onward), then a month within that year.
-// Defaults to July 2025 — the start of this platform's real sampling record,
-// not "today" — so a fresh session lands on a period with actual data rather
-// than whichever month happens to be current (which usually has nothing
-// recorded yet). Shared with the 2D map's own Reading Period control
+// Starts at this placeholder (July 2025) only until the first real readings
+// load, at which point applyLatestReadingPeriodDefault below bumps it
+// forward to whichever month actually has the most recent data — "today"
+// itself usually has nothing recorded yet, so landing there would show an
+// empty dashboard. Shared with the 2D map's own Reading Period control
 // (IndexPage.vue imports these same refs), so picking a period on either one
 // updates both.
 export const selectedYear = ref(2025);
 export const selectedMonthInYear = ref(6); // July — MONTH_NAMES is 0-indexed Jan..Dec
+
+// The most recent {year, monthInYear} with at least one approved reading —
+// shared by the one-shot default below and by Advanced Analytics' own
+// (page-local, not session-persisted) Reading Period, which re-applies this
+// on every mount.
+export function latestYearMonth(readings: WaterQualityReading[]): { year: number; monthInYear: number } | null {
+  if (readings.length === 0) return null;
+  const maxIndex = Math.max(...readings.map((r) => dateToMonthIndex(r.dateObserved)));
+  return {
+    year: READING_START_YEAR + Math.floor(maxIndex / 12),
+    monthInYear: ((maxIndex % 12) + 12) % 12,
+  };
+}
+
+// Only auto-advances the Reading Period once per session, and only if it's
+// still sitting at the placeholder above — if the user (or a restored
+// session) already moved it before readings finished loading, that's a real
+// choice and this leaves it alone rather than yanking it to "latest".
+let appliedLatestReadingPeriodDefault = false;
+export function applyLatestReadingPeriodDefault(readings: WaterQualityReading[]): void {
+  if (appliedLatestReadingPeriodDefault) return;
+  appliedLatestReadingPeriodDefault = true;
+  if (selectedYear.value !== 2025 || selectedMonthInYear.value !== 6) return;
+
+  const latest = latestYearMonth(readings);
+  if (!latest) return;
+  selectedYear.value = latest.year;
+  selectedMonthInYear.value = latest.monthInYear;
+}
 
 export const selectedStationId = ref<string | null>(null);
 export const selectedDepthM = ref(0);

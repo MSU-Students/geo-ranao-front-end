@@ -845,6 +845,7 @@ import {
   selectedMonthInYear,
   selectedDepthM,
   readingMonthIndex,
+  applyLatestReadingPeriodDefault,
 } from 'src/composables/useWaterQualityDashboardState';
 import {
   fetchWaterQualityReadings,
@@ -1444,6 +1445,10 @@ onMounted(async () => {
     const readings = await fetchWaterQualityReadings({ status: 'APPROVED' });
     rawReadings.value = readings;
     readingsLookup.value = buildReadingLookup(readings);
+    // Before the first recolor, not after — so the map's first paint already
+    // reflects the latest-data period instead of flashing the placeholder
+    // one first. Only ever advances it once per session (see the function).
+    applyLatestReadingPeriodDefault(readings);
     // Readings load independently of the site GeoJSON — markers may already
     // be on the map (colored/attention-flagged as "no data") by the time
     // this resolves, so refresh them now rather than waiting for the user
