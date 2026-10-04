@@ -403,6 +403,90 @@
             </q-select>
           </div>
 
+          <!-- Focus Selection — this visualization type's own pickers, fully
+               independent of the Reading Controls bar (that bar now only
+               drives the Overview tab). Only the fields the currently
+               selected type actually needs are shown, same reasoning as the
+               Download Center's own Focus Selection sidebar. -->
+          <template v-if="aaNeedsStation || aaNeedsParam || aaNeedsDepth || aaNeedsMonth">
+            <q-separator class="q-mb-sm" />
+            <div class="text-caption text-grey-4 q-mb-sm">
+              <q-icon name="center_focus_strong" size="14px" class="q-mr-xs" />Focus selection for this visualization
+            </div>
+            <div v-if="aaNeedsStation || aaNeedsParam || aaNeedsDepth" class="row q-col-gutter-sm q-mb-md aa-focus-row">
+              <div v-if="aaNeedsStation" class="col-6 col-sm-4">
+                <q-select
+                  v-model="aaStationModel"
+                  :options="stationPickerOptions"
+                  emit-value
+                  map-options
+                  clearable
+                  dense
+                  outlined
+                  class="form-field"
+                  :label="aaStationOptional ? 'Focus Station (optional)' : 'Focus Station'"
+                />
+              </div>
+              <div v-if="aaNeedsParam" class="col-6 col-sm-4">
+                <q-select
+                  v-model="aaParamKey"
+                  :options="paramSelectOptions"
+                  emit-value
+                  map-options
+                  dense
+                  outlined
+                  class="form-field"
+                  label="Focus Parameter"
+                />
+              </div>
+              <div v-if="aaNeedsDepth" class="col-6 col-sm-4">
+                <q-select
+                  v-model="aaDepth"
+                  :options="DEPTH_OPTIONS"
+                  emit-value
+                  map-options
+                  dense
+                  outlined
+                  class="form-field"
+                  label="Depth"
+                />
+              </div>
+            </div>
+
+            <!-- Reading Period — same YearPicker + month-slider control as the
+                 Overview tab's Reading Controls bar, just driving this tab's
+                 own aaYear/aaMonthInYear instead. -->
+            <div v-if="aaNeedsMonth" class="q-mb-md">
+              <div class="text-caption text-grey-4 q-mb-xs">
+                <q-icon name="event" size="14px" class="q-mr-xs" />Reading Period
+              </div>
+              <div class="row items-center q-gutter-sm no-wrap">
+                <YearPicker
+                  :model-value="aaYear"
+                  :min-year="READING_START_YEAR"
+                  @update:model-value="aaYear = $event"
+                  @need-coverage="ensureReadingYearsCoverage"
+                />
+                <div class="controls-bar__month-slider">
+                  <q-slider
+                    v-model="aaMonthInYear"
+                    :min="0"
+                    :max="11"
+                    :step="1"
+                    snap
+                    markers
+                    color="teal"
+                    track-size="4px"
+                    thumb-size="16px"
+                  />
+                  <div class="row justify-between text-caption text-grey-5 month-tick-row">
+                    <span v-for="(label, i) in MONTH_NAMES" :key="i">{{ label }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
           <!-- Vertical Depth Profile — the only type built so far; every
                other option below is a placeholder until its own batch. -->
           <template v-if="analyticsVizType === 'vertical-depth-profile'">
@@ -435,7 +519,7 @@
             </div>
             <p class="text-grey-4 text-caption q-mb-md">
               Approved readings at {{ depthProfileStationId ?? '—' }} for
-              {{ months[selectedMonthIndex] }} across whichever of the 9 sampling depths (Surface–100m) were recorded.
+              {{ months[aaMonthIndex] }} across whichever of the 9 sampling depths (Surface–100m) were recorded.
               Select a station on the map below to inspect a specific site.
             </p>
             <template v-if="depthProfilePointsA.length || depthProfilePointsB.length">
@@ -488,13 +572,20 @@
                 X-axis: value · Y-axis: depth (0m/Surface at top)
               </div>
             </template>
-            <div v-else class="text-center text-grey-5 q-py-lg">No depth readings yet for this station/parameter.</div>
+            <div v-else class="aa-no-data">
+              <q-icon name="info" size="18px" />
+              <span>
+                No readings for {{ depthProfileParamA?.label }}{{ depthProfileParamB ? ` or ${depthProfileParamB.label}` : '' }}
+                at {{ depthProfileStationId ?? 'this station' }} in {{ months[aaMonthIndex] }} — try a different
+                station, parameter, or month above.
+              </span>
+            </div>
           </template>
 
           <!-- All-Parameter Depth Profiles -->
           <template v-else-if="analyticsVizType === 'all-param-depth-profiles'">
             <div class="text-white text-body2 text-weight-medium q-mb-xs">
-              All-Parameter Depth Profiles — {{ depthProfileStationId ?? '—' }}, {{ months[selectedMonthIndex] }}
+              All-Parameter Depth Profiles — {{ depthProfileStationId ?? '—' }}, {{ months[aaMonthIndex] }}
             </div>
             <p class="text-grey-4 text-caption q-mb-md">
               Every parameter's own depth-profile line, same station and month as the Vertical Depth
@@ -512,14 +603,20 @@
                     :points="entry.points"
                     :unit="entry.param.unit"
                     :decimals="entry.param.decimals"
-                    :color="paramColor(entry.param)"
+                    :color="paramColor(entry.param, aaMonthIndex)"
                     :guideline-value="guidelineFor(entry.param)"
                   />
                 </div>
               </div>
             </div>
-            <div v-else class="text-center text-grey-5 q-py-lg">No depth readings yet for this station/month.</div>
-            <div class="text-caption text-grey-5 q-mt-md">
+            <div v-else class="aa-no-data">
+              <q-icon name="info" size="18px" />
+              <span>
+                No readings for any parameter at {{ depthProfileStationId ?? 'this station' }} in
+                {{ months[aaMonthIndex] }} — try a different station or month above.
+              </span>
+            </div>
+            <div v-if="allParamDepthProfiles.length" class="text-caption text-grey-5 q-mt-md">
               <q-icon name="info" size="14px" class="q-mr-xs" />
               Each line's color reflects that parameter's current status (good/warning/serious/critical),
               same scheme as everywhere else on this dashboard. X: value · Y: depth (0m at top).
@@ -529,7 +626,7 @@
           <!-- Multi-Depth Time-Series -->
           <template v-else-if="analyticsVizType === 'multi-depth-time-series'">
             <div class="text-white text-body2 text-weight-medium q-mb-xs">
-              Multi-Depth Time-Series — {{ selectedParam?.label }}
+              Multi-Depth Time-Series — {{ aaParam?.label }}
             </div>
             <p class="text-grey-4 text-caption q-mb-md">
               {{ depthProfileStationId ?? '—' }} — one line per sampled depth layer, over the trailing
@@ -540,10 +637,17 @@
               <MultiDepthTrendChart
                 :months="multiDepthSeries.months"
                 :series="multiDepthSeries.series"
-                :decimals="selectedParam?.decimals ?? 1"
+                :decimals="aaParam?.decimals ?? 1"
               />
             </div>
-            <div v-else class="text-center text-grey-5 q-py-lg">No depth readings yet for this station/parameter.</div>
+            <div v-else class="aa-no-data">
+              <q-icon name="info" size="18px" />
+              <span>
+                No {{ aaParam?.label }} readings at {{ depthProfileStationId ?? 'this station' }} in the
+                13 months through {{ months[aaMonthIndex] }} — try a different station, parameter, or
+                month above.
+              </span>
+            </div>
           </template>
 
           <!-- Interactive Statistical Correlation -->
@@ -557,10 +661,14 @@
               needs many paired observations to mean anything). Hover a cell for the exact r and how
               many paired readings it's based on.
             </p>
-            <div class="chart-inset">
+            <div v-if="rawReadings.length" class="chart-inset">
               <CorrelationHeatmap :labels="correlationLabels" :matrix="correlationMatrix" />
             </div>
-            <div class="text-caption text-grey-5 q-mt-md">
+            <div v-else class="aa-no-data">
+              <q-icon name="info" size="18px" />
+              <span>No approved readings yet — this needs at least a few paired observations to compute.</span>
+            </div>
+            <div v-if="rawReadings.length" class="text-caption text-grey-5 q-mt-md">
               <q-icon name="info" size="14px" class="q-mr-xs" />
               r ranges from −1 (perfectly inverse) to +1 (perfectly matched); 0 means no linear
               relationship. Cells built from very few paired readings (see the tooltip's n) are far
@@ -572,21 +680,28 @@
           <!-- Depth-Time Heatmap -->
           <template v-else-if="analyticsVizType === 'depth-time-isopleth'">
             <div class="text-white text-body2 text-weight-medium q-mb-xs">
-              Depth-Time Heatmap — {{ selectedParam?.label }}
+              Depth-Time Heatmap — {{ aaParam?.label }}
             </div>
             <p class="text-grey-4 text-caption q-mb-md">
               {{ depthProfileStationId ?? '—' }}, trailing 13 months. Depth increases downward
-              (0m at top); color shows the {{ selectedParam?.label }} level.
+              (0m at top); color shows the {{ aaParam?.label }} level.
             </p>
             <div v-if="isoplethColumns.some((c) => c.points.length)" class="chart-inset">
               <DepthTimeIsopleth
                 :columns="isoplethColumns"
-                :unit="selectedParam?.unit ?? ''"
-                :decimals="selectedParam?.decimals ?? 1"
+                :unit="aaParam?.unit ?? ''"
+                :decimals="aaParam?.decimals ?? 1"
               />
             </div>
-            <div v-else class="text-center text-grey-5 q-py-lg">No depth readings yet for this station/parameter.</div>
-            <div class="text-caption text-grey-5 q-mt-md">
+            <div v-else class="aa-no-data">
+              <q-icon name="info" size="18px" />
+              <span>
+                No {{ aaParam?.label }} readings at {{ depthProfileStationId ?? 'this station' }} in the
+                13 months through {{ months[aaMonthIndex] }} — try a different station, parameter, or
+                month above.
+              </span>
+            </div>
+            <div v-if="isoplethColumns.some((c) => c.points.length)" class="text-caption text-grey-5 q-mt-md">
               <q-icon name="info" size="14px" class="q-mr-xs" />
               How to read this: each column is one month's real depth profile at this station, shaded
               smoothly from its surface reading down to its deepest — that vertical blend is a real
@@ -601,9 +716,9 @@
           <template v-else-if="analyticsVizType === 'station-comparison'">
             <div class="text-white text-body2 text-weight-medium q-mb-xs">Station Comparison</div>
             <p class="text-grey-4 text-caption q-mb-md">
-              All 13 parameters at once for {{ months[selectedMonthIndex] }} — each line is one station.
-              Click a line (or a station elsewhere on this page) to highlight it; a station missing a
-              reading for a parameter simply skips that axis rather than showing a fabricated value.
+              All 13 parameters at once for {{ months[aaMonthIndex] }} — each line is one station.
+              Click a line to highlight it; a station missing a reading for a parameter simply skips
+              that axis rather than showing a fabricated value.
             </p>
 
             <!-- Range filters — e.g. "Temperature > 28 AND Dissolved Oxygen < 4" —
@@ -642,12 +757,18 @@
               <ParallelCoordinatesChart
                 :axes="parallelAxes"
                 :series-list="parallelSeriesList"
-                :selected-site-id="selectedStationId"
+                :selected-site-id="aaStationId"
                 :matched-site-ids="parallelMatchedSiteIds"
-                @select-station="selectStation"
+                @select-station="aaSelectStation"
               />
             </q-scroll-area>
-            <div v-else class="text-center text-grey-5 q-py-lg">No readings yet for {{ months[selectedMonthIndex] }}.</div>
+            <div v-else class="aa-no-data">
+              <q-icon name="info" size="18px" />
+              <span>
+                No stations have any reading at {{ depthLabel(aaDepth) }} depth in {{ months[aaMonthIndex] }}
+                — try a different depth or month above.
+              </span>
+            </div>
             <div v-if="parallelSeriesList.length" class="text-caption text-grey-5 q-mt-sm">
               <q-icon name="info" size="14px" class="q-mr-xs" />
               {{ parallelSeriesList.length }} stations shown — each vertical axis is one parameter, scaled
@@ -668,10 +789,10 @@
                 :class="{
                   'parallel-legend__item--active': parallelFilterRules.length
                     ? parallelMatchedSiteIds.includes(s.siteId)
-                    : selectedStationId === s.siteId,
+                    : aaStationId === s.siteId,
                   'parallel-legend__item--dim': parallelFilterRules.length > 0 && !parallelMatchedSiteIds.includes(s.siteId),
                 }"
-                @click="selectStation(s.siteId)"
+                @click="aaSelectStation(s.siteId)"
               >
                 <span class="parallel-legend__dot" :style="{ background: s.color }" />
                 {{ s.siteId }}
@@ -682,28 +803,34 @@
           <!-- Station × Month Compliance Grid -->
           <template v-else-if="analyticsVizType === 'compliance-grid'">
             <div class="text-white text-body2 text-weight-medium q-mb-xs">
-              Station × Month Compliance Grid — {{ selectedParam?.label }}
+              Station × Month Compliance Grid — {{ aaParam?.label }}
             </div>
             <p class="text-grey-4 text-caption q-mb-md">
               Trailing 13 months, every station, colored by the same good/warning/serious/critical status
-              used everywhere else on this dashboard for {{ selectedParam?.label }} — not a separate
+              used everywhere else on this dashboard for {{ aaParam?.label }} — not a separate
               composite index. Stations are ordered Tributary → Nearshore → Offshore.
             </p>
-            <div v-if="complianceGrid.rows.length" class="chart-inset">
+            <div v-if="complianceGrid.rows.some((r) => r.cells.some((c) => c.status !== 'no-data'))" class="chart-inset">
               <StationMonthComplianceGrid
                 :months="complianceGrid.months"
                 :rows="complianceGrid.rows"
-                :selected-site-id="selectedStationId"
-                :unit="selectedParam?.unit ?? ''"
-                :decimals="selectedParam?.decimals ?? 1"
-                @select-station="selectStation"
+                :selected-site-id="aaStationId"
+                :unit="aaParam?.unit ?? ''"
+                :decimals="aaParam?.decimals ?? 1"
+                @select-station="aaSelectStation"
               />
+              <div class="text-caption text-grey-5 q-mt-sm">
+                <q-icon name="info" size="14px" class="q-mr-xs" />
+                Click a station's name to highlight it elsewhere on this dashboard. Hover a cell for its
+                exact reading.
+              </div>
             </div>
-            <div v-else class="text-center text-grey-5 q-py-lg">No stations loaded yet.</div>
-            <div class="text-caption text-grey-5 q-mt-sm">
-              <q-icon name="info" size="14px" class="q-mr-xs" />
-              Click a station's name to highlight it elsewhere on this dashboard. Hover a cell for its
-              exact reading.
+            <div v-else class="aa-no-data">
+              <q-icon name="info" size="18px" />
+              <span>
+                No {{ aaParam?.label }} readings at {{ depthLabel(aaDepth) }} depth in the 13 months
+                through {{ months[aaMonthIndex] }} — try a different depth, parameter, or month above.
+              </span>
             </div>
           </template>
 
@@ -711,7 +838,7 @@
           <template v-else-if="analyticsVizType === 'composition-over-time'">
             <div class="row items-center justify-between q-mb-sm wrap">
               <span class="text-white text-body2 text-weight-medium">
-                Composition Over Time{{ compositionStackBy === 'status' ? ` — ${selectedParam?.label}` : '' }}
+                Composition Over Time{{ compositionStackBy === 'status' ? ` — ${aaParam?.label}` : '' }}
               </span>
               <q-btn-toggle
                 v-model="compositionStackBy"
@@ -727,7 +854,7 @@
             </div>
             <p class="text-grey-4 text-caption q-mb-md">
               <template v-if="compositionStackBy === 'status'">
-                Trailing 13 months of approved {{ selectedParam?.label }} readings, stacked by how many fell
+                Trailing 13 months of approved {{ aaParam?.label }} readings, stacked by how many fell
                 into each good/warning/serious/critical band that month.
               </template>
               <template v-else-if="compositionStackBy === 'station'">
@@ -746,14 +873,21 @@
                 :stack-by-label="compositionStackByLabel"
               />
             </div>
-            <div v-else class="text-center text-grey-5 q-py-lg">No readings yet for this window.</div>
+            <div v-else class="aa-no-data">
+              <q-icon name="info" size="18px" />
+              <span>
+                No readings in the 13 months through {{ months[aaMonthIndex] }}
+                {{ compositionStackBy === 'status' ? `for ${aaParam?.label}` : '' }} — try a different
+                {{ compositionStackBy === 'status' ? 'parameter or ' : '' }}month above.
+              </span>
+            </div>
           </template>
 
           <!-- Long-Term Trend -->
           <template v-else-if="analyticsVizType === 'long-term-trend'">
             <div class="row items-center justify-between q-mb-sm wrap">
               <span class="text-white text-body2 text-weight-medium">
-                Long-Term Trend — {{ selectedParam?.label }}
+                Long-Term Trend — {{ aaParam?.label }}
               </span>
               <div class="row q-gutter-sm items-center">
                 <q-btn-toggle
@@ -783,7 +917,7 @@
             </div>
             <p class="text-grey-4 text-caption q-mb-md">
               <template v-if="longTermTrendCompare === 'none'">
-                Every approved {{ selectedParam?.label }} reading's lake-wide monthly average, from the
+                Every approved {{ aaParam?.label }} reading's lake-wide monthly average, from the
                 earliest record to the latest — not just the trailing window used elsewhere on this
                 dashboard — with a linear-regression trend line fit to it.
               </template>
@@ -792,8 +926,8 @@
                 recorded history. The trend line is fit to the lake-wide line only.
               </template>
               <template v-else>
-                Lake-wide average vs. {{ selectedStationId ?? 'the selected station' }} (change the
-                station via Reading Controls below). The trend line is fit to the lake-wide line only.
+                Lake-wide average vs. {{ aaStationId ?? 'the selected station (pick one above)' }}.
+                The trend line is fit to the lake-wide line only.
               </template>
             </p>
             <div v-if="longTermTrendResult.months.length" class="chart-inset">
@@ -801,11 +935,14 @@
                 :months="longTermTrendResult.months"
                 :series="longTermTrendResult.series"
                 :trend="longTermTrendResult.trend"
-                :unit="selectedParam?.unit ?? ''"
-                :decimals="selectedParam?.decimals ?? 1"
+                :unit="aaParam?.unit ?? ''"
+                :decimals="aaParam?.decimals ?? 1"
               />
             </div>
-            <div v-else class="text-center text-grey-5 q-py-lg">No approved readings yet for this parameter.</div>
+            <div v-else class="aa-no-data">
+              <q-icon name="info" size="18px" />
+              <span>No approved {{ aaParam?.label }} readings yet — try a different parameter above.</span>
+            </div>
           </template>
 
           <!-- All-Parameter Trend Grid -->
@@ -828,14 +965,19 @@
                     :values="entry.values"
                     :unit="entry.param.unit"
                     :decimals="entry.param.decimals"
-                    :color="paramColor(entry.param)"
+                    :color="paramColor(entry.param, aaMonthIndex)"
                     :guideline-value="guidelineFor(entry.param)"
                   />
                 </div>
               </div>
             </div>
-            <div v-else class="text-center text-grey-5 q-py-lg">No approved readings yet.</div>
-            <div class="text-caption text-grey-5 q-mt-md">
+            <div v-else class="aa-no-data">
+              <q-icon name="info" size="18px" />
+              <span>
+                No readings in the 13 months through {{ months[aaMonthIndex] }} — try a different month above.
+              </span>
+            </div>
+            <div v-if="allParamTrends.length" class="text-caption text-grey-5 q-mt-md">
               <q-icon name="info" size="14px" class="q-mr-xs" />
               Each line's color reflects that parameter's current status (good/warning/serious/critical),
               same scheme as everywhere else on this dashboard.
@@ -874,8 +1016,11 @@
          a wrapping row so nothing needs an internal scrollbar to reach, and
          the bar is open by default so there's no button to hunt for and
          click first. The handle (always visible) can still minimize it down
-         to a thin strip if it's covering something below. -->
-    <div class="controls-bar" :class="{ 'controls-bar--collapsed': !controlsPanelOpen }">
+         to a thin strip if it's covering something below.
+         Overview-only — Advanced Analytics has its own per-visualization
+         Focus Selection instead (see the Analytics Visualization card),
+         fully independent of this bar. -->
+    <div v-if="activeView === 'overview'" class="controls-bar" :class="{ 'controls-bar--collapsed': !controlsPanelOpen }">
       <button
         type="button"
         class="controls-bar__handle"
@@ -1044,6 +1189,8 @@ import {
   depthProfileParamKeyA,
   depthProfileParamKeyB,
   readingMonthIndex,
+  applyLatestReadingPeriodDefault,
+  latestYearMonth,
   analyticsVizType,
   parallelFilterRules,
   allocateParallelFilterRuleId,
@@ -1091,6 +1238,15 @@ onMounted(async () => {
     const readings = await fetchWaterQualityReadings({ status: 'APPROVED' });
     rawReadings.value = readings;
     readingsLookup.value = buildReadingLookup(readings);
+    // Overview's Reading Period is session-persisted and only auto-advances
+    // once; Advanced Analytics' own Reading Period is page-local (not
+    // persisted), so it just re-applies "latest" on every mount instead.
+    applyLatestReadingPeriodDefault(readings);
+    const latest = latestYearMonth(readings);
+    if (latest) {
+      aaYear.value = latest.year;
+      aaMonthInYear.value = latest.monthInYear;
+    }
   } catch (err) {
     console.error('Failed to load water quality readings:', err);
   } finally {
@@ -1344,8 +1500,8 @@ function paramStatus(param: WaterQualityParam, monthIndex = selectedMonthIndex.v
   return value !== null ? param.getStatus(value) : null;
 }
 
-function paramColor(param: WaterQualityParam): string {
-  const status = paramStatus(param);
+function paramColor(param: WaterQualityParam, monthIndex = selectedMonthIndex.value): string {
+  const status = paramStatus(param, monthIndex);
   return status ? STATUS_COLORS[status] : NO_DATA_COLOR;
 }
 
@@ -1544,6 +1700,85 @@ const selectedParamTrend = computed(() =>
   selectedParam.value ? trendSeries(selectedParam.value) : { months: [], values: [] },
 );
 
+// ═══ ADVANCED ANALYTICS — OWN FOCUS SELECTION ═══
+// Fully independent of the Reading Controls bar above (which is Overview-
+// only) — each Advanced Analytics visualization reads from these instead,
+// so switching the Type of Analytics Visualization doesn't also silently
+// depend on whatever the Overview tab happened to be set to. Shown
+// conditionally (see aaNeeds* below) — only the fields a given type
+// actually uses ever appear, same reasoning as the Download Center's own
+// Focus Selection.
+const aaYear = ref(selectedYear.value);
+const aaMonthInYear = ref(selectedMonthInYear.value);
+const aaStationId = ref<string | null>(null);
+const aaParamKey = ref<string | null>(allWaterQualityParams[0]!.key);
+const aaDepth = ref(0);
+
+const aaMonthIndex = computed(() => readingMonthIndex(aaYear.value, aaMonthInYear.value));
+const aaParam = computed(() => allWaterQualityParams.find((p) => p.key === aaParamKey.value) ?? null);
+const aaStationIdOrFirst = computed(() => aaStationId.value ?? sites.value[0]?.siteId ?? null);
+// What the Focus Station picker actually displays — for optional-station
+// types (Long-Term Trend) an empty picker genuinely means "lake-wide, no
+// comparison," so it stays null rather than silently resolving to a station.
+const aaStationModel = computed<string | null>({
+  get: () => (aaStationOptional.value ? aaStationId.value : aaStationIdOrFirst.value),
+  set: (val) => {
+    aaStationId.value = val;
+  },
+});
+function aaDepthForSite(site: Site): number {
+  return site.zone === 'Tributary' ? 0 : aaDepth.value;
+}
+// Click-to-highlight within charts that show every station at once (Station
+// Comparison, Compliance Grid) — mirrors selectStation() below, but toggles
+// this tab's own station instead of the Overview's.
+function aaSelectStation(siteId: string) {
+  if (TRIBUTARY_RIVER_SITE_IDS.has(siteId)) return;
+  aaStationId.value = aaStationId.value === siteId ? null : siteId;
+}
+// Trailing 13-month window ending at aaMonthIndex — mirrors trendIndices
+// above, just anchored to this tab's own month instead of the Overview's.
+const aaTrendIndices = computed(() => {
+  const end = aaMonthIndex.value;
+  const start = Math.max(0, end - 12);
+  const out: number[] = [];
+  for (let i = start; i <= end; i++) out.push(i);
+  return out;
+});
+function aaTrendSeries(param: WaterQualityParam): { months: string[]; values: number[] } {
+  const monthsOut: string[] = [];
+  const valuesOut: number[] = [];
+  for (const i of aaTrendIndices.value) {
+    const value = lakeAverage(param, i);
+    if (value !== null) {
+      monthsOut.push(months[i]!);
+      valuesOut.push(value);
+    }
+  }
+  return { months: monthsOut, values: valuesOut };
+}
+
+const AA_NEEDS_STATION = new Set(['vertical-depth-profile', 'depth-time-isopleth', 'multi-depth-time-series', 'all-param-depth-profiles']);
+const AA_OPTIONAL_STATION = new Set(['long-term-trend']);
+const AA_NEEDS_PARAM = new Set(['depth-time-isopleth', 'multi-depth-time-series', 'compliance-grid', 'composition-over-time', 'long-term-trend']);
+const AA_NEEDS_DEPTH = new Set(['station-comparison', 'compliance-grid']);
+const AA_NEEDS_MONTH = new Set([
+  'vertical-depth-profile',
+  'depth-time-isopleth',
+  'multi-depth-time-series',
+  'all-param-depth-profiles',
+  'station-comparison',
+  'compliance-grid',
+  'composition-over-time',
+  'all-param-trend-grid',
+]);
+
+const aaNeedsStation = computed(() => AA_NEEDS_STATION.has(analyticsVizType.value) || AA_OPTIONAL_STATION.has(analyticsVizType.value));
+const aaNeedsParam = computed(() => AA_NEEDS_PARAM.has(analyticsVizType.value));
+const aaNeedsDepth = computed(() => AA_NEEDS_DEPTH.has(analyticsVizType.value));
+const aaNeedsMonth = computed(() => AA_NEEDS_MONTH.has(analyticsVizType.value));
+const aaStationOptional = computed(() => AA_OPTIONAL_STATION.has(analyticsVizType.value));
+
 // ═══ VERTICAL DEPTH PROFILE ═══
 // Independent of the page-level depth selector above — this chart's whole
 // purpose is to show every depth at once for a chosen station. Depths with
@@ -1554,7 +1789,7 @@ const depthProfileParamA = computed(
 const depthProfileParamB = computed(
   () => allWaterQualityParams.find((p) => p.key === depthProfileParamKeyB.value) ?? null,
 );
-const depthProfileStationId = computed(() => selectedStationId.value ?? sites.value[0]?.siteId ?? null);
+const depthProfileStationId = computed(() => aaStationIdOrFirst.value);
 
 // How many distinct depths each station has EVER reported at (not scoped to
 // the current Reading Period) — surfaced in the station picker below so you
@@ -1587,11 +1822,12 @@ const stationPickerOptions = computed(() =>
 );
 
 // Getter/setter so the dropdown always shows a real station (falling back to
-// the same default the depth-based views themselves use) while still
-// sharing selectedStationId with the map's click-to-select/deselect — picking
-// "Auto" here and deselecting a station on the map do the same thing.
+// the first one) while still sharing selectedStationId with the map's
+// click-to-select/deselect — picking "Auto" here and deselecting a station
+// on the map do the same thing. Overview-only now — Advanced Analytics has
+// its own independent aaStationId (see above).
 const stationPickerModel = computed<string | null>({
-  get: () => depthProfileStationId.value,
+  get: () => selectedStationId.value ?? sites.value[0]?.siteId ?? null,
   set: (val) => {
     selectedStationId.value = val;
   },
@@ -1608,12 +1844,12 @@ function depthProfilePoints(stationId: string, param: WaterQualityParam, monthIn
 
 const depthProfilePointsA = computed(() =>
   depthProfileStationId.value && depthProfileParamA.value
-    ? depthProfilePoints(depthProfileStationId.value, depthProfileParamA.value, selectedMonthIndex.value)
+    ? depthProfilePoints(depthProfileStationId.value, depthProfileParamA.value, aaMonthIndex.value)
     : [],
 );
 const depthProfilePointsB = computed(() =>
   depthProfileStationId.value && depthProfileParamB.value
-    ? depthProfilePoints(depthProfileStationId.value, depthProfileParamB.value, selectedMonthIndex.value)
+    ? depthProfilePoints(depthProfileStationId.value, depthProfileParamB.value, aaMonthIndex.value)
     : [],
 );
 
@@ -1626,7 +1862,7 @@ const allParamDepthProfiles = computed(() => {
   const result: { param: WaterQualityParam; points: DepthReadingPoint[] }[] = [];
   if (!stationId) return result;
   for (const param of allWaterQualityParams) {
-    const points = depthProfilePoints(stationId, param, selectedMonthIndex.value);
+    const points = depthProfilePoints(stationId, param, aaMonthIndex.value);
     if (points.length > 0) result.push({ param, points });
   }
   return result;
@@ -1638,7 +1874,7 @@ const allParamDepthProfiles = computed(() => {
 // selected one.
 const allParamTrends = computed(() =>
   allWaterQualityParams
-    .map((param) => ({ param, ...trendSeries(param) }))
+    .map((param) => ({ param, ...aaTrendSeries(param) }))
     .filter((t) => t.values.length > 0),
 );
 
@@ -1653,18 +1889,18 @@ function colorForIndex(i: number, total: number): string {
 
 const multiDepthSeries = computed<{ months: string[]; series: DepthSeries[] }>(() => {
   const stationId = depthProfileStationId.value;
-  const param = selectedParam.value;
-  const monthsOut = trendIndices.value.map((i) => months[i]!);
+  const param = aaParam.value;
+  const monthsOut = aaTrendIndices.value.map((i) => months[i]!);
   if (!stationId || !param) return { months: monthsOut, series: [] };
 
   const activeDepths = DEPTHS.filter((depth) =>
-    trendIndices.value.some((i) => getReading(readingsLookup.value, stationId, i, param, depth) !== null),
+    aaTrendIndices.value.some((i) => getReading(readingsLookup.value, stationId, i, param, depth) !== null),
   );
   const series: DepthSeries[] = activeDepths.map((depth, di) => ({
     depth,
     label: depthLabel(depth),
     color: colorForIndex(di, activeDepths.length),
-    values: trendIndices.value.map((i) => getReading(readingsLookup.value, stationId, i, param, depth)),
+    values: aaTrendIndices.value.map((i) => getReading(readingsLookup.value, stationId, i, param, depth)),
   }));
   return { months: monthsOut, series };
 });
@@ -1682,14 +1918,14 @@ const parallelAxes = computed<ParallelAxis[]>(() =>
 const parallelSeriesList = computed<ParallelSeries[]>(() => {
   const eligible = sites.value.filter((site) =>
     allWaterQualityParams.some(
-      (p) => getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, p, depthForSite(site)) !== null,
+      (p) => getReading(readingsLookup.value, site.siteId, aaMonthIndex.value, p, aaDepthForSite(site)) !== null,
     ),
   );
   return eligible.map((site, i) => ({
     siteId: site.siteId,
     color: colorForIndex(i, eligible.length),
     values: allWaterQualityParams.map((p) =>
-      getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, p, depthForSite(site)),
+      getReading(readingsLookup.value, site.siteId, aaMonthIndex.value, p, aaDepthForSite(site)),
     ),
   }));
 });
@@ -1717,7 +1953,7 @@ function removeParallelFilterRule(id: number) {
 function parallelRuleMatches(rule: ParallelFilterRule, site: Site): boolean {
   const param = allWaterQualityParams.find((p) => p.key === rule.paramKey);
   if (!param) return false;
-  const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
+  const value = getReading(readingsLookup.value, site.siteId, aaMonthIndex.value, param, aaDepthForSite(site));
   if (value === null) return false;
   switch (rule.operator) {
     case '>':
@@ -1753,13 +1989,13 @@ const zoneOrderedSites = computed(() =>
 // Quality Index, which would need its own methodology (NSF WQI, CCME WQI,
 // etc.) to be defensible rather than invented ad hoc.
 const complianceGrid = computed<{ months: string[]; rows: ComplianceRow[] }>(() => {
-  const param = selectedParam.value;
+  const param = aaParam.value;
   if (!param) return { months: [], rows: [] };
-  const monthsOut = trendIndices.value.map((i) => months[i]!);
+  const monthsOut = aaTrendIndices.value.map((i) => months[i]!);
   const rows: ComplianceRow[] = zoneOrderedSites.value.map((site) => ({
     siteId: site.siteId,
-    cells: trendIndices.value.map((i) => {
-      const value = getReading(readingsLookup.value, site.siteId, i, param, depthForSite(site));
+    cells: aaTrendIndices.value.map((i) => {
+      const value = getReading(readingsLookup.value, site.siteId, i, param, aaDepthForSite(site));
       return value === null
         ? { status: 'no-data' as const, value: null }
         : { status: param.getStatus(value), value };
@@ -1774,15 +2010,15 @@ const complianceGrid = computed<{ months: string[]; rows: ComplianceRow[] }>(() 
 // since "by station"/"by parameter" need to count rows directly rather than
 // a single parameter's values.
 const compositionResult = computed(() => {
-  const param = selectedParam.value;
+  const param = aaParam.value;
   if (!param) return { months: [], segments: [] };
-  const monthLabels = trendIndices.value.map((i) => months[i]!);
+  const monthLabels = aaTrendIndices.value.map((i) => months[i]!);
   return buildCompositionOverTime(
     rawReadings.value,
     zoneOrderedSites.value,
     param,
     compositionStackBy.value,
-    trendIndices.value,
+    aaTrendIndices.value,
     monthLabels,
   );
 });
@@ -1799,7 +2035,7 @@ const compositionStackByLabel = computed(
 
 // ═══ LONG-TERM TREND ═══
 const longTermTrendResult = computed(() => {
-  const param = selectedParam.value;
+  const param = aaParam.value;
   if (!param) return { months: [], series: [], trend: null };
 
   // Same blue/orange pairing as Vertical Depth Profile's Parameter A/B —
@@ -1816,8 +2052,8 @@ const longTermTrendResult = computed(() => {
       color: '#ff8a65',
       filter: (r) => zoneSiteIds.has(r.siteId),
     });
-  } else if (longTermTrendCompare.value === 'station' && selectedStationId.value) {
-    const stationId = selectedStationId.value;
+  } else if (longTermTrendCompare.value === 'station' && aaStationId.value) {
+    const stationId = aaStationId.value;
     groups.push({
       key: 'station',
       label: stationId,
@@ -1888,9 +2124,9 @@ const correlationMatrix = computed(() =>
 // per month in the trailing window, real depth readings only.
 const isoplethColumns = computed<IsoplethColumn[]>(() => {
   const stationId = depthProfileStationId.value;
-  const param = selectedParam.value;
+  const param = aaParam.value;
   if (!stationId || !param) return [];
-  return trendIndices.value.map((i) => ({
+  return aaTrendIndices.value.map((i) => ({
     month: months[i]!,
     points: depthProfilePoints(stationId, param, i),
   }));
@@ -2114,6 +2350,22 @@ const isoplethColumns = computed<IsoplethColumn[]>(() => {
   background: #16212e;
   border-radius: 10px;
   padding: 12px;
+}
+
+/* No-data notice — shown in place of a chart when the current Focus
+   Selection has nothing to plot, instead of a blank chart-inset or quiet
+   grey text that's easy to miss. */
+.aa-no-data {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  color: #8d6e00;
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .month-tick-row span {
