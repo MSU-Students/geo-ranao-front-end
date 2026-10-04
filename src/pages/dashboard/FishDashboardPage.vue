@@ -5,11 +5,11 @@
     <!-- Main Content -->
     <div class="page-content full-width q-pa-md" style="max-width: 1300px">
       <!-- Header -->
-      <div class="text-center q-mb-lg">
+      <div class="text-center q-mb-md">
         <h4 class="text-weight-bolder q-my-xs" style="color: #16306b">
           Fish Observation Dashboard
         </h4>
-        <p class="q-mb-none" style="color: #5c6b7a">
+        <p class="q-mb-sm" style="color: #5c6b7a">
           Profiling and mapping of Lake Lanao's endemic cyprinids and invasive species
         </p>
         <q-chip
@@ -18,40 +18,105 @@
           text-color="white"
           size="sm"
           icon="science"
-          class="q-mt-sm text-weight-bold"
+          class="q-mb-sm text-weight-bold"
         >
           Sample data in use
         </q-chip>
+
+        <!-- ══════════════════════════════════════════ -->
+        <!-- GLOBAL YEAR FILTER (also drives map fish) -->
+        <!-- ══════════════════════════════════════════ -->
+        <div class="row justify-center items-center q-gutter-sm q-mb-sm">
+          <div class="year-filter-pill row items-center no-wrap q-px-md q-py-xs">
+            <q-icon name="event" color="teal-7" size="xs" class="q-mr-xs" />
+            <span class="year-filter-label q-mr-sm">Time Period:</span>
+            <q-select
+              v-model="globalYearFilter"
+              :options="globalYearOptions"
+              dense
+              borderless
+              emit-value
+              map-options
+              class="year-filter-select"
+              style="min-width: 130px"
+            >
+              <template #selected>
+                <span class="text-weight-bold" style="color: #16306b">
+                  {{ globalYearFilter === null ? 'All Years' : String(globalYearFilter) }}
+                </span>
+              </template>
+              <template #option="scope">
+                <q-item v-bind="scope.itemProps">
+                  <q-item-section avatar v-if="scope.opt.value === null">
+                    <q-icon name="public" color="teal-7" size="xs" />
+                  </q-item-section>
+                  <q-item-section avatar v-else>
+                    <q-icon name="calendar_month" color="blue-7" size="xs" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label class="text-weight-medium">{{ scope.opt.label }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section side v-if="scope.opt.value !== null && fullTimeSeries?.yearly[scope.opt.value]">
+                    <q-badge color="teal-2" text-color="teal-9" :label="(fullTimeSeries?.yearly[scope.opt.value]?.records ?? 0) + ' obs'"/>
+                  </q-item-section>
+                </q-item>
+              </template>
+            </q-select>
+            <q-btn
+              v-if="globalYearFilter !== null"
+              flat
+              dense
+              round
+              icon="close"
+              size="xs"
+              color="grey-6"
+              class="q-ml-xs"
+              @click="globalYearFilter = null"
+            >
+              <q-tooltip>Clear year filter</q-tooltip>
+            </q-btn>
+          </div>
+        </div>
+
+        <!-- Active filter banner -->
+        <transition name="slide-down">
+          <div v-if="globalYearFilter !== null" class="year-active-banner row items-center justify-center q-gutter-xs q-mb-sm">
+            <q-icon name="filter_alt" size="xs" />
+            <span>Dashboard &amp; map fish markers filtered to <strong>{{ globalYearFilter }}</strong></span>
+            <q-icon name="map" size="xs" class="q-ml-xs" />
+            <span class="text-caption">(bathymetry &amp; water quality unaffected)</span>
+          </div>
+        </transition>
       </div>
 
-      <!-- Top Summary Cards (All Years) -->
+      <!-- Top Summary Cards -->
       <div class="row q-col-gutter-md q-mb-lg justify-center">
         <div class="col-6 col-md-3">
           <q-card class="glass-morph text-center q-pa-sm">
             <q-icon name="set_meal" color="teal-3" size="md" />
-            <div class="text-h5 text-white text-weight-bold">{{ species.length }}</div>
-            <div class="text-grey-3 text-caption">Total Species (All Years)</div>
+            <div class="text-h5 text-white text-weight-bold">{{ summaryCardCounts.species }}</div>
+            <div class="text-grey-3 text-caption">Total Species{{ globalYearFilter !== null ? ` (${globalYearFilter})` : ' (All Years)' }}</div>
           </q-card>
         </div>
         <div class="col-6 col-md-3">
           <q-card class="glass-morph text-center q-pa-sm">
             <q-icon name="crisis_alert" color="blue-3" size="md" />
-            <div class="text-h5 text-white text-weight-bold">{{ endemicCount }}</div>
-            <div class="text-grey-3 text-caption">Endemic Cyprinids (All Years)</div>
+            <div class="text-h5 text-white text-weight-bold">{{ summaryCardCounts.endemic }}</div>
+            <div class="text-grey-3 text-caption">Endemic Cyprinids{{ globalYearFilter !== null ? ` (${globalYearFilter})` : ' (All Years)' }}</div>
           </q-card>
         </div>
         <div class="col-6 col-md-3">
           <q-card class="glass-morph text-center q-pa-sm">
             <q-icon name="warning" color="orange-3" size="md" />
-            <div class="text-h5 text-white text-weight-bold">{{ invasiveCount }}</div>
-            <div class="text-grey-3 text-caption">Invasive Species (All Years)</div>
+            <div class="text-h5 text-white text-weight-bold">{{ summaryCardCounts.invasive }}</div>
+            <div class="text-grey-3 text-caption">Invasive Species{{ globalYearFilter !== null ? ` (${globalYearFilter})` : ' (All Years)' }}</div>
           </q-card>
         </div>
         <div class="col-6 col-md-3">
           <q-card class="glass-morph text-center q-pa-sm">
             <q-icon name="dangerous" color="red-3" size="md" />
-            <div class="text-h5 text-white text-weight-bold">{{ criticallyEndangeredCount }}</div>
-            <div class="text-grey-3 text-caption">Critically Endangered (All Years)</div>
+            <div class="text-h5 text-white text-weight-bold">{{ summaryCardCounts.criticallyEndangered }}</div>
+            <div class="text-grey-3 text-caption">Critically Endangered{{ globalYearFilter !== null ? ` (${globalYearFilter})` : ' (All Years)' }}</div>
           </q-card>
         </div>
       </div>
@@ -629,6 +694,14 @@ import {
 } from 'src/composables/useFishTimeSeries';
 import FishYearChart from 'src/components/charts/FishYearChart.vue';
 
+// ── Global Year Filter (two-way binding with shared fishYear ref) ──
+// globalYearFilter is the v-model for the dropdown (null = All Years).
+// It stays in sync with fishYear so map fish markers are also filtered.
+const globalYearFilter = computed<number | null>({
+  get: () => fishYear.value,
+  set: (val) => { fishYear.value = val; },
+});
+
 // search comes from useFishDashboardState now (session-persisted, see that file).
 const loading = ref(false);
 
@@ -696,12 +769,27 @@ onMounted(async () => {
   }
 });
 
+// ── Global year filter dropdown options ──
+const globalYearOptions = computed(() => {
+  const opts: { label: string; value: number | null }[] = [
+    { label: 'All Years', value: null },
+  ];
+  for (const yr of [...distinctYears.value].sort((a, b) => b - a)) {
+    opts.push({ label: String(yr), value: yr });
+  }
+  return opts;
+});
+
 // ── Time-Series & Current Year Computations ──
 const distinctYears = computed<number[]>(() => getDistinctYears(rawObservations.value));
 
-// Current Year selection: default to actual current calendar year, or fallback to the latest year with data
+// Current Year selection:
+// - If the user picked a specific year via the dropdown, use that.
+// - Otherwise default to actual current calendar year, or the latest year with data.
 const currentCalendarYear = new Date().getFullYear();
 const activeSummaryYear = computed<number>(() => {
+  // If a specific year is selected via the global filter, honour it.
+  if (fishYear.value !== null) return fishYear.value;
   const yrs = distinctYears.value;
   if (yrs.includes(currentCalendarYear)) return currentCalendarYear;
   return yrs.length > 0 ? yrs[yrs.length - 1]! : currentCalendarYear;
@@ -877,6 +965,34 @@ const selectedFishDetails = computed(() =>
 const endemicCount = computed(() => species.value.filter((f) => f.type === 'endemic').length);
 const invasiveCount = computed(() => species.value.filter((f) => f.type === 'invasive').length);
 
+// ── Summary card counts — respect global year filter if set ──
+const summaryCardCounts = computed(() => {
+  if (fishYear.value === null) {
+    // No filter — show all-time species counts
+    return {
+      species: species.value.length,
+      endemic: endemicCount.value,
+      invasive: invasiveCount.value,
+      criticallyEndangered: criticallyEndangeredCount.value,
+    };
+  }
+  // Filter raw observations by the selected year, then build species list from that subset
+  const yr = fishYear.value;
+  const yearObs = rawObservations.value.filter((o) => {
+    const obsYear = o.dateObserved ? parseInt(o.dateObserved.split('-')[0]!) : null;
+    return obsYear === yr;
+  });
+  const yearSpecies = toSpeciesList(yearObs);
+  return {
+    species: yearSpecies.length,
+    endemic: yearSpecies.filter((f) => f.type === 'endemic').length,
+    invasive: yearSpecies.filter((f) => f.type === 'invasive').length,
+    criticallyEndangered: yearSpecies.filter(
+      (f) => f.status === CONSERVATION_STATUS_LABELS.CRITICALLY_ENDANGERED
+    ).length,
+  };
+});
+
 const CONSERVATION_STATUS_COLORS: Record<ConservationStatus, string> = {
   CRITICALLY_ENDANGERED: 'red',
   ENDANGERED: 'orange',
@@ -1048,6 +1164,64 @@ const timelineBSeries = computed(() => computeTimelineSeries(timelineBSpecies.va
   position: relative;
   z-index: 1;
   padding-top: 88px;
+}
+
+/* ── Year Filter Pill ── */
+.year-filter-pill {
+  background: #ffffff;
+  border: 1.5px solid #b2dfdb;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(0, 137, 123, 0.10);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  gap: 2px;
+}
+.year-filter-pill:hover {
+  box-shadow: 0 4px 16px rgba(0, 137, 123, 0.18);
+  border-color: #00897b;
+}
+.year-filter-label {
+  color: #5c6b7a;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.year-filter-select {
+  font-size: 14px;
+}
+.year-filter-select :deep(.q-field__native) {
+  padding: 0;
+  min-height: unset;
+  color: #16306b;
+  font-weight: 700;
+}
+.year-filter-select :deep(.q-field__marginal) {
+  height: auto;
+  color: #00897b;
+}
+
+/* ── Active filter banner ── */
+.year-active-banner {
+  background: linear-gradient(90deg, #e0f2f1 0%, #e8f5e9 100%);
+  border: 1px solid #b2dfdb;
+  border-radius: 8px;
+  padding: 6px 14px;
+  color: #00695c;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  gap: 4px;
+}
+
+/* ── Slide-down transition for banner ── */
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.25s ease;
+}
+.slide-down-enter-from,
+.slide-down-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 /* Replaces the old hotlinked-photo + dark-overlay background — same light
