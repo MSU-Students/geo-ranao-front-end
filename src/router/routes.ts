@@ -10,6 +10,10 @@ const routes: RouteRecordRaw[] = [
       { path: '/download', component: () => import('pages/DownloadCenterPage.vue') },
       { path: '/dashboard/fish', component: () => import('pages/dashboard/FishDashboardPage.vue') },
       {
+        path: '/dashboard/fish/decision-support',
+        component: () => import('pages/dashboard/FishDecisionSupportPage.vue'),
+      },
+      {
         path: '/dashboard/water-quality',
         component: () => import('pages/dashboard/WaterQualityDashboardPage.vue'),
       },

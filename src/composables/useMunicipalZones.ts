@@ -1,4 +1,4 @@
-import { pointInRing, simplifyRing } from 'src/composables/useBathymetry';
+import { pointInRing, simplifyRing } from './useBathymetry';
 
 // One municipality's water-zone boundary — reused from the same GeoJSON the
 // 2D map colors municipal zones with (public/geo/Municipal-Water-Zones.geojson),

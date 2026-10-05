@@ -67,7 +67,7 @@ function buildSpeciesRows(observations: FishObservation[]): SpeciesRow[] {
     else groups.set(key, [o]);
   }
   return [...groups.values()].map((obs) => {
-    const rep = obs.reduce((a, b) => (a.dateObserved > b.dateObserved ? a : b));
+    const rep = obs.reduce((a, b) => ((a.dateObserved ?? '') > (b.dateObserved ?? '') ? a : b));
     const lengths = obs.map((o) => o.trueLengthCm).filter((v): v is number => v != null);
     const weights = obs.map((o) => o.weightG).filter((v): v is number => v != null);
     return {
@@ -107,7 +107,7 @@ export async function generateFishObservationSummaryReport(
     return o.municipal === zone.name;
   }
 
-  const scoped = observations.filter((o) => belongsToZone(o) && withinDateRange(o.dateObserved, options.dateRange));
+  const scoped = observations.filter((o) => belongsToZone(o) && withinDateRange(o.dateObserved ?? undefined, options.dateRange));
 
   const scopeLabel = options.municipality ?? 'Lake Lanao (All Municipalities)';
   if (scoped.length === 0) {

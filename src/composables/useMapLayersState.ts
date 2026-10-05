@@ -54,6 +54,22 @@ export const mapLayers = ref<MapLayer[]>([
     opacityApplies: false,
   },
   {
+    id: 'fishChoropleth',
+    name: 'Fish Observation Density',
+    description: 'Shades each municipal water zone by recorded observation count for the selected year',
+    category: 'fish',
+    active: false,
+    opacity: 100,
+  },
+  {
+    id: 'fishDecisionSupport',
+    name: 'Decision Support Priority Zones',
+    description: 'Colors municipal water zones by advisory status (Invasion Alert, Protection Priority, Monitoring Gap, etc.)',
+    category: 'fish',
+    active: false,
+    opacity: 100,
+  },
+  {
     id: 'wqAll',
     name: 'All Water Quality Sites',
     description: 'Every water quality sampling point',
@@ -143,6 +159,8 @@ export const mapLayers = ref<MapLayer[]>([
 export const LAYER_PANE_Z_ORDER: string[] = [
   'lakeBoundary',
   'municipalWaters',
+  'fishChoropleth',
+  'fishDecisionSupport',
   'contourFilled',
   'wqInterpolated',
   'wqChoropleth',

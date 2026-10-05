@@ -49,8 +49,20 @@
             <div class="row items-center no-wrap">
               <img src="~assets/geo-ranao-logo.png" alt="Geo Ranao" style="width: 32px; height: auto; object-fit: contain" class="q-mr-sm" />
               <div>
-                <div class="text-subtitle1 text-grey-9 text-weight-bold" style="line-height: 1.2">
-                  Geo Ranao
+                <div class="row items-center">
+                  <div class="text-subtitle1 text-grey-9 text-weight-bold" style="line-height: 1.2">
+                    Geo Ranao
+                  </div>
+                  <q-chip
+                    v-if="isSampleDataInUse"
+                    color="amber-9"
+                    text-color="white"
+                    size="xs"
+                    icon="science"
+                    class="q-ml-xs text-weight-bold"
+                  >
+                    Sample data in use
+                  </q-chip>
                 </div>
                 <div class="text-grey-6 text-caption">Ecological Dashboard</div>
               </div>
@@ -643,6 +655,23 @@
                   {{ selectedFish.status }}
                 </div>
               </div>
+
+              <!-- Yearly Observation Trend Mini-Chart -->
+              <div v-if="selectedSpeciesTimeSeries && selectedSpeciesTimeSeries.years.length > 0" class="q-mt-md">
+                <div class="text-caption text-grey-6 q-mb-xs row items-center justify-between">
+                  <span>Recorded Observations per Year</span>
+                  <span class="text-caption text-weight-bold text-teal-8">
+                    {{ selectedSpeciesTimeSeries.dataQuality.totalRecords }} records
+                  </span>
+                </div>
+                <FishYearChart
+                  :years="selectedSpeciesTimeSeries.years"
+                  :yearly="selectedSpeciesTimeSeries.yearly"
+                  :selected-year="fishYear"
+                  :height="140"
+                  @select-year="fishYear = $event"
+                />
+              </div>
             </template>
 
             <!-- Water Quality Site Detail -->
@@ -791,6 +820,68 @@
       </q-btn>
     </transition>
 
+    <!-- ═══ FISH YEAR FILTER (Bottom-Center) ═══ -->
+    <div
+      v-if="fishAvailableYears.length > 0"
+      class="fish-year-control-bar"
+      :class="{ 'fish-year-control-bar--shifted-left': showPanel, 'fish-year-control-bar--shifted-right': !!(selectedFish || selectedWaterSite) }"
+    >
+      <div class="row items-center q-gutter-x-sm no-wrap">
+        <!-- Year label -->
+        <div class="text-caption text-weight-bold text-grey-8 no-wrap" style="white-space:nowrap">
+          <q-icon name="set_meal" color="teal-8" size="xs" class="q-mr-xs" />Fish Year:
+        </div>
+
+        <!-- Simple year dropdown -->
+        <q-select
+          :model-value="fishYear"
+          :options="fishYearSelectOptions"
+          emit-value
+          map-options
+          dense
+          outlined
+          no-caps
+          options-dense
+          style="min-width: 110px"
+          class="fish-year-select"
+          @update:model-value="fishYear = $event"
+        >
+          <template #selected>
+            <span class="text-weight-bold text-teal-9">
+              {{ fishYear === null ? 'All Years' : String(fishYear) }}
+            </span>
+          </template>
+        </q-select>
+
+        <q-separator vertical class="q-mx-xs" />
+
+        <!-- Mode Toggle: Year vs Cumulative -->
+        <q-btn-toggle
+          v-model="fishYearMode"
+          dense
+          no-caps
+          rounded
+          toggle-color="teal-8"
+          color="grey-3"
+          text-color="grey-8"
+          size="xs"
+          :options="[
+            { label: 'Year', value: 'year' },
+            { label: 'Cumulative', value: 'cumulative' }
+          ]"
+        >
+          <q-tooltip>Year: only that year · Cumulative: all years up to and including that year</q-tooltip>
+        </q-btn-toggle>
+
+        <q-separator vertical class="q-mx-xs" />
+
+        <!-- Observation count -->
+        <div class="text-caption text-weight-bold text-teal-10 no-wrap">
+          {{ filteredSpecies.length }} <span class="text-weight-regular text-grey-7">on map</span>
+        </div>
+      </div>
+    </div>
+
     <!-- ═══ BATHYMETRY DEPTH LEGEND (shown while the filled contour layer is on) ═══ -->
     <div
       v-if="showContourLegend"
@@ -866,6 +957,7 @@ import {
   fetchFishObservations,
   parseCoordinates,
   fishPhotoUrl,
+  hasSampleData,
   CONSERVATION_STATUS_LABELS,
   CONSERVATION_STATUS_SHORT,
   type FishObservation,
@@ -881,6 +973,16 @@ import {
   selectedBaseLayer,
 } from 'src/composables/useMapFilterState';
 import { loadMunicipalZones, findMunicipalityForPoint, type MunicipalZone } from 'src/composables/useMunicipalZones';
+import { fishYear, fishYearMode, fishYearPlaying } from 'src/composables/useFishYearState';
+import { yearOf, resolveFishMunicipality } from 'src/composables/useFishMunicipality';
+import {
+  aggregateFishTimeSeries,
+  getDistinctYears,
+  type TimeSeriesResult,
+} from 'src/composables/useFishTimeSeries';
+import FishYearChart from 'src/components/charts/FishYearChart.vue';
+import { evaluateDecisionSupport } from 'src/composables/useDecisionSupport';
+import { DECISION_STATUSES } from 'src/config/decisionSupport';
 import {
   buildDepthGrid,
   colorForDepth,
@@ -1151,8 +1253,11 @@ let contourFilledLayerGroup: L.LayerGroup | null = null;
 let contourLabelsLayerGroup: L.LayerGroup | null = null;
 let wqInterpolatedLayerGroup: L.LayerGroup | null = null;
 let wqChoroplethLayerGroup: L.GeoJSON | null = null;
+let fishChoroplethLayerGroup: L.GeoJSON | null = null;
+let fishDecisionSupportLayerGroup: L.GeoJSON | null = null;
 let municipalZonesLayerGroup: L.LayerGroup | null = null;
 let municipalLabelsLayerGroup: L.LayerGroup | null = null;
+let fishYearPlayInterval: ReturnType<typeof setInterval> | null = null;
 let municipalityMarkersLayerGroup: L.LayerGroup | null = null;
 
 // Lake Lanao boundary rings ([lat, lng][]) — populated once the boundary GeoJSON
@@ -1179,6 +1284,7 @@ interface Fish {
   bodyDepth?: string;
   municipal?: string;
   barangay?: string;
+  notes?: string | null | undefined;
   photos?: FishObservationPhoto[];
   /** Municipality whose water-zone polygon actually contains this sighting's
    *  coordinates (see useMunicipalZones.ts) — computed automatically, not
@@ -1195,6 +1301,8 @@ const selectedFish = ref<Fish | null>(null);
 // (unlike the two dashboards, which don't need coordinates) — those are
 // skipped here, not fabricated a position.
 const species = ref<Fish[]>([]);
+const rawFishObservations = ref<FishObservation[]>([]);
+const isSampleDataInUse = computed(() => hasSampleData(rawFishObservations.value));
 
 function toMapFish(obs: FishObservation, zones: MunicipalZone[]): Fish | null {
   const coords = parseCoordinates(obs.coordinates);
@@ -1212,9 +1320,10 @@ function toMapFish(obs: FishObservation, zones: MunicipalZone[]): Fish | null {
     length: obs.trueLengthCm != null ? `${obs.trueLengthCm} cm` : '-',
     weight: obs.weightG != null ? `${obs.weightG} g` : '-',
     location: [obs.municipal, obs.barangay].filter(Boolean).join(', ') || 'Lake Lanao',
-    date: obs.dateObserved || 'Oct 14, 2025',
+    date: obs.dateObserved ?? '',
     lat: coords.lat,
     lng: coords.lng,
+    notes: obs.notes,
   };
   const zoneMunicipality = findMunicipalityForPoint(coords.lat, coords.lng, zones);
   if (zoneMunicipality) fish.zoneMunicipality = zoneMunicipality;
@@ -1240,6 +1349,7 @@ onMounted(async () => {
         return [] as MunicipalZone[];
       }),
     ]);
+    rawFishObservations.value = observations;
     species.value = observations
       .map((obs) => toMapFish(obs, zones))
       .filter((f): f is Fish => f !== null);
@@ -1279,13 +1389,59 @@ const fishFilters = [
   { value: 'general', label: 'General', icon: 'blender', activeColor: 'orange-7' },
 ];
 
+// ── Fish year time series (computed once from full loaded dataset) ──
+// zones are loaded lazily; we piggyback the stations-summary zone load.
+const fishTimeSeries = computed<TimeSeriesResult | null>(() => {
+  const zones = stationSummaryMunicipalZones.value;
+  if (rawFishObservations.value.length === 0) return null;
+  return aggregateFishTimeSeries(rawFishObservations.value, zones);
+});
+
+const fishAvailableYears = computed<number[]>(() =>
+  getDistinctYears(rawFishObservations.value),
+);
+
+const minFishYear = computed<number>(() => {
+  const yrs = fishAvailableYears.value;
+  return yrs.length > 0 ? yrs[0]! : 2022;
+});
+
+const displayFishYear = computed<number>({
+  get: () => fishYear.value ?? (fishAvailableYears.value[fishAvailableYears.value.length - 1] ?? 2026),
+  set: (val: number) => {
+    fishYear.value = val;
+  },
+});
+
+// Options for the simplified year dropdown in the floating bar.
+const fishYearSelectOptions = computed(() => {
+  const opts: { label: string; value: number | null }[] = [
+    { label: 'All Years', value: null },
+  ];
+  for (const yr of [...fishAvailableYears.value].sort((a, b) => b - a)) {
+    opts.push({ label: String(yr), value: yr });
+  }
+  return opts;
+});
+
+// selectedFishDetails with year-filtered date shown as "Undated" when null
 const filteredSpecies = computed(() =>
   species.value.filter((f) => {
     const matchFilter = activeFilter.value === 'all' || f.type === activeFilter.value;
     const matchSpecific =
       selectedSpeciesFilter.value.length === 0 ||
       selectedSpeciesFilter.value.includes(f.commonName);
-    return matchFilter && matchSpecific;
+    // Year filter: null = All years; 'cumulative' mode includes this year AND all before
+    let matchYear = true;
+    if (fishYear.value !== null) {
+      const yr = yearOf(f.date);
+      if (fishYearMode.value === 'cumulative') {
+        matchYear = yr !== null && yr <= fishYear.value;
+      } else {
+        matchYear = yr === fishYear.value;
+      }
+    }
+    return matchFilter && matchSpecific && matchYear;
   }),
 );
 
@@ -1310,6 +1466,19 @@ const selectedFishDetails = computed(() => {
     { label: 'Barangay', value: f.barangay || '-', icon: 'holiday_village' },
     { label: 'Date Recorded', value: f.date, icon: 'calendar_today' },
   ];
+});
+
+// Mini yearly aggregation for the selected fish's species
+const selectedSpeciesTimeSeries = computed<TimeSeriesResult | null>(() => {
+  if (!selectedFish.value || rawFishObservations.value.length === 0) return null;
+  const targetCommon = selectedFish.value.commonName;
+  const targetSci = selectedFish.value.scientificName;
+  const matchingObs = rawFishObservations.value.filter(
+    (o) => (o.speciesCommon && o.speciesCommon === targetCommon) ||
+           (o.speciesScientific && o.speciesScientific === targetSci),
+  );
+  if (matchingObs.length === 0) return null;
+  return aggregateFishTimeSeries(matchingObs, stationSummaryMunicipalZones.value);
 });
 
 // ═══ WATER QUALITY SAMPLING SITES (loaded from GeoJSON) ═══
@@ -2085,6 +2254,193 @@ function restyleWqChoropleth() {
   wqChoroplethLayerGroup.setStyle(wqChoroplethStyleFn(choroplethZoneLookup()));
 }
 
+// ═══ FISH OBSERVATION DENSITY CHOROPLETH ═══
+// Shades each Municipal-Water-Zone polygon by the number of fish observations
+// falling inside it for the currently-selected year (or all years when null).
+// Record counts are derived from filteredSpecies (already year/category-filtered)
+// so it stays consistent with the markers on screen.
+function fishChoroplethCountsForZone(): Map<string, number> {
+  const counts = new Map<string, number>();
+  const zones = stationSummaryMunicipalZones.value;
+  if (zones.length === 0) return counts;
+  for (const fish of filteredSpecies.value) {
+    const muni = resolveFishMunicipality(
+      { coordinates: `${fish.lat},${fish.lng}`, municipal: fish.municipal, zoneMunicipality: fish.zoneMunicipality },
+      zones,
+    );
+    const key = muni ?? 'Unmatched';
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function buildFishChoroplethLayer() {
+  if (!map) return;
+  const layerActive = mapLayers.value.find((l) => l.id === 'fishChoropleth')?.active ?? false;
+  if (!layerActive) {
+    if (fishChoroplethLayerGroup) {
+      map.removeLayer(fishChoroplethLayerGroup);
+      fishChoroplethLayerGroup = null;
+    }
+    return;
+  }
+  fetch('/geo/Municipal-Water-Zones.geojson')
+    .then((res) => res.json())
+    .then((geojson: GeoJSON.FeatureCollection) => {
+      if (!map) return;
+      if (fishChoroplethLayerGroup) map.removeLayer(fishChoroplethLayerGroup);
+      const counts = fishChoroplethCountsForZone();
+      const maxCount = Math.max(...Array.from(counts.values()), 1);
+      const styleFn = (feature?: GeoJSON.Feature): L.PathOptions => {
+        const name = (feature?.properties as { name?: string } | undefined)?.name ?? '';
+        const count = counts.get(name) ?? 0;
+        const intensity = count / maxCount;
+        // Teal gradient: 0 = very pale, 1 = strong teal
+        const g = Math.round(130 + intensity * 60);
+        const b = Math.round(100 + intensity * 100);
+        const fillColor = count === 0 ? 'rgba(200,230,230,0.18)' : `rgba(0,${g},${b},${0.15 + intensity * 0.55})`;
+        return { color: '#00695c', weight: 1, fillColor, fillOpacity: count === 0 ? 0.1 : 0.7, pane: 'pane-fishChoropleth' };
+      };
+      const layer = L.geoJSON(geojson, { style: styleFn });
+      layer.eachLayer((l) => {
+        const lWithFeature = l as L.Layer & { feature?: GeoJSON.Feature };
+        const name = (lWithFeature.feature?.properties as { name?: string } | undefined)?.name ?? 'Unknown';
+        const count = counts.get(name) ?? 0;
+        const yearLabel = fishYear.value !== null ? String(fishYear.value) : 'All years';
+        lWithFeature.bindTooltip(
+          `<strong>${name}</strong><br>${count} recorded observation${count !== 1 ? 's' : ''} (${yearLabel})`,
+          { sticky: true },
+        );
+      });
+      fishChoroplethLayerGroup = layer;
+      syncLayerVisibility();
+    })
+    .catch((err) => console.error('Failed to load Municipal-Water-Zones GeoJSON for fish choropleth:', err));
+}
+
+function restyleFishChoropleth() {
+  // Rebuild rather than restyle since counts change with year/filter changes
+  buildFishChoroplethLayer();
+}
+
+// ── Year playback controls ──
+function fishYearStep(direction: 1 | -1) {
+  const years = fishAvailableYears.value;
+  if (years.length === 0) return;
+  if (fishYear.value === null) {
+    fishYear.value = direction === 1 ? years[0]! : years[years.length - 1]!;
+    return;
+  }
+  const idx = years.indexOf(fishYear.value);
+  const next = idx + direction;
+  if (next >= 0 && next < years.length) {
+    fishYear.value = years[next]!;
+  }
+}
+
+function toggleFishYearPlay() {
+  fishYearPlaying.value = !fishYearPlaying.value;
+  if (fishYearPlaying.value) {
+    if (fishYearPlayInterval) clearInterval(fishYearPlayInterval);
+    fishYearPlayInterval = setInterval(() => {
+      const years = fishAvailableYears.value;
+      if (years.length === 0) {
+        fishYearPlaying.value = false;
+        if (fishYearPlayInterval) { clearInterval(fishYearPlayInterval); fishYearPlayInterval = null; }
+        return;
+      }
+      const currentIdx = fishYear.value !== null ? years.indexOf(fishYear.value) : -1;
+      const nextIdx = currentIdx + 1;
+      if (nextIdx >= years.length) {
+        // Reached the end — stop
+        fishYearPlaying.value = false;
+        if (fishYearPlayInterval) { clearInterval(fishYearPlayInterval); fishYearPlayInterval = null; }
+        return;
+      }
+      fishYear.value = years[nextIdx]!;
+    }, 1200);
+  } else {
+    if (fishYearPlayInterval) { clearInterval(fishYearPlayInterval); fishYearPlayInterval = null; }
+  }
+}
+
+// Rebuild choropleth whenever year/mode/data changes
+watch([filteredSpecies, () => mapLayers.value.find((l) => l.id === 'fishChoropleth')?.active], () => {
+  restyleFishChoropleth();
+});
+
+// ═══ FISH DECISION SUPPORT LAYER ═══
+// Colors municipal water zone polygons according to the rule-based Decision Support status
+// (Red = Invasion Alert, Purple = Protection Priority, Amber = Monitoring Gap, Teal = Stable, Grey = Insufficient Data)
+function buildFishDecisionSupportLayer() {
+  if (!map) return;
+  const layerActive = mapLayers.value.find((l) => l.id === 'fishDecisionSupport')?.active ?? false;
+  if (!layerActive) {
+    if (fishDecisionSupportLayerGroup) {
+      map.removeLayer(fishDecisionSupportLayerGroup);
+      fishDecisionSupportLayerGroup = null;
+    }
+    return;
+  }
+
+  fetch('/geo/Municipal-Water-Zones.geojson')
+    .then((res) => res.json())
+    .then((geojson: GeoJSON.FeatureCollection) => {
+      if (!map) return;
+      if (fishDecisionSupportLayerGroup) map.removeLayer(fishDecisionSupportLayerGroup);
+
+      // Evaluate status for each municipality using all approved observations
+      const zones = stationSummaryMunicipalZones.value;
+      const assessment = evaluateDecisionSupport(rawFishObservations.value, zones);
+      const statusMap = new Map(assessment.municipalityResults.map((r) => [r.municipality, r]));
+
+      const styleFn = (feature?: GeoJSON.Feature): L.PathOptions => {
+        const name = (feature?.properties as { name?: string } | undefined)?.name ?? '';
+        const res = statusMap.get(name);
+        const hex = res ? res.meta.hexColor : '#757575';
+        return {
+          color: hex,
+          weight: 2,
+          fillColor: hex,
+          fillOpacity: 0.45,
+          pane: 'pane-fishDecisionSupport',
+        };
+      };
+
+      const layer = L.geoJSON(geojson, { style: styleFn });
+      layer.eachLayer((l) => {
+        const lWithFeature = l as L.Layer & { feature?: GeoJSON.Feature };
+        const name = (lWithFeature.feature?.properties as { name?: string } | undefined)?.name ?? 'Unknown';
+        const res = statusMap.get(name);
+        if (res) {
+          lWithFeature.bindTooltip(
+            `<div style="font-family:Roboto,sans-serif;min-width:180px;">
+              <strong style="color:${res.meta.hexColor};font-size:13px;">${name}</strong><br>
+              <span style="font-weight:700;">Status:</span> ${res.meta.label}<br>
+              <span style="font-size:11px;color:#555;">${res.totalRecords} records (${res.invasiveSharePct}% invasive)</span><br>
+              <span style="font-size:11px;color:#333;font-style:italic;">${res.meta.recommendedAction}</span>
+            </div>`,
+            { sticky: true },
+          );
+        } else {
+          lWithFeature.bindTooltip(`<strong>${name}</strong><br>No assessment data`, { sticky: true });
+        }
+      });
+
+      fishDecisionSupportLayerGroup = layer;
+      syncLayerVisibility();
+    })
+    .catch((err) => console.error('Failed to load Municipal-Water-Zones GeoJSON for decision support layer:', err));
+}
+
+watch(
+  [rawFishObservations, () => mapLayers.value.find((l) => l.id === 'fishDecisionSupport')?.active],
+  () => {
+    buildFishDecisionSupportLayer();
+  },
+);
+
+
 // ═══ MUNICIPAL WATER ZONES (illustrative — see disclaimer in the Fish tab) ═══
 // Lake Lanao has no official RA 8550-style municipal water delineation. OSM's
 // own administrative-boundary data confirms this: of the lakeshore LGUs
@@ -2615,6 +2971,8 @@ function syncLayerVisibility() {
     contourFilled: contourFilledLayerGroup,
     wqInterpolated: wqInterpolatedLayerGroup,
     wqChoropleth: wqChoroplethLayerGroup,
+    fishChoropleth: fishChoroplethLayerGroup,
+    fishDecisionSupport: fishDecisionSupportLayerGroup,
     municipalWaters: municipalZonesLayerGroup,
     municipalityMarkers: municipalityMarkersLayerGroup,
   };
@@ -2756,6 +3114,10 @@ watch(
     if (wqInterpolatedActive && !wqInterpolatedLayerGroup) buildWqInterpolatedLayer();
     const wqChoroplethActive = mapLayers.value.find((l) => l.id === 'wqChoropleth')?.active ?? false;
     if (wqChoroplethActive && !wqChoroplethLayerGroup) buildWqChoroplethLayer();
+    const fishChoroplethActive = mapLayers.value.find((l) => l.id === 'fishChoropleth')?.active ?? false;
+    if (fishChoroplethActive && !fishChoroplethLayerGroup) buildFishChoroplethLayer();
+    const fishDecisionSupportActive = mapLayers.value.find((l) => l.id === 'fishDecisionSupport')?.active ?? false;
+    if (fishDecisionSupportActive && !fishDecisionSupportLayerGroup) buildFishDecisionSupportLayer();
 
     // Only re-render fish markers when one of these two flags actually
     // flipped — this watcher also fires on every opacity-slider tick for
@@ -2858,8 +3220,18 @@ function belongsToMunicipality(fish: Fish, muniName: string): boolean {
 }
 
 function buildMuniPopupContent(muni: LakeMunicipality): HTMLElement {
-  const endemicFish = species.value.filter((f) => f.type === 'endemic' && belongsToMunicipality(f, muni.name));
-  const invasiveFish = species.value.filter((f) => f.type === 'invasive' && belongsToMunicipality(f, muni.name));
+  const zones = stationSummaryMunicipalZones.value;
+  const isMatch = (f: Fish) => {
+    if (zones.length > 0) {
+      return resolveFishMunicipality(
+        { coordinates: `${f.lat},${f.lng}`, municipal: f.municipal, zoneMunicipality: f.zoneMunicipality },
+        zones,
+      ) === muni.name;
+    }
+    return belongsToMunicipality(f, muni.name);
+  };
+  const endemicFish = filteredSpecies.value.filter((f) => f.type === 'endemic' && isMatch(f));
+  const invasiveFish = filteredSpecies.value.filter((f) => f.type === 'invasive' && isMatch(f));
 
   const wrap = document.createElement('div');
   wrap.style.cssText = 'font-family:Roboto,sans-serif;min-width:230px;max-width:270px;max-height:300px;overflow-y:auto;';
@@ -2867,6 +3239,7 @@ function buildMuniPopupContent(muni: LakeMunicipality): HTMLElement {
   // ── Header ──
   const hdr = document.createElement('div');
   hdr.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #e0e0e0;';
+  const yearLabel = fishYear.value !== null ? `${fishYear.value} (${fishYearMode.value})` : 'All recorded years';
   hdr.innerHTML = `
     <div style="width:36px;height:36px;background:#F9A825;border-radius:50%;
                 display:flex;align-items:center;justify-content:center;
@@ -2875,7 +3248,7 @@ function buildMuniPopupContent(muni: LakeMunicipality): HTMLElement {
     </div>
     <div>
       <div style="font-weight:700;font-size:0.9rem;color:#212121;line-height:1.2;">${muni.name}</div>
-      <div style="font-size:0.68rem;color:#757575;margin-top:2px;">Municipality · Lake Lanao</div>
+      <div style="font-size:0.68rem;color:#757575;margin-top:2px;">Municipality · ${yearLabel}</div>
     </div>`;
   wrap.appendChild(hdr);
 
@@ -3534,6 +3907,44 @@ function buildMunicipalityMarkers() {
 }
 .add-data-btn--shifted {
   left: 408px;
+}
+
+/* ═══════════════════════════════════ */
+/* FISH YEAR CONTROL BAR (Bottom)     */
+/* ═══════════════════════════════════ */
+.fish-year-control-bar {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+  padding: 6px 12px;
+  border-radius: 30px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.15), 0 1px 4px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 150, 136, 0.25);
+  transition: all 0.3s ease;
+}
+.fish-year-control-bar--shifted-left {
+  left: calc(50% + 180px);
+}
+.fish-year-control-bar--shifted-right {
+  left: calc(50% - 170px);
+}
+.fish-year-select :deep(.q-field__control) {
+  background: rgba(0, 150, 136, 0.07);
+  border-radius: 8px;
+  min-height: 30px !important;
+  height: 30px;
+  padding: 0 8px;
+}
+.fish-year-select :deep(.q-field__native) {
+  padding: 0;
+  min-height: unset;
+}
+.fish-year-select :deep(.q-field__append) {
+  height: 30px;
 }
 </style>
 
