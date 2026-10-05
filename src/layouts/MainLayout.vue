@@ -10,7 +10,7 @@
           @click="handleBrandClick"
         >
           <img src="~assets/geo-ranao-logo.png" alt="Geo Ranao" style="width: 26px; height: auto; object-fit: contain" class="q-mr-xs" />
-          <span class="brand-text">Ranao FishNet</span>
+          <span class="brand-text">Geo Ranao</span>
         </div>
 
         <!-- Centered horizontal navigation (desktop) -->

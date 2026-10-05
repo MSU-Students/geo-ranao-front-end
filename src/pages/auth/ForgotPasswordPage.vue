@@ -19,7 +19,7 @@
             ACCOUNT RECOVERY
           </h2>
           <p class="text-h6 text-weight-light opacity-80">
-            Reset your password and get back into Ranao FishNet
+            Reset your password and get back into Geo Ranao
           </p>
         </div>
       </div>

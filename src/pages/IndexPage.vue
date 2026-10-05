@@ -50,7 +50,7 @@
               <img src="~assets/geo-ranao-logo.png" alt="Geo Ranao" style="width: 32px; height: auto; object-fit: contain" class="q-mr-sm" />
               <div>
                 <div class="text-subtitle1 text-grey-9 text-weight-bold" style="line-height: 1.2">
-                  Ranao FishNet
+                  Geo Ranao
                 </div>
                 <div class="text-grey-6 text-caption">Ecological Dashboard</div>
               </div>
