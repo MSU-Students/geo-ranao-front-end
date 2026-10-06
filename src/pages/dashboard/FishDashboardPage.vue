@@ -223,7 +223,7 @@
       </div>
 
       <!-- Data Quality & Accounting Strip -->
-      <div v-if="fullTimeSeries" class="row items-center justify-between glass-morph q-pa-sm q-mb-lg rounded-borders text-caption text-grey-3">
+      <div v-if="fullTimeSeries" class="row items-center justify-between glass-morph q-pa-sm q-mb-lg rounded-borders text-caption" style="color: #2c3a4a">
         <div class="row items-center q-gutter-x-md">
           <span><strong>Data Quality:</strong> {{ fullTimeSeries.dataQuality.totalRecords }} total recorded observations</span>
           <span v-if="fullTimeSeries.dataQuality.undatedRecords > 0" class="text-amber-3">
@@ -462,9 +462,9 @@
       <!-- ═══════════════════════════════════════════════ -->
       <!-- YEARLY OBSERVATION TREND SECTION                -->
       <!-- ═══════════════════════════════════════════════ -->
-      <div class="text-white text-h6 text-weight-bold q-mb-sm q-mt-lg row items-center justify-between">
+      <div class="text-h6 text-weight-bold q-mb-sm q-mt-lg row items-center justify-between" style="color: #16306b">
         <div>
-          <q-icon name="bar_chart" color="teal-3" class="q-mr-sm" />
+          <q-icon name="bar_chart" color="teal-7" class="q-mr-sm" />
           Yearly Observation Trend
         </div>
         <div class="row items-center q-gutter-x-sm">
@@ -484,7 +484,7 @@
           />
         </div>
       </div>
-      <p class="text-grey-4 text-caption q-mb-sm">
+      <p class="text-caption q-mb-sm" style="color: #5c6b7a">
         Recorded fish observation history across Lake Lanao. Filter by municipality, category, or target species.
       </p>
 
@@ -499,7 +499,6 @@
                 label="Municipality"
                 outlined
                 dense
-                dark
               />
             </div>
             <div class="col-12 col-sm-4">
@@ -509,7 +508,6 @@
                 label="Category"
                 outlined
                 dense
-                dark
                 emit-value
                 map-options
               />
@@ -521,7 +519,6 @@
                 label="Species"
                 outlined
                 dense
-                dark
               />
             </div>
           </div>
@@ -532,7 +529,7 @@
               :years="trendTimeSeries.years"
               :yearly="trendTimeSeries.yearly"
               :selected-year="fishYear"
-              :dark="true"
+              :dark="false"
               :height="260"
               @select-year="fishYear = $event"
             />
@@ -1266,6 +1263,10 @@ const timelineBSeries = computed(() => computeTimelineSeries(timelineBSpecies.va
 }
 .glass-morph .text-orange-3 {
   color: #ef6c00 !important;
+}
+.glass-morph .text-amber-3,
+.glass-morph .text-amber-4 {
+  color: #b45309 !important;
 }
 .glass-morph .text-red-3 {
   color: #d32f2f !important;
