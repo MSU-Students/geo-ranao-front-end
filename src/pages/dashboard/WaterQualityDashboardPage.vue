@@ -10,14 +10,14 @@
           Environmental monitoring overview of Lake Lanao — for agency awareness and reporting
         </p>
       </div>
-      <div class="text-center q-mb-md q-gutter-sm">
+      <div class="text-center q-mb-md q-gutter-md">
         <q-btn
           color="teal"
           icon="summarize"
           label="Station Summary"
           unelevated
           rounded
-          dense
+          padding="sm xl"
           @click="showStationSummary = true"
         />
         <q-btn
@@ -26,7 +26,7 @@
           label="Download Center"
           outline
           rounded
-          dense
+          padding="sm xl"
           to="/download"
         />
       </div>
@@ -214,15 +214,58 @@
         </div>
       </div>
 
-      <!-- Interactive Station Map -->
+      <!-- Yearly (Parameter) Trend -->
+      <div class="row q-col-gutter-md q-mb-md" v-if="selectedParam">
+        <div class="col-12">
+          <q-card class="glass-morph full-height">
+            <q-card-section>
+              <div class="row items-center justify-between q-mb-sm wrap">
+                <span class="text-white text-subtitle1 text-weight-medium">
+                  <q-icon name="bar_chart" color="teal-3" class="q-mr-xs" />
+                  Yearly {{ selectedParam.label }} Trend
+                </span>
+                <q-btn-toggle
+                  v-model="yearlyTrendMode"
+                  dense
+                  no-caps
+                  rounded
+                  toggle-color="teal-8"
+                  color="grey-9"
+                  text-color="grey-4"
+                  size="sm"
+                  :options="[
+                    { label: 'Area', value: 'area' },
+                    { label: 'Line', value: 'line' },
+                    { label: 'Stack', value: 'stack' },
+                  ]"
+                />
+              </div>
+              <p class="text-grey-4 text-caption q-mb-sm">{{ yearlyTrendCaption }}</p>
+              <div class="chart-inset">
+                <YearlyParamTrendChart
+                  :years="yearlyParamTrend.years"
+                  :average="yearlyParamTrend.average"
+                  :status-counts="yearlyParamTrend.statusCounts"
+                  :mode="yearlyTrendMode"
+                  :unit="selectedParam.unit"
+                  :decimals="selectedParam.decimals"
+                  color="#4dd0e1"
+                />
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+
+      <!-- Interactive Station Map — one card, pick the visualization type -->
       <div class="row q-col-gutter-md q-mb-md">
         <div class="col-12 col-md-8">
           <q-card class="glass-morph full-height">
             <q-card-section>
               <div class="row items-center justify-between q-mb-sm">
                 <span class="text-white text-subtitle1 text-weight-medium">
-                  <q-icon name="map" color="teal-3" class="q-mr-xs" />
-                  Station Map — {{ selectedParam ? selectedParam.label : 'Select a Parameter' }}
+                  <q-icon :name="mapVizIcon" color="teal-3" class="q-mr-xs" />
+                  {{ mapVizLabel }} — {{ selectedParam ? selectedParam.label : 'Select a Parameter' }}
                 </span>
                 <q-btn
                   v-if="selectedStationId"
@@ -235,13 +278,30 @@
                   @click="selectedStationId = null"
                 />
               </div>
-              <p class="text-grey-4 text-caption q-mb-sm">
-                {{ siteCount }} monitoring stations across Lake Lanao. Click a station to filter
-                the research charts above, and the Advanced Analytics tab, to that site.
-              </p>
+
+              <q-btn-toggle
+                v-model="mapVizType"
+                dense
+                no-caps
+                rounded
+                toggle-color="teal-8"
+                color="grey-9"
+                text-color="grey-4"
+                size="sm"
+                class="q-mb-sm"
+                :options="[
+                  { label: 'Station Map', value: 'station' },
+                  { label: 'Choropleth', value: 'choropleth' },
+                  { label: 'Interpolation', value: 'interpolation' },
+                  { label: 'Treemap', value: 'treemap' },
+                ]"
+              />
+
+              <p class="text-grey-4 text-caption q-mb-sm">{{ mapVizCaption }}</p>
 
               <div class="station-map-wrap">
                 <StationMap
+                  v-if="mapVizType === 'station'"
                   :sites="sites"
                   :status-color-by-site="statusColorBySite"
                   :status-by-site="statusBySite"
@@ -249,23 +309,63 @@
                   :selected-site-id="selectedStationId"
                   @select-station="selectStation"
                 />
+                <WaterQualityChoroplethMap v-else-if="mapVizType === 'choropleth'" :zones="choroplethZones" />
+                <InterpolatedParamMap
+                  v-else-if="mapVizType === 'interpolation'"
+                  :sites="sites"
+                  :values="valueBySite"
+                  :param="selectedParam"
+                />
+                <StationTreemap
+                  v-else
+                  :sites="sites"
+                  :values="valueBySite"
+                  :status-color-by-site="statusColorBySite"
+                  :param="selectedParam"
+                  :selected-site-id="selectedStationId"
+                  @select-station="selectStation"
+                />
               </div>
 
               <div class="row items-center q-gutter-md q-mt-sm">
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" :style="{ background: STATUS_COLORS.good }" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Good</span>
-                </div>
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" :style="{ background: STATUS_COLORS.warning }" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Warning</span>
-                </div>
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" :style="{ background: STATUS_COLORS.critical }" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Serious / Critical</span>
-                </div>
+                <template v-if="mapVizType === 'station'">
+                  <div class="row items-center no-wrap">
+                    <span class="status-dot" :style="{ background: STATUS_COLORS.good }" />
+                    <span class="text-caption text-grey-4 q-ml-xs">Good</span>
+                  </div>
+                  <div class="row items-center no-wrap">
+                    <span class="status-dot" :style="{ background: STATUS_COLORS.warning }" />
+                    <span class="text-caption text-grey-4 q-ml-xs">Warning</span>
+                  </div>
+                  <div class="row items-center no-wrap">
+                    <span class="status-dot" :style="{ background: STATUS_COLORS.critical }" />
+                    <span class="text-caption text-grey-4 q-ml-xs">Serious / Critical</span>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="row items-center no-wrap">
+                    <span class="status-dot" :style="{ background: STATUS_COLORS.good }" />
+                    <span class="text-caption text-grey-4 q-ml-xs">Good</span>
+                  </div>
+                  <div class="row items-center no-wrap">
+                    <span class="status-dot" :style="{ background: STATUS_COLORS.warning }" />
+                    <span class="text-caption text-grey-4 q-ml-xs">Warning</span>
+                  </div>
+                  <div class="row items-center no-wrap">
+                    <span class="status-dot" :style="{ background: STATUS_COLORS.serious }" />
+                    <span class="text-caption text-grey-4 q-ml-xs">Serious</span>
+                  </div>
+                  <div class="row items-center no-wrap">
+                    <span class="status-dot" :style="{ background: STATUS_COLORS.critical }" />
+                    <span class="text-caption text-grey-4 q-ml-xs">Critical</span>
+                  </div>
+                  <div class="row items-center no-wrap">
+                    <span class="status-dot" :style="{ background: '#78909c' }" />
+                    <span class="text-caption text-grey-4 q-ml-xs">No Data</span>
+                  </div>
+                </template>
               </div>
-              <p class="text-caption text-grey-5 q-mt-xs q-mb-0">
+              <p v-if="mapVizType === 'station'" class="text-caption text-grey-5 q-mt-xs q-mb-0">
                 Pulsing ring = Serious &nbsp;·&nbsp; <strong>!</strong> badge = Warning &nbsp;·&nbsp;
                 both = Critical — for {{ selectedParam?.label ?? 'the selected parameter' }} only
               </p>
@@ -308,54 +408,6 @@
                   </q-item-section>
                 </q-item>
               </q-list>
-            </q-card-section>
-          </q-card>
-        </div>
-      </div>
-
-      <!-- Choropleth Map -->
-      <div class="row q-col-gutter-md q-mb-md">
-        <div class="col-12">
-          <q-card class="glass-morph full-height">
-            <q-card-section>
-              <div class="row items-center justify-between q-mb-sm">
-                <span class="text-white text-subtitle1 text-weight-medium">
-                  <q-icon name="layers" color="teal-3" class="q-mr-xs" />
-                  Choropleth Map — {{ selectedParam ? selectedParam.label : 'Select a Parameter' }}
-                </span>
-              </div>
-              <p class="text-grey-4 text-caption q-mb-sm">
-                Each of the 12 station zones is shaded by the average of its two sub-station
-                readings for the selected parameter (or the one reading that exists, if only one
-                sub-station has data). Switching the parameter above updates this map too.
-              </p>
-
-              <div class="station-map-wrap">
-                <WaterQualityChoroplethMap :zones="choroplethZones" />
-              </div>
-
-              <div class="row items-center q-gutter-md q-mt-sm">
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" :style="{ background: STATUS_COLORS.good }" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Good</span>
-                </div>
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" :style="{ background: STATUS_COLORS.warning }" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Warning</span>
-                </div>
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" :style="{ background: STATUS_COLORS.serious }" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Serious</span>
-                </div>
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" :style="{ background: STATUS_COLORS.critical }" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Critical</span>
-                </div>
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" :style="{ background: '#78909c' }" />
-                  <span class="text-caption text-grey-4 q-ml-xs">No Data</span>
-                </div>
-              </div>
             </q-card-section>
           </q-card>
         </div>
@@ -1153,10 +1205,15 @@ import StationMonthComplianceGrid, {
 } from 'src/components/charts/StationMonthComplianceGrid.vue';
 import StackedCompositionChart from 'src/components/charts/StackedCompositionChart.vue';
 import TrendLineChart from 'src/components/charts/TrendLineChart.vue';
+import InterpolatedParamMap from 'src/components/charts/InterpolatedParamMap.vue';
+import StationTreemap from 'src/components/charts/StationTreemap.vue';
+import YearlyParamTrendChart from 'src/components/charts/YearlyParamTrendChart.vue';
 import {
   buildCompositionOverTime,
   buildLongTermTrend,
+  buildYearlyParamTrend,
   type CompositionStackBy,
+  type YearlyParamTrendResult,
 } from 'src/composables/useWaterQualityAnalytics';
 import {
   waterQualityParameterGroups,
@@ -1638,6 +1695,50 @@ const statusColorBySite = computed<Record<string, string>>(() => {
   return result;
 });
 
+// Which visualization the "Station Map" card is currently showing — one
+// card, four interchangeable map types, instead of a separate always-on
+// Choropleth Map section permanently taking up space below it.
+const mapVizType = ref<'station' | 'choropleth' | 'interpolation' | 'treemap'>('station');
+
+const mapVizLabel = computed(() => {
+  switch (mapVizType.value) {
+    case 'choropleth':
+      return 'Choropleth Map';
+    case 'interpolation':
+      return 'Interpolation Map';
+    case 'treemap':
+      return 'Treemap';
+    default:
+      return 'Station Map';
+  }
+});
+
+const mapVizIcon = computed(() => {
+  switch (mapVizType.value) {
+    case 'choropleth':
+      return 'layers';
+    case 'interpolation':
+      return 'blur_on';
+    case 'treemap':
+      return 'dashboard';
+    default:
+      return 'map';
+  }
+});
+
+const mapVizCaption = computed(() => {
+  switch (mapVizType.value) {
+    case 'choropleth':
+      return 'Each of the 12 station zones is shaded by the average of its two sub-station readings for the selected parameter (or the one reading that exists, if only one sub-station has data).';
+    case 'interpolation':
+      return 'A smoothly-blended surface estimated between stations using inverse-distance weighting — useful for spotting likely trends between sampling sites, not a substitute for an actual reading at an unsampled spot.';
+    case 'treemap':
+      return 'Each station is a box sized by how far its reading sits into the bad end of the parameter’s range and colored by status, so the stations needing the most attention are both the biggest and the reddest.';
+    default:
+      return `${siteCount.value} monitoring stations across Lake Lanao. Click a station to filter the research charts above, and the Advanced Analytics tab, to that site.`;
+  }
+});
+
 // ═══ CHOROPLETH MAP ═══
 // One value per STATION-<n> zone (public/geo/Lake-Station.geojson), not per
 // site — each zone covers a pair of sub-sites (e.g. S1A/S1B under
@@ -1696,9 +1797,42 @@ const attentionDetailBySite = computed<Record<string, { paramLabel: string; form
   return result;
 });
 
+// The selected parameter's raw reading at each site for the current Reading
+// Period — shared source for the Interpolation Map (its scattered input
+// points) and the Treemap (its box sizes), so both read the exact same
+// numbers the markers/tooltips already show instead of recomputing it twice.
+const valueBySite = computed<Record<string, number>>(() => {
+  const param = selectedParam.value;
+  const result: Record<string, number> = {};
+  if (!param) return result;
+  sites.value.forEach((site) => {
+    const value = getReading(readingsLookup.value, site.siteId, selectedMonthIndex.value, param, depthForSite(site));
+    if (value !== null) result[site.siteId] = value;
+  });
+  return result;
+});
+
 const selectedParamTrend = computed(() =>
   selectedParam.value ? trendSeries(selectedParam.value) : { months: [], values: [] },
 );
+
+// ═══ YEARLY (PARAMETER) TREND ═══ — by-year rollup of the same selected
+// parameter, alongside the month-grained 13-Month Trend above. Area is the
+// default per the request this was built for; Line and Stack (reading
+// counts by status) are switchable from the same toggle.
+const yearlyTrendMode = ref<'area' | 'line' | 'stack'>('area');
+
+const yearlyParamTrend = computed<YearlyParamTrendResult>(() => {
+  if (!selectedParam.value) return { years: [], average: [], statusCounts: { good: [], warning: [], serious: [], critical: [] } };
+  return buildYearlyParamTrend(rawReadings.value, selectedParam.value);
+});
+
+const yearlyTrendCaption = computed(() => {
+  if (yearlyTrendMode.value === 'stack') {
+    return 'Reading counts per year, stacked by status — how the balance of Good/Warning/Serious/Critical readings has shifted year over year.';
+  }
+  return `Average ${selectedParam.value?.label ?? 'parameter'} value per year across every station and reading.`;
+});
 
 // ═══ ADVANCED ANALYTICS — OWN FOCUS SELECTION ═══
 // Fully independent of the Reading Controls bar above (which is Overview-
@@ -1716,7 +1850,9 @@ const aaDepth = ref(0);
 
 const aaMonthIndex = computed(() => readingMonthIndex(aaYear.value, aaMonthInYear.value));
 const aaParam = computed(() => allWaterQualityParams.find((p) => p.key === aaParamKey.value) ?? null);
-const aaStationIdOrFirst = computed(() => aaStationId.value ?? sites.value[0]?.siteId ?? null);
+const aaStationIdOrFirst = computed(
+  () => aaStationId.value ?? deepestStationId.value ?? sites.value[0]?.siteId ?? null,
+);
 // What the Focus Station picker actually displays — for optional-station
 // types (Long-Term Trend) an empty picker genuinely means "lake-wide, no
 // comparison," so it stays null rather than silently resolving to a station.
@@ -1807,6 +1943,25 @@ const siteDepthCoverage = computed<Record<string, number>>(() => {
     result[siteId] = depths.size;
   });
   return result;
+});
+
+// The station with the single deepest reading ever recorded (rivers
+// excluded — they're always Surface-only, see stationPickerOptions below).
+// Used as Advanced Analytics' default focus station instead of just
+// whichever site happens to be first, so a fresh visit to a
+// depth-profile-shaped viz type (the default is now All-Parameter Depth
+// Profiles) opens on the station with the most vertical range to show off.
+const deepestStationId = computed<string | null>(() => {
+  let best: string | null = null;
+  let bestDepth = -Infinity;
+  rawReadings.value.forEach((r) => {
+    if (TRIBUTARY_RIVER_SITE_IDS.has(r.siteId)) return;
+    if (r.depthM > bestDepth) {
+      bestDepth = r.depthM;
+      best = r.siteId;
+    }
+  });
+  return best;
 });
 
 // Rivers are excluded — see selectStation()'s comment: they're always

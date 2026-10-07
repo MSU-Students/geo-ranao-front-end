@@ -210,24 +210,24 @@
               <q-icon name="visibility" class="q-mr-xs" color="teal-3" />Preview
             </div>
             <div class="text-caption text-grey-4 q-mb-sm">
-              {{ scope.readings.length }} reading(s) from {{ scope.stationsWithData.length }} station(s) —
-              highlighted stations below are included in your current selection.
+              {{ scope.readings.length }} reading(s) from {{ scope.stationsWithData.length }} station(s) — each
+              included station is colored by its status (the worst of whichever parameter(s) you've selected).
+              Hover a station for its value.
             </div>
             <div ref="mapCaptureWrapEl" class="map-capture-wrap">
               <div ref="previewMapEl" class="preview-map" />
               <div class="row items-center justify-center q-gutter-md q-mt-sm">
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" style="background: #0d9488" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Included lake station</span>
-                </div>
-                <div class="row items-center no-wrap">
-                  <span class="status-dot" style="background: #1565c0" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Included tributary</span>
+                <div v-for="level in STATUS_LEVELS" :key="level" class="row items-center no-wrap">
+                  <span class="status-dot" :style="{ background: STATUS_COLORS[level] }" />
+                  <span class="text-caption text-grey-4 q-ml-xs">{{ STATUS_LABELS[level] }}</span>
                 </div>
                 <div class="row items-center no-wrap">
                   <span class="status-dot" style="background: #9e9e9e" />
-                  <span class="text-caption text-grey-4 q-ml-xs">Excluded by current filters</span>
+                  <span class="text-caption text-grey-4 q-ml-xs">Excluded by filters</span>
                 </div>
+              </div>
+              <div class="text-caption text-grey-5 q-mt-xs text-center">
+                Thin blue ring = tributary station
               </div>
             </div>
           </q-card>
@@ -547,11 +547,13 @@ import {
   formatClassLimit,
   STATUS_LABELS,
   STATUS_COLORS,
+  STATUS_LEVELS,
   WATER_QUALITY_CLASS_LABEL,
   DEPTH_OPTIONS,
   READING_START_YEAR,
   MONTH_NAMES,
   type WaterQualityParam,
+  type StatusLevel,
 } from 'src/composables/useWaterQualityModel';
 import { buildYearRangeOptions } from 'src/composables/useReportExport';
 import {
@@ -686,6 +688,44 @@ const stationOptions = computed(() =>
 
 const scope = computed(() => applyWqDownloadFilters(allReadings.value, allStations.value, filters));
 const paramStats = computed(() => computeParamStats(scope.value.readings, scope.value.params));
+
+// ═══ PREVIEW MAP — per-station status ═══
+// Replaces the old included/excluded-only coloring (which told you WHICH
+// stations matched your filters but nothing about what their data actually
+// looks like) with the same Good/Warning/Serious/Critical read the rest of
+// the app uses. One parameter selected -> that station's scope-average for
+// it. Multiple/all parameters -> the worst status across all of them, same
+// "any one bad parameter flags the station" reasoning already used for the
+// PDF's own station-locations page (see stationConcern in
+// useWaterQualityFilteredReport.ts), just with the full 4-tier status
+// instead of a flattened good/critical split.
+interface StationStatusInfo {
+  status: StatusLevel;
+  param: WaterQualityParam;
+  value: number;
+}
+
+const stationStatusBySite = computed<Record<string, StationStatusInfo | null>>(() => {
+  const result: Record<string, StationStatusInfo | null> = {};
+  const params = scope.value.params;
+  for (const site of scope.value.stationsWithData) {
+    const siteReadings = scope.value.readings.filter((r) => r.siteId === site.siteId);
+    let worst: StationStatusInfo | null = null;
+    for (const param of params) {
+      const values = siteReadings
+        .map((r) => r[param.key as keyof WaterQualityReading])
+        .filter((v): v is number => typeof v === 'number');
+      if (values.length === 0) continue;
+      const avg = values.reduce((sum, v) => sum + v, 0) / values.length;
+      const status = param.getStatus(avg);
+      if (!worst || STATUS_LEVELS.indexOf(status) > STATUS_LEVELS.indexOf(worst.status)) {
+        worst = { status, param, value: avg };
+      }
+    }
+    result[site.siteId] = worst;
+  }
+  return result;
+});
 const parallelData = computed(() => buildParallelCoordinatesData(scope.value.readings, scope.value.params));
 const correlationData = computed(() => buildCorrelationMatrix(scope.value.readings, scope.value.params));
 
@@ -965,9 +1005,14 @@ onMounted(async () => {
 
 // ═══ PREVIEW MAP — plain circle markers, OSM tiles only (so the whole
 // preview stays exportable via html2canvas, same CORS constraint as the
-// main interactive map's "Export Map as Image"). Included stations read as
-// solid teal; everything outside the current filter fades to grey so the
-// highlight reads clearly at a glance. ═══
+// main interactive map's "Export Map as Image"). Included stations are
+// colored by their actual status (worst parameter in scope — see
+// stationStatusBySite above), not just a flat "included" teal, so the
+// preview actually shows what's in the data instead of only which stations
+// matched the filters. A thin blue ring distinguishes tributaries from lake
+// stations without competing with the status fill color. Everything outside
+// the current filter fades to grey so the highlight still reads clearly at
+// a glance. ═══
 const previewMapEl = ref<HTMLElement | null>(null);
 const mapCaptureWrapEl = ref<HTMLElement | null>(null);
 let previewMap: L.Map | null = null;
@@ -987,21 +1032,31 @@ function initPreviewMap() {
   redrawPreviewMarkers();
 }
 
+function previewTooltipHtml(s: Station, included: boolean, info: StationStatusInfo | null): string {
+  const title = `<strong>${s.siteId}</strong>${isTributaryStation(s) ? ' (Tributary)' : ''}`;
+  if (!included) return `${title}<br><span style="color:#9e9e9e">Excluded by current filters</span>`;
+  if (!info) return `${title}<br>No matching readings for the selected parameter(s)`;
+  const valueText = formatReading(info.value, info.param);
+  return `${title}<br>${info.param.label}: ${valueText}<br><span style="color:${STATUS_COLORS[info.status]}; font-weight:bold;">${STATUS_LABELS[info.status]}</span>`;
+}
+
 function redrawPreviewMarkers() {
   if (!markersLayer) return;
   markersLayer.clearLayers();
   const includedIds = new Set(scope.value.stations.map((s) => s.siteId));
   for (const s of allStations.value) {
     const included = includedIds.has(s.siteId);
+    const info = included ? (stationStatusBySite.value[s.siteId] ?? null) : null;
+    const fallbackColor = isTributaryStation(s) ? '#1565C0' : '#0d9488';
     const marker = L.circleMarker([s.latitude, s.longitude], {
       radius: included ? 7 : 5,
-      color: '#fff',
-      weight: 1.5,
-      fillColor: included ? (isTributaryStation(s) ? '#1565C0' : '#0d9488') : '#9e9e9e',
+      color: isTributaryStation(s) ? '#1565C0' : '#fff',
+      weight: isTributaryStation(s) ? 2.5 : 1.5,
+      fillColor: included ? (info ? STATUS_COLORS[info.status] : fallbackColor) : '#9e9e9e',
       fillOpacity: included ? 0.95 : 0.35,
       opacity: included ? 1 : 0.5,
     });
-    marker.bindTooltip(s.siteId, { direction: 'top' });
+    marker.bindTooltip(() => previewTooltipHtml(s, included, info), { direction: 'top' });
     markersLayer.addLayer(marker);
   }
 }

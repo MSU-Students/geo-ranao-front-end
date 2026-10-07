@@ -83,6 +83,21 @@ function tooltipHtml(site: StationMapSite): string {
   return `<strong>${site.siteId}</strong><br>Station: ${site.stationId}${attentionLine}`;
 }
 
+// Fits the whole lake into view the first time real station coordinates
+// arrive (sites load asynchronously after mount), so the card opens already
+// showing every station instead of a fixed, arbitrarily-cropped center/zoom
+// that only happened to work for one container size. Only runs once — after
+// that, the user's own pan/zoom is left alone rather than being fought on
+// every re-render.
+let hasFitBounds = false;
+
+function fitToSitesOnce() {
+  if (!map || hasFitBounds || props.sites.length === 0) return;
+  const bounds = L.latLngBounds(props.sites.map((s) => [s.lat, s.lng] as [number, number]));
+  map.fitBounds(bounds, { padding: [28, 28] });
+  hasFitBounds = true;
+}
+
 function renderMarkers() {
   if (!map) return;
   markers.forEach((m) => m.remove());
@@ -102,6 +117,8 @@ function renderMarkers() {
     marker.addTo(map!);
     markers.set(site.siteId, marker);
   });
+
+  fitToSitesOnce();
 }
 
 function restyleMarkers() {
@@ -136,7 +153,7 @@ function flyToSelected() {
 onMounted(() => {
   if (!mapContainer.value) return;
   map = L.map(mapContainer.value, {
-    center: [7.99, 124.07],
+    center: [7.893111, 124.272778],
     zoom: 11,
     scrollWheelZoom: false,
   });

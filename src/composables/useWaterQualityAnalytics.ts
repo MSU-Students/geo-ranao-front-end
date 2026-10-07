@@ -8,6 +8,7 @@ import {
   STATUS_LABELS,
   STATUS_LEVELS,
   type WaterQualityParam,
+  type StatusLevel,
 } from './useWaterQualityModel';
 import { dateToMonthIndex, type WaterQualityReading } from './useWaterQualityReadings';
 import type { Station } from './useStations';
@@ -449,4 +450,54 @@ export function buildLongTermTrend(
     series,
     trend: fit ? { ...fit, perYear: fit.slope * 12 } : null,
   };
+}
+
+// ─── Yearly (Parameter) Trend — Overview's own by-year rollup ───
+// Everything above buckets by month; this is the one place that buckets by
+// calendar year instead, feeding the Overview tab's Yearly Trend card (its
+// own Stack/Line/Area toggle switches which half of this same result it
+// draws from, so there's one data pass regardless of which mode is active).
+export interface YearlyParamTrendResult {
+  years: number[];
+  /** Mean of the parameter's value across all stations/readings that year; null = no readings that year. */
+  average: (number | null)[];
+  /** Reading counts per status, aligned 1:1 with `years` — the Stack mode's bars. */
+  statusCounts: Record<StatusLevel, number[]>;
+}
+
+export function buildYearlyParamTrend(
+  readings: WaterQualityReading[],
+  param: WaterQualityParam,
+): YearlyParamTrendResult {
+  const valuesByYear = new Map<number, number[]>();
+  const statusByYear = new Map<number, Record<StatusLevel, number>>();
+
+  for (const r of readings) {
+    const v = r[param.key as keyof WaterQualityReading];
+    if (typeof v !== 'number') continue;
+    const year = Number(r.dateObserved.slice(0, 4));
+    if (!Number.isFinite(year)) continue;
+
+    const bucket = valuesByYear.get(year);
+    if (bucket) bucket.push(v);
+    else valuesByYear.set(year, [v]);
+
+    const counts = statusByYear.get(year) ?? { good: 0, warning: 0, serious: 0, critical: 0 };
+    counts[param.getStatus(v)]++;
+    statusByYear.set(year, counts);
+  }
+
+  const years = Array.from(valuesByYear.keys()).sort((a, b) => a - b);
+  const average = years.map((y) => {
+    const vals = valuesByYear.get(y)!;
+    return vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+  });
+  const statusCounts: Record<StatusLevel, number[]> = {
+    good: years.map((y) => statusByYear.get(y)?.good ?? 0),
+    warning: years.map((y) => statusByYear.get(y)?.warning ?? 0),
+    serious: years.map((y) => statusByYear.get(y)?.serious ?? 0),
+    critical: years.map((y) => statusByYear.get(y)?.critical ?? 0),
+  };
+
+  return { years, average, statusCounts };
 }

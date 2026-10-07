@@ -63,7 +63,7 @@ export const depthProfileParamKeyB = ref(
 );
 
 // Which Advanced Analytics visualization type is showing.
-export const analyticsVizType = ref<string>('vertical-depth-profile');
+export const analyticsVizType = ref<string>('all-param-depth-profiles');
 
 // Composition Over Time's stack dimension — Status/Station/Parameter.
 export const compositionStackBy = ref<'status' | 'station' | 'parameter'>('status');
