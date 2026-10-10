@@ -214,7 +214,7 @@
         </div>
       </div>
 
-      <!-- Yearly (Parameter) Trend -->
+      <!-- Monthly (Parameter) Trend -->
       <div class="row q-col-gutter-md q-mb-md" v-if="selectedParam">
         <div class="col-12">
           <q-card class="glass-morph full-height">
@@ -222,10 +222,10 @@
               <div class="row items-center justify-between q-mb-sm wrap">
                 <span class="text-white text-subtitle1 text-weight-medium">
                   <q-icon name="bar_chart" color="teal-3" class="q-mr-xs" />
-                  Yearly {{ selectedParam.label }} Trend
+                  Monthly {{ selectedParam.label }} Trend
                 </span>
                 <q-btn-toggle
-                  v-model="yearlyTrendMode"
+                  v-model="monthlyTrendMode"
                   dense
                   no-caps
                   rounded
@@ -240,13 +240,13 @@
                   ]"
                 />
               </div>
-              <p class="text-grey-4 text-caption q-mb-sm">{{ yearlyTrendCaption }}</p>
+              <p class="text-grey-4 text-caption q-mb-sm">{{ monthlyTrendCaption }}</p>
               <div class="chart-inset">
-                <YearlyParamTrendChart
-                  :years="yearlyParamTrend.years"
-                  :average="yearlyParamTrend.average"
-                  :status-counts="yearlyParamTrend.statusCounts"
-                  :mode="yearlyTrendMode"
+                <MonthlyParamTrendChart
+                  :months="monthlyParamTrend.months"
+                  :average="monthlyParamTrend.average"
+                  :status-counts="monthlyParamTrend.statusCounts"
+                  :mode="monthlyTrendMode"
                   :unit="selectedParam.unit"
                   :decimals="selectedParam.decimals"
                   color="#4dd0e1"
@@ -1207,13 +1207,13 @@ import StackedCompositionChart from 'src/components/charts/StackedCompositionCha
 import TrendLineChart from 'src/components/charts/TrendLineChart.vue';
 import InterpolatedParamMap from 'src/components/charts/InterpolatedParamMap.vue';
 import StationTreemap from 'src/components/charts/StationTreemap.vue';
-import YearlyParamTrendChart from 'src/components/charts/YearlyParamTrendChart.vue';
+import MonthlyParamTrendChart from 'src/components/charts/MonthlyParamTrendChart.vue';
 import {
   buildCompositionOverTime,
   buildLongTermTrend,
-  buildYearlyParamTrend,
+  buildMonthlyParamTrend,
   type CompositionStackBy,
-  type YearlyParamTrendResult,
+  type MonthlyParamTrendResult,
 } from 'src/composables/useWaterQualityAnalytics';
 import {
   waterQualityParameterGroups,
@@ -1816,22 +1816,23 @@ const selectedParamTrend = computed(() =>
   selectedParam.value ? trendSeries(selectedParam.value) : { months: [], values: [] },
 );
 
-// ═══ YEARLY (PARAMETER) TREND ═══ — by-year rollup of the same selected
-// parameter, alongside the month-grained 13-Month Trend above. Area is the
-// default per the request this was built for; Line and Stack (reading
-// counts by status) are switchable from the same toggle.
-const yearlyTrendMode = ref<'area' | 'line' | 'stack'>('area');
+// ═══ MONTHLY (PARAMETER) TREND ═══ — by-month rollup of the same selected
+// parameter, covering every month with data (not just the 13-Month Trend's
+// fixed trailing window above). Area is the default per the request this
+// was built for; Line and Stack (reading counts by status) are switchable
+// from the same toggle.
+const monthlyTrendMode = ref<'area' | 'line' | 'stack'>('area');
 
-const yearlyParamTrend = computed<YearlyParamTrendResult>(() => {
-  if (!selectedParam.value) return { years: [], average: [], statusCounts: { good: [], warning: [], serious: [], critical: [] } };
-  return buildYearlyParamTrend(rawReadings.value, selectedParam.value);
+const monthlyParamTrend = computed<MonthlyParamTrendResult>(() => {
+  if (!selectedParam.value) return { months: [], average: [], statusCounts: { good: [], warning: [], serious: [], critical: [] } };
+  return buildMonthlyParamTrend(rawReadings.value, selectedParam.value, (idx) => months[idx] ?? '');
 });
 
-const yearlyTrendCaption = computed(() => {
-  if (yearlyTrendMode.value === 'stack') {
-    return 'Reading counts per year, stacked by status — how the balance of Good/Warning/Serious/Critical readings has shifted year over year.';
+const monthlyTrendCaption = computed(() => {
+  if (monthlyTrendMode.value === 'stack') {
+    return 'Reading counts per month, stacked by status — how the balance of Good/Warning/Serious/Critical readings has shifted month over month.';
   }
-  return `Average ${selectedParam.value?.label ?? 'parameter'} value per year across every station and reading.`;
+  return `Average ${selectedParam.value?.label ?? 'parameter'} value per month across every station and reading.`;
 });
 
 // ═══ ADVANCED ANALYTICS — OWN FOCUS SELECTION ═══

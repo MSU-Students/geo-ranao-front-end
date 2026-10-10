@@ -452,52 +452,54 @@ export function buildLongTermTrend(
   };
 }
 
-// ─── Yearly (Parameter) Trend — Overview's own by-year rollup ───
-// Everything above buckets by month; this is the one place that buckets by
-// calendar year instead, feeding the Overview tab's Yearly Trend card (its
-// own Stack/Line/Area toggle switches which half of this same result it
-// draws from, so there's one data pass regardless of which mode is active).
-export interface YearlyParamTrendResult {
-  years: number[];
-  /** Mean of the parameter's value across all stations/readings that year; null = no readings that year. */
+// ─── Monthly (Parameter) Trend — Overview's own by-month rollup ───
+// Feeds the Overview tab's Monthly Trend card (its own Stack/Line/Area
+// toggle switches which half of this same result it draws from, so there's
+// one data pass regardless of which mode is active). Unlike the 13-Month
+// Trend chart above it (a fixed trailing window, line only), this covers
+// every month with data and adds the Stack-by-status view.
+export interface MonthlyParamTrendResult {
+  months: string[];
+  /** Mean of the parameter's value across all stations/readings that month; null = no readings that month. */
   average: (number | null)[];
-  /** Reading counts per status, aligned 1:1 with `years` — the Stack mode's bars. */
+  /** Reading counts per status, aligned 1:1 with `months` — the Stack mode's bars. */
   statusCounts: Record<StatusLevel, number[]>;
 }
 
-export function buildYearlyParamTrend(
+export function buildMonthlyParamTrend(
   readings: WaterQualityReading[],
   param: WaterQualityParam,
-): YearlyParamTrendResult {
-  const valuesByYear = new Map<number, number[]>();
-  const statusByYear = new Map<number, Record<StatusLevel, number>>();
+  monthIndexToLabel: (monthIndex: number) => string,
+): MonthlyParamTrendResult {
+  const valuesByMonth = new Map<number, number[]>();
+  const statusByMonth = new Map<number, Record<StatusLevel, number>>();
 
   for (const r of readings) {
     const v = r[param.key as keyof WaterQualityReading];
     if (typeof v !== 'number') continue;
-    const year = Number(r.dateObserved.slice(0, 4));
-    if (!Number.isFinite(year)) continue;
+    const idx = dateToMonthIndex(r.dateObserved);
 
-    const bucket = valuesByYear.get(year);
+    const bucket = valuesByMonth.get(idx);
     if (bucket) bucket.push(v);
-    else valuesByYear.set(year, [v]);
+    else valuesByMonth.set(idx, [v]);
 
-    const counts = statusByYear.get(year) ?? { good: 0, warning: 0, serious: 0, critical: 0 };
+    const counts = statusByMonth.get(idx) ?? { good: 0, warning: 0, serious: 0, critical: 0 };
     counts[param.getStatus(v)]++;
-    statusByYear.set(year, counts);
+    statusByMonth.set(idx, counts);
   }
 
-  const years = Array.from(valuesByYear.keys()).sort((a, b) => a - b);
-  const average = years.map((y) => {
-    const vals = valuesByYear.get(y)!;
+  const indices = Array.from(valuesByMonth.keys()).sort((a, b) => a - b);
+  const months = indices.map(monthIndexToLabel);
+  const average = indices.map((idx) => {
+    const vals = valuesByMonth.get(idx)!;
     return vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
   });
   const statusCounts: Record<StatusLevel, number[]> = {
-    good: years.map((y) => statusByYear.get(y)?.good ?? 0),
-    warning: years.map((y) => statusByYear.get(y)?.warning ?? 0),
-    serious: years.map((y) => statusByYear.get(y)?.serious ?? 0),
-    critical: years.map((y) => statusByYear.get(y)?.critical ?? 0),
+    good: indices.map((idx) => statusByMonth.get(idx)?.good ?? 0),
+    warning: indices.map((idx) => statusByMonth.get(idx)?.warning ?? 0),
+    serious: indices.map((idx) => statusByMonth.get(idx)?.serious ?? 0),
+    critical: indices.map((idx) => statusByMonth.get(idx)?.critical ?? 0),
   };
 
-  return { years, average, statusCounts };
+  return { months, average, statusCounts };
 }
