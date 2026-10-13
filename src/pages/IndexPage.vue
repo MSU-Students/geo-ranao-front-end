@@ -822,9 +822,9 @@
 
     <!-- ═══ FISH YEAR FILTER (Bottom-Center) ═══ -->
     <div
-      v-if="fishAvailableYears.length > 0"
+      v-if="fishAvailableYears.length > 0 && showFishYearBar"
       class="fish-year-control-bar"
-      :class="{ 'fish-year-control-bar--shifted-left': showPanel, 'fish-year-control-bar--shifted-right': !!(selectedFish || selectedWaterSite) }"
+      :class="fishYearBarShiftClass"
     >
       <div class="row items-center q-gutter-x-sm no-wrap">
         <!-- Year label -->
@@ -879,8 +879,42 @@
         <div class="text-caption text-weight-bold text-teal-10 no-wrap">
           {{ filteredSpecies.length }} <span class="text-weight-regular text-grey-7">on map</span>
         </div>
+
+        <q-separator vertical class="q-mx-xs" />
+
+        <!-- Collapse -->
+        <q-btn
+          flat
+          dense
+          round
+          size="xs"
+          icon="close"
+          color="grey-7"
+          @click="showFishYearBar = false"
+        >
+          <q-tooltip>Hide this bar</q-tooltip>
+        </q-btn>
       </div>
     </div>
+
+    <!-- Reopen pill — shown only while the bar above is manually collapsed -->
+    <transition name="fade-btn" appear>
+      <q-btn
+        v-if="fishAvailableYears.length > 0 && !showFishYearBar"
+        class="fish-year-reopen-btn"
+        :class="fishYearBarShiftClass"
+        round
+        unelevated
+        size="sm"
+        color="teal-8"
+        icon="set_meal"
+        @click="showFishYearBar = true"
+      >
+        <q-tooltip anchor="top middle" self="bottom middle" :offset="[0, 6]">
+          Show Fish Year filter
+        </q-tooltip>
+      </q-btn>
+    </transition>
 
     <!-- ═══ BATHYMETRY DEPTH LEGEND (shown while the filled contour layer is on) ═══ -->
     <div
@@ -1400,6 +1434,24 @@ const fishTimeSeries = computed<TimeSeriesResult | null>(() => {
 const fishAvailableYears = computed<number[]>(() =>
   getDistinctYears(rawFishObservations.value),
 );
+
+// Manual show/hide for the Fish Year floating bar — defaults to open, but can
+// be collapsed so it doesn't take up space while the control/detail panels
+// are also open on a smaller screen.
+const showFishYearBar = ref(true);
+
+// Picks one shift class instead of letting both apply at once — the two
+// individual offsets (control-panel vs detail-panel) don't add up correctly
+// through plain CSS cascade (same specificity, last rule silently wins), so
+// a dedicated "both open" class gets the bar's own computed midpoint.
+const fishYearBarShiftClass = computed(() => {
+  const left = showPanel.value;
+  const right = !!(selectedFish.value || selectedWaterSite.value);
+  if (left && right) return 'fish-year-control-bar--shifted-both';
+  if (left) return 'fish-year-control-bar--shifted-left';
+  if (right) return 'fish-year-control-bar--shifted-right';
+  return '';
+});
 
 const minFishYear = computed<number>(() => {
   const yrs = fishAvailableYears.value;
@@ -3880,6 +3932,28 @@ function buildMunicipalityMarkers() {
   .toggle-btn--shifted {
     left: 12px;
   }
+  /* The desktop shift classes push the fish-year bar left/right to dodge a
+     *side* panel — on mobile, control-panel/detail-panel instead become
+     bottom sheets covering the bottom 50vh (see above), so a horizontal
+     shift does nothing useful and the bar just needs to move up and out of
+     that zone instead, back to centered. */
+  .fish-year-control-bar--shifted-left,
+  .fish-year-control-bar--shifted-right,
+  .fish-year-control-bar--shifted-both,
+  .fish-year-reopen-btn.fish-year-control-bar--shifted-left,
+  .fish-year-reopen-btn.fish-year-control-bar--shifted-right,
+  .fish-year-reopen-btn.fish-year-control-bar--shifted-both {
+    left: 50%;
+  }
+  .fish-year-control-bar,
+  .fish-year-reopen-btn {
+    max-width: calc(100vw - 24px);
+  }
+  .fish-year-control-bar--shifted-left,
+  .fish-year-control-bar--shifted-right,
+  .fish-year-control-bar--shifted-both {
+    bottom: calc(50vh + 12px);
+  }
 }
 
 /* ═══════════════════════════════════ */
@@ -3931,6 +4005,21 @@ function buildMunicipalityMarkers() {
 }
 .fish-year-control-bar--shifted-right {
   left: calc(50% - 170px);
+}
+/* Both side panels open at once: control-panel ends at 392px, detail-panel
+   starts at calc(100vw - 352px) — this centers the bar in the gap between
+   them instead of only applying one side's offset (see fishYearBarShiftClass). */
+.fish-year-control-bar--shifted-both {
+  left: calc(50% + 20px);
+}
+
+.fish-year-reopen-btn {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
 }
 .fish-year-select :deep(.q-field__control) {
   background: rgba(0, 150, 136, 0.07);

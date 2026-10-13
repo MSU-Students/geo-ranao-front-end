@@ -11,7 +11,7 @@
     <q-card class="signup-card q-pa-lg">
       <q-card-section class="text-center q-pb-none">
         <img src="~assets/geo-ranao-logo.png" alt="Geo Ranao Logo" style="width: 100px; height: auto; object-fit: contain" />
-        <div class="text-h5 text-weight-bolder q-mt-md text-primary">RANAO AQUA PROJECT</div>
+        <div class="text-h5 text-weight-bolder q-mt-md text-primary">GEO RANAO</div>
         <div class="text-subtitle2 text-grey-8">Apply for a researcher account</div>
         <div class="text-caption text-grey-6 q-mt-xs">
           Applications are reviewed by an administrator before access is granted.

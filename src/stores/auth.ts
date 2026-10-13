@@ -126,6 +126,25 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // Always resolves on success — the backend returns the same generic
+  // message whether or not the email is registered, so there's nothing to
+  // branch on here. The caller just shows a "check your inbox" state.
+  async function forgotPassword(email: string): Promise<void> {
+    try {
+      await api.post('/auth/forgot-password', { email });
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, 'Something went wrong. Please try again.'));
+    }
+  }
+
+  async function resetPassword(token: string, newPassword: string): Promise<void> {
+    try {
+      await api.post('/auth/reset-password', { token, newPassword, confirmPassword: newPassword });
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, 'This reset link is invalid or has expired.'));
+    }
+  }
+
   // Stores a token the backend already issued directly (the
   // /auth/google/callback -> /auth/google/complete?token=... redirect for an
   // existing, approved Google-linked account) and loads the matching
@@ -176,6 +195,8 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     signup,
     completeGoogleSignup,
+    forgotPassword,
+    resetPassword,
     loginWithToken,
     logout,
     restoreSession,

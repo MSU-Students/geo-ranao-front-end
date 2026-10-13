@@ -16,7 +16,7 @@
         <div class="text-center q-pa-xl">
           <img src="~assets/geo-ranao-logo.png" alt="Geo Ranao Logo" style="width: 140px; height: auto; object-fit: contain" class="q-mb-md" />
           <h2 class="text-h3 text-weight-bolder q-mb-sm q-mt-none tracking-tight">
-            RANAO AQUA PROJECT
+            GEO RANAO
           </h2>
           <p class="text-h6 text-weight-light opacity-80">
             Water Quality Mapping & Fish Observation System for Lake Lanao
