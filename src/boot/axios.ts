@@ -18,7 +18,7 @@ const AUTH_TOKEN_KEY = 'geo-ranao-auth-token';
 // `undefined` (which would silently send requests to relative paths on
 // whatever origin is serving the frontend — confusing 404s with no clear
 // cause, instead of an obviously-wrong-but-at-least-intentional default).
-const DEV_API_URL = 'http://localhost:3333';
+const DEV_API_URL = 'http://localhost:8080';
 const configuredApiUrl = import.meta.env.VITE_API_URL as string | undefined;
 const resolvedApiUrl = configuredApiUrl || DEV_API_URL;
 
@@ -36,7 +36,21 @@ if (import.meta.env.PROD && /localhost|127\.0\.0\.1/.test(resolvedApiUrl)) {
 // good idea to move this instance creation inside of the
 // "export default () => {}" function below (which runs individually
 // for each client)
-const api = axios.create({ baseURL: resolvedApiUrl });
+// Harmless outside of ngrok — only its free-tier warning interstitial reads
+// this header, every other server just ignores it. Kept unconditional so
+// demoing through an ngrok tunnel never needs a separate build.
+//
+// withCredentials matters for VS Code Dev Tunnels specifically: visiting a
+// public tunnel URL once in-browser sets an approval cookie scoped to that
+// tunnel's domain, which skips its "Continue to this tunnel?" interstitial
+// on every later request. Without withCredentials, axios never sends that
+// cookie, so every background API call keeps hitting the interstitial even
+// after a human has already clicked through it once.
+const api = axios.create({
+  baseURL: resolvedApiUrl,
+  withCredentials: true,
+  headers: { 'ngrok-skip-browser-warning': 'true' },
+});
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
