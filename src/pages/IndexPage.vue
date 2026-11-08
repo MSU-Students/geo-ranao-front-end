@@ -10,7 +10,7 @@
     <WaterLoadingOverlay
       :active="mapLoading"
       :label="fishDataLoading || waterDataLoading ? 'Loading map…' : 'Updating…'"
-      :size="80"
+      :size="170"
       :z-index="40"
     />
 
