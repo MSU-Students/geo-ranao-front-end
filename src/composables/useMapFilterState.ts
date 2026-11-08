@@ -27,4 +27,4 @@ export const selectedSiteFilter = ref<string[]>([]);
 export const selectedColorParamKey = ref<string | null>('temperature');
 
 // Layers tab: base map tile provider (OpenStreetMap / Google Maps / Google Earth).
-export const selectedBaseLayer = ref<string>('osm');
+export const selectedBaseLayer = ref<string>('google-earth');
