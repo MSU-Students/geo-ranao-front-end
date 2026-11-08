@@ -545,17 +545,6 @@
               </q-tab-panel>
             </q-tab-panels>
           </q-card-section>
-
-          <!-- Panel Footer -->
-          <q-card-section class="q-pt-none q-pb-sm">
-            <q-separator class="q-mb-sm" />
-            <div class="row items-center justify-between">
-              <div class="text-grey-6 text-caption">
-                <q-icon name="info" size="xs" class="q-mr-xs" />
-                {{ filteredSpecies.length }} species shown
-              </div>
-            </div>
-          </q-card-section>
         </q-card>
       </div>
     </transition>
@@ -1031,6 +1020,7 @@ import {
   buildDepthGrid,
   colorForDepth,
   extractPolygonRings,
+  pointInPolygon,
   type DepthGrid,
   CONTOUR_LEVELS,
   CONTOUR_LINE_COLOR,
@@ -1307,6 +1297,12 @@ let municipalityMarkersLayerGroup: L.LayerGroup | null = null;
 // Lake Lanao boundary rings ([lat, lng][]) — populated once the boundary GeoJSON
 // loads, used to detect "click anywhere inside the lake" for the reading popup.
 let lakePolygonRings: [number, number][][] = [];
+// A plain `let`, not a ref, doesn't notify filteredSpecies's computed when it's
+// populated — this ref is the reactive signal that the boundary is ready so
+// the "is this fish actually in the lake" filter below can kick in once real
+// polygon data exists, instead of either running too early (empty rings would
+// then reject every fish) or never re-evaluating once the real rings arrive.
+const lakeBoundaryReady = ref(false);
 
 // ═══ FISH DATA ═══
 interface Fish {
@@ -1462,8 +1458,12 @@ const showFishYearBar = ref(true);
 // around whatever else is open, it (and its reopen pill) simply don't show
 // at all on a phone unless the control panel/dashboard is open. Desktop is
 // unaffected — there's room for it regardless of the panel state there.
+//
+// Also only relevant on the Fish tab — it was previously showing over the
+// Water and Layers tabs too, which just crowds the map (especially on
+// mobile) with a filter that doesn't apply to what's currently shown.
 const fishYearBarAllowed = computed(
-  () => $q.screen.width > 768 || showPanel.value,
+  () => activeTab.value === 'fish' && ($q.screen.width > 768 || showPanel.value),
 );
 
 // Picks one shift class instead of letting both apply at once — the two
@@ -1519,7 +1519,15 @@ const filteredSpecies = computed(() =>
         matchYear = yr === fishYear.value;
       }
     }
-    return matchFilter && matchSpecific && matchYear;
+    // Excludes fish whose recorded coordinates fall outside Lake Lanao's
+    // actual water boundary (bad geocoding/typos in the source data) — not
+    // applied until the boundary GeoJSON has actually loaded, so fish aren't
+    // all briefly hidden on first render before there's a polygon to test against.
+    const matchInLake =
+      !lakeBoundaryReady.value ||
+      lakePolygonRings.length === 0 ||
+      pointInPolygon(f.lat, f.lng, lakePolygonRings);
+    return matchFilter && matchSpecific && matchYear && matchInLake;
   }),
 );
 
@@ -2928,6 +2936,7 @@ function initMap() {
       });
       lakeBoundaryLayerGroup!.addLayer(boundaryLayer);
       lakePolygonRings = extractPolygonRings(geojson);
+      lakeBoundaryReady.value = true;
       await loadBathymetryPoints();
       buildContourLayers();
       buildMunicipalZones();

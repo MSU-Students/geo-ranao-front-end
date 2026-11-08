@@ -1,17 +1,39 @@
 <template>
   <div class="corr-heatmap-wrap">
+    <p v-if="selected" class="corr-heatmap__selected-note">
+      <q-icon name="touch_app" size="14px" class="q-mr-xs" />
+      {{ labels[selected.ri] }} × {{ labels[selected.ci] }} — r =
+      {{ matrix[selected.ri]?.[selected.ci]?.r?.toFixed(3) ?? 'n/a' }}
+      <q-btn flat dense round icon="close" size="xs" class="q-ml-xs" @click="selected = null" />
+    </p>
     <div class="corr-heatmap" :style="{ gridTemplateColumns: `120px repeat(${labels.length}, 1fr)` }">
       <div class="corr-heatmap__corner" />
-      <div v-for="label in labels" :key="'col-' + label" class="corr-heatmap__col-label">
+      <div
+        v-for="(label, ci) in labels"
+        :key="'col-' + label"
+        class="corr-heatmap__col-label"
+        :class="{ 'corr-heatmap__label--active': selected && selected.ci === ci }"
+      >
         <span>{{ label }}</span>
       </div>
       <template v-for="(rowLabel, ri) in labels" :key="'row-' + rowLabel">
-        <div class="corr-heatmap__row-label">{{ rowLabel }}</div>
+        <div
+          class="corr-heatmap__row-label"
+          :class="{ 'corr-heatmap__label--active': selected && selected.ri === ri }"
+        >
+          {{ rowLabel }}
+        </div>
         <div
           v-for="(cell, ci) in matrix[ri]"
           :key="ci"
           class="corr-heatmap__cell"
+          :class="{
+            'corr-heatmap__cell--selected': selected && selected.ri === ri && selected.ci === ci,
+            'corr-heatmap__cell--aligned':
+              selected && !(selected.ri === ri && selected.ci === ci) && (selected.ri === ri || selected.ci === ci),
+          }"
           :style="{ background: colorFor(cell.r) }"
+          @click="selectCell(ri, ci)"
         >
           <span class="corr-heatmap__value" :class="{ 'corr-heatmap__value--light': textIsLight(cell.r) }">
             {{ cell.r !== null ? cell.r.toFixed(2) : '—' }}
@@ -35,6 +57,8 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
+
 export interface CorrelationCell {
   r: number | null;
   n: number;
@@ -45,6 +69,14 @@ defineProps<{
   /** matrix[row][col] — must be labels.length x labels.length. */
   matrix: CorrelationCell[][];
 }>();
+
+// Clicking a cell highlights the row/column headers it connects, so it's
+// obvious at a glance which two parameters a given cell is comparing instead
+// of having to trace across the grid by eye.
+const selected = ref<{ ri: number; ci: number } | null>(null);
+function selectCell(ri: number, ci: number) {
+  selected.value = selected.value && selected.value.ri === ri && selected.value.ci === ci ? null : { ri, ci };
+}
 
 // Diverging scale: negative -> blue, 0 -> near-white, positive -> red.
 function colorFor(r: number | null): string {
@@ -101,7 +133,35 @@ function textIsLight(r: number | null): boolean {
   align-items: center;
   justify-content: center;
   border-radius: 3px;
-  cursor: default;
+  cursor: pointer;
+  box-sizing: border-box;
+  border: 2px solid transparent;
+}
+
+.corr-heatmap__cell--selected {
+  border-color: #ffd54f;
+}
+
+.corr-heatmap__cell--aligned {
+  border-color: rgba(255, 213, 79, 0.45);
+}
+
+.corr-heatmap__label--active {
+  color: #ffd54f;
+  font-weight: 700;
+}
+
+.corr-heatmap__selected-note {
+  display: flex;
+  align-items: center;
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255, 213, 79, 0.12);
+  color: #ffd54f;
+  font-size: 0.78rem;
+  font-weight: 600;
+  width: fit-content;
 }
 
 .corr-heatmap__value {

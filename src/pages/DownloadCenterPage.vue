@@ -31,8 +31,9 @@
 
             <div class="text-caption text-grey-4 q-mb-xs">Parameters</div>
             <q-select
-              v-model="filters.parameterKeys"
-              :options="parameterOptions"
+              :model-value="filters.parameterKeys"
+              @update:model-value="(val) => (filters.parameterKeys = applyAllSentinel(val))"
+              :options="parameterOptionsWithAll"
               multiple emit-value map-options use-chips
               outlined dense class="form-field q-mb-md"
               label="All Parameters"
@@ -40,8 +41,9 @@
 
             <div class="text-caption text-grey-4 q-mb-xs">Lake Stations</div>
             <q-select
-              v-model="filters.stationIds"
-              :options="stationOptions"
+              :model-value="filters.stationIds"
+              @update:model-value="(val) => (filters.stationIds = applyAllSentinel(val))"
+              :options="stationOptionsWithAll"
               multiple emit-value map-options use-chips
               outlined dense class="form-field q-mb-md"
               label="All Lake Stations"
@@ -382,8 +384,8 @@
             </div>
             <div class="text-caption text-grey-6 q-mb-sm"><q-icon name="info" size="12px" class="q-mr-xs" />{{ ANALYTICS_REQUIREMENTS['all-param-depth'] }}</div>
             <div ref="allParamDepthChartEl" class="chart-capture-wrap">
-              <div v-if="allParamDepthResult.length" class="row q-col-gutter-md">
-                <div v-for="entry in allParamDepthResult" :key="entry.param.key" class="col-6 col-sm-4 col-md-3 text-center">
+              <div v-if="allParamDepthResult.length" class="dc-param-grid dc-param-grid--5col">
+                <div v-for="entry in allParamDepthResult" :key="entry.param.key" class="text-center">
                   <div class="text-grey-3 text-caption ellipsis q-mb-xs">
                     {{ entry.param.label }}{{ entry.param.unit ? ` (${entry.param.unit})` : '' }}
                   </div>
@@ -505,8 +507,8 @@
             </div>
             <div class="text-caption text-grey-6 q-mb-sm"><q-icon name="info" size="12px" class="q-mr-xs" />{{ ANALYTICS_REQUIREMENTS['all-param-trend'] }}</div>
             <div ref="allParamTrendChartEl" class="chart-capture-wrap">
-              <div v-if="allParamTrendsResult.length" class="row q-col-gutter-md">
-                <div v-for="entry in allParamTrendsResult" :key="entry.param.key" class="col-12 col-sm-6 col-md-4">
+              <div v-if="allParamTrendsResult.length" class="dc-param-grid dc-param-grid--4col">
+                <div v-for="entry in allParamTrendsResult" :key="entry.param.key">
                   <div class="text-grey-3 text-caption q-mb-xs">
                     {{ entry.param.label }}{{ entry.param.unit ? ` (${entry.param.unit})` : '' }}
                   </div>
@@ -603,6 +605,20 @@ const downloading = ref(false);
 
 const parameterOptions = allWaterQualityParams.map((p) => ({ label: p.label, value: p.key }));
 const depthOptions = DEPTH_OPTIONS;
+
+// An explicit "All Parameters"/"All Lake Stations" entry at the top of each
+// picker — an empty filters array already means "all" (see
+// applyWqDownloadFilters), so picking this sentinel just clears whatever was
+// selected back to that empty/"all" state rather than being a real stored
+// value itself.
+const ALL_SENTINEL = '__all__';
+const parameterOptionsWithAll = computed(() => [
+  { label: 'All Parameters', value: ALL_SENTINEL },
+  ...parameterOptions,
+]);
+function applyAllSentinel(val: string[]): string[] {
+  return val.includes(ALL_SENTINEL) ? [] : val;
+}
 const dateRangeOptions = buildYearRangeOptions(2025);
 
 // All 11 Water Quality Dashboard analytics types that actually capture into
@@ -685,6 +701,10 @@ const stationOptions = computed(() =>
     .sort((a, b) => a.siteId.localeCompare(b.siteId))
     .map((s) => ({ label: s.stationId ? `${s.siteId} (${s.stationId})` : s.siteId, value: s.siteId })),
 );
+const stationOptionsWithAll = computed(() => [
+  { label: 'All Lake Stations', value: ALL_SENTINEL },
+  ...stationOptions.value,
+]);
 
 const scope = computed(() => applyWqDownloadFilters(allReadings.value, allStations.value, filters));
 const paramStats = computed(() => computeParamStats(scope.value.readings, scope.value.params));
@@ -1651,6 +1671,29 @@ async function handleDownload() {
   border-radius: 10px;
   padding: 8px;
   overflow-x: auto;
+}
+
+/* Fixed column counts (not Quasar's responsive col-N, which changes column
+   count by breakpoint) — same arrangement at every width, including on a
+   phone, so a downloaded report captured there (html2canvas captures the
+   live DOM as rendered, not a separate print layout) still shows every
+   parameter as extra rows instead of anything scrolling out of frame. */
+.dc-param-grid {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.dc-param-grid--5col {
+  grid-template-columns: repeat(5, 1fr);
+}
+.dc-param-grid--4col {
+  grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 599px) {
+  .dc-param-grid {
+    gap: 8px;
+  }
 }
 
 /* Small reusable legend swatches, shared across the analytics visualizations

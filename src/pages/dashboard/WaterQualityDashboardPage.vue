@@ -536,8 +536,15 @@
                     track-size="4px"
                     thumb-size="16px"
                   />
-                  <div class="row justify-between text-caption text-grey-5 month-tick-row">
+                  <!-- All 12 abbreviations at once only fits on wide screens — on
+                       a phone they ran together illegibly. Mobile instead just
+                       shows the currently selected month, the same "one compact
+                       value" idea as the YearPicker beside it. -->
+                  <div v-if="!$q.screen.lt.sm" class="row justify-between text-caption text-grey-5 month-tick-row">
                     <span v-for="(label, i) in MONTH_NAMES" :key="i">{{ label }}</span>
+                  </div>
+                  <div v-else class="text-center text-caption text-grey-4 text-weight-medium q-mt-xs">
+                    {{ MONTH_NAMES[aaMonthInYear] }}
                   </div>
                 </div>
               </div>
@@ -622,7 +629,16 @@
                 </div>
                 <div class="row items-center no-wrap" v-if="guidelineFor(depthProfileParamA) !== undefined || guidelineFor(depthProfileParamB) !== undefined">
                   <span class="legend-dash" />
-                  <span class="text-caption text-grey-4 q-ml-xs">DENR guideline</span>
+                  <span class="text-caption text-grey-4 q-ml-xs">
+                    DENR {{ WATER_QUALITY_CLASS_LABEL }} limit —
+                    <template v-if="depthProfileParamA && guidelineFor(depthProfileParamA) !== undefined">
+                      {{ depthProfileParamA.label }}: {{ formatClassLimit(depthProfileParamA) }}
+                    </template>
+                    <template v-if="depthProfileParamB && guidelineFor(depthProfileParamB) !== undefined">
+                      <template v-if="depthProfileParamA && guidelineFor(depthProfileParamA) !== undefined">·</template>
+                      {{ depthProfileParamB.label }}: {{ formatClassLimit(depthProfileParamB) }}
+                    </template>
+                  </span>
                 </div>
               </div>
               <div class="text-caption text-grey-5 q-mt-xs text-center">
@@ -654,6 +670,9 @@
               <div v-for="entry in allParamDepthProfiles" :key="entry.param.key" class="col-6 col-sm-4 col-md-3 text-center">
                 <div class="text-grey-3 text-caption ellipsis q-mb-xs">
                   {{ entry.param.label }}{{ entry.param.unit ? ` (${entry.param.unit})` : '' }}
+                </div>
+                <div class="text-grey-5" style="font-size: 0.65rem" v-if="guidelineFor(entry.param) !== undefined">
+                  limit: {{ formatClassLimit(entry.param) }}
                 </div>
                 <div class="chart-inset">
                   <DepthProfileChart
@@ -742,6 +761,9 @@
             <p class="text-grey-4 text-caption q-mb-md">
               {{ depthProfileStationId ?? '—' }}, trailing 13 months. Depth increases downward
               (0m at top); color shows the {{ aaParam?.label }} level.
+              <template v-if="aaParam && guidelineFor(aaParam) !== undefined">
+                DENR {{ WATER_QUALITY_CLASS_LABEL }} limit: {{ formatClassLimit(aaParam) }}.
+              </template>
             </p>
             <div v-if="isoplethColumns.some((c) => c.points.length)" class="chart-inset">
               <DepthTimeIsopleth
@@ -981,10 +1003,21 @@
               <template v-else-if="longTermTrendCompare === 'zone'">
                 Lake-wide average vs. the {{ longTermTrendZone }} zone's own average, over the full
                 recorded history. The trend line is fit to the lake-wide line only.
+                <br />
+                <span class="text-grey-5">
+                  {{ longTermTrendZone }} stations ({{ siteIdsByZone[longTermTrendZone].length }}):
+                  {{ siteIdsByZone[longTermTrendZone].join(', ') || 'none loaded yet' }}
+                </span>
               </template>
               <template v-else>
                 Lake-wide average vs. {{ aaStationId ?? 'the selected station (pick one above)' }}.
                 The trend line is fit to the lake-wide line only.
+              </template>
+              <template v-if="aaParam && guidelineFor(aaParam) !== undefined">
+                <br />
+                <span class="text-grey-5">
+                  DENR {{ WATER_QUALITY_CLASS_LABEL }} limit for {{ aaParam.label }}: {{ formatClassLimit(aaParam) }}
+                </span>
               </template>
             </p>
             <div v-if="longTermTrendResult.months.length" class="chart-inset">
@@ -1015,6 +1048,9 @@
               <div v-for="entry in allParamTrends" :key="entry.param.key" class="col-12 col-sm-6 col-md-4">
                 <div class="text-grey-3 text-caption q-mb-xs">
                   {{ entry.param.label }}{{ entry.param.unit ? ` (${entry.param.unit})` : '' }}
+                  <span v-if="guidelineFor(entry.param) !== undefined" class="text-grey-5" style="font-size: 0.65rem">
+                    · limit: {{ formatClassLimit(entry.param) }}
+                  </span>
                 </div>
                 <div class="chart-inset">
                   <ParameterTrendChart
@@ -1118,8 +1154,11 @@
                 thumb-size="16px"
                 dark
               />
-              <div class="row justify-between text-caption text-grey-5 month-tick-row">
+              <div v-if="!$q.screen.lt.sm" class="row justify-between text-caption text-grey-5 month-tick-row">
                 <span v-for="(label, i) in MONTH_NAMES" :key="i">{{ label }}</span>
+              </div>
+              <div v-else class="text-center text-caption text-grey-4 text-weight-medium q-mt-xs">
+                {{ MONTH_NAMES[selectedMonthInYear] }}
               </div>
             </div>
           </div>
@@ -1187,6 +1226,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useQuasar } from 'quasar';
 import BackButton from 'src/components/BackButton.vue';
 import WaterLoadingOverlay from 'src/components/WaterLoadingOverlay.vue';
 import { useBriefLoading } from 'src/composables/useBriefLoading';
@@ -1239,6 +1279,7 @@ import {
   TRIBUTARY_RIVER_SITES,
   TRIBUTARY_RIVER_SITE_IDS,
   getClassLimitReferenceValue,
+  formatClassLimit,
   WATER_QUALITY_CLASS_LABEL,
   type WaterQualityParam,
   type StatusLevel,
@@ -1275,6 +1316,8 @@ import {
 import { loadMunicipalZones, type MunicipalZone } from 'src/composables/useMunicipalZones';
 import { computeStationSummaryRows } from 'src/composables/useStationSummary';
 
+const $q = useQuasar();
+
 // Sites/months with zero approved readings show as this neutral grey rather
 // than a fabricated status color — "no data" is a distinct state from "good".
 const NO_DATA_COLOR = '#78909c';
@@ -1289,6 +1332,17 @@ interface Site {
 
 const sites = ref<Site[]>([]);
 const siteCount = computed(() => sites.value.length);
+
+// Which actual stations fall into each zone bucket — surfaced next to the
+// Long-Term Trend "By Zone" picker so "Nearshore"/"Offshore"/"Tributary"
+// aren't just labels; a visitor can see exactly which stations they cover.
+const siteIdsByZone = computed(() => {
+  const groups: Record<Site['zone'], string[]> = { Nearshore: [], Offshore: [], Tributary: [] };
+  for (const site of sites.value) {
+    groups[site.zone].push(site.siteId);
+  }
+  return groups;
+});
 
 const readingsLookup = ref<ReadingLookup>(new Map());
 // Kept alongside the lookup (not just discarded after building it) for the

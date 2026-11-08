@@ -63,13 +63,20 @@
               outlined
               v-model="password"
               label="Password"
-              type="password"
+              :type="showPassword ? 'text' : 'password'"
               color="primary"
               lazy-rules
               :rules="[(val) => !!val || 'Password is required']"
             >
               <template v-slot:prepend>
                 <q-icon name="lock" class="text-grey-7" />
+              </template>
+              <template v-slot:append>
+                <q-icon
+                  :name="showPassword ? 'visibility_off' : 'visibility'"
+                  class="text-grey-7 cursor-pointer"
+                  @click="showPassword = !showPassword"
+                />
               </template>
             </q-input>
 
@@ -142,6 +149,7 @@ const authStore = useAuthStore();
 
 const email = ref('');
 const password = ref('');
+const showPassword = ref(false);
 const remember = ref(false);
 const loading = ref(false);
 const errorMsg = ref('');

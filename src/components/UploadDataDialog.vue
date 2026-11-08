@@ -647,6 +647,21 @@ async function confirmBatchSubmit() {
   .unified-upload-stepper :deep(.q-stepper__tab .q-stepper__dot) {
     margin-right: 6px;
   }
+
+  /* The template-download banner is a desktop row (icon | text | button) —
+     on a narrow dialog that squeezed the text into a ~150px column with the
+     button crammed mid-paragraph. Stack it instead. */
+  .template-banner .row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .template-banner .row > .q-icon {
+    margin-bottom: 6px;
+  }
+  .template-banner .q-btn {
+    margin-top: 10px;
+    align-self: flex-start;
+  }
 }
 
 .type-selector-card {

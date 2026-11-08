@@ -144,8 +144,18 @@ const seriesRender = computed(() =>
 
 .multi-trend-chart__svg {
   width: 100%;
-  height: 240px;
+  height: 300px;
   display: block;
+}
+
+/* Taller still on phones — the chart's width is already much narrower there,
+   so without extra height the depth lines get compressed too close together
+   to tell apart (the original complaint: "I can't even see the difference
+   of each lines"). */
+@media (max-width: 599px) {
+  .multi-trend-chart__svg {
+    height: 380px;
+  }
 }
 
 .multi-trend-chart__grid {

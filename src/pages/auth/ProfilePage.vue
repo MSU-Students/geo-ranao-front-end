@@ -21,10 +21,13 @@
           <div class="cover-strip" />
 
           <div class="profile-header row items-start q-pa-md">
-            <!-- Avatar (fixed placeholder — no upload; the backend user record has no avatar field to save one to) -->
+            <!-- Avatar (fixed placeholder — no upload; the backend user record has no avatar field to save one to).
+                 An icon rather than the old hotlinked photo: that image's silhouette was baked in off-center
+                 within its own circle (not a CSS crop issue — the pixels themselves are asymmetric), so no
+                 amount of object-fit/object-position could center it. An icon is centered by construction. -->
             <div class="avatar-col q-mr-md relative-position" style="width: 84px; height: 84px;">
-              <q-avatar size="84px" class="avatar-img shadow-3 relative-position">
-                <img src="https://img.freepik.com/free-vector/blue-circle-with-white-user_78370-4707.jpg?semt=ais_hybrid&w=740&q=80" />
+              <q-avatar size="84px" class="avatar-img shadow-3 relative-position" color="primary" text-color="white">
+                <q-icon name="person" size="48px" />
               </q-avatar>
               <div class="online-dot bg-teal" />
             </div>
@@ -107,15 +110,13 @@
 
           <template v-else>
             <template v-if="contributionFilter !== 'water'">
-              <div v-if="contributionFilter === 'all'" class="text-subtitle2 text-weight-bold text-teal-8 q-mb-sm">
-                Fish Observations
-              </div>
               <q-table
                 :rows="filteredFishContributions"
                 :columns="fishColumns"
                 row-key="id"
                 flat
                 bordered
+                :grid="$q.screen.lt.sm"
                 :rows-per-page-options="[10, 20, 50]"
                 class="contributions-table q-mb-lg"
               >
@@ -141,6 +142,32 @@
                   </q-td>
                 </template>
 
+                <!-- Narrow screens (<600px) switch to one card per row instead of a
+                     horizontally-scrolling table — with up to 6 fish columns (and up
+                     to 17 on the water table below), a scrollable table never actually
+                     showed usable content in the ~300px of width left after the page's
+                     own padding on a phone. -->
+                <template #item="props">
+                  <q-card flat bordered class="contribution-card q-mb-sm full-width">
+                    <q-card-section class="q-gutter-xs">
+                      <div v-for="col in props.cols" :key="col.name" class="contribution-card__row">
+                        <span class="contribution-card__label">{{ col.label }}</span>
+                        <q-badge
+                          v-if="col.name === 'type'"
+                          :color="getTypeColor(props.row.type)"
+                          :label="getTypeLabel(props.row.type)"
+                        />
+                        <q-badge
+                          v-else-if="col.name === 'reviewStatus'"
+                          :color="getReviewStatusColor(props.row.reviewStatus)"
+                          :label="getReviewStatusLabel(props.row.reviewStatus)"
+                        />
+                        <span v-else class="contribution-card__value">{{ col.value }}</span>
+                      </div>
+                    </q-card-section>
+                  </q-card>
+                </template>
+
                 <template #no-data>
                   <div class="full-width text-center text-grey-6 q-pa-lg">
                     {{ contributionsLoading ? 'Loading…' : "You haven't submitted any fish observations yet." }}
@@ -149,16 +176,14 @@
               </q-table>
             </template>
 
-            <template v-if="contributionFilter === 'all' || contributionFilter === 'water'">
-              <div v-if="contributionFilter === 'all'" class="text-subtitle2 text-weight-bold text-teal-8 q-mb-sm">
-                Water Quality Readings
-              </div>
+            <template v-if="contributionFilter === 'water'">
               <q-table
                 :rows="waterContributions"
                 :columns="waterColumns"
                 row-key="id"
                 flat
                 bordered
+                :grid="$q.screen.lt.sm"
                 :rows-per-page-options="[10, 20, 50]"
                 class="contributions-table"
               >
@@ -169,6 +194,22 @@
                       :label="getReviewStatusLabel(props.row.reviewStatus)"
                     />
                   </q-td>
+                </template>
+
+                <template #item="props">
+                  <q-card flat bordered class="contribution-card q-mb-sm full-width">
+                    <q-card-section class="q-gutter-xs">
+                      <div v-for="col in props.cols" :key="col.name" class="contribution-card__row">
+                        <span class="contribution-card__label">{{ col.label }}</span>
+                        <q-badge
+                          v-if="col.name === 'reviewStatus'"
+                          :color="getReviewStatusColor(props.row.reviewStatus)"
+                          :label="getReviewStatusLabel(props.row.reviewStatus)"
+                        />
+                        <span v-else class="contribution-card__value">{{ col.value }}</span>
+                      </div>
+                    </q-card-section>
+                  </q-card>
                 </template>
 
                 <template #no-data>
@@ -251,7 +292,7 @@ function openUploadDialog() {
 // row — a fish observation and a 13-parameter water reading don't actually
 // share a natural row shape.
 type FishContributionType = 'endemic' | 'invasive' | 'general';
-type ContributionFilterValue = 'all' | FishContributionType | 'water';
+type ContributionFilterValue = FishContributionType | 'water';
 
 interface FishContributionRow {
   id: string;
@@ -349,12 +390,10 @@ onMounted(async () => {
   }
 });
 
-const contributionFilter = ref<ContributionFilterValue>('all');
+const contributionFilter = ref<ContributionFilterValue>('endemic');
 
 const filteredFishContributions = computed(() =>
-  fishContributions.value.filter(
-    (c) => contributionFilter.value === 'all' || c.type === contributionFilter.value,
-  ),
+  fishContributions.value.filter((c) => c.type === contributionFilter.value),
 );
 
 // Only columns for parameters this researcher actually recorded at least
@@ -402,8 +441,6 @@ function getTypeLabel(type: ContributionFilterValue): string {
       return 'General';
     case 'water':
       return 'Water Quality';
-    default:
-      return 'All';
   }
 }
 
@@ -417,16 +454,13 @@ function getTypeColor(type: ContributionFilterValue): string {
       return 'grey-7';
     case 'water':
       return 'teal-6';
-    default:
-      return 'teal-8';
   }
 }
 
 const CONTRIBUTION_FILTER_VALUES: ContributionFilterValue[] = ['endemic', 'invasive', 'general', 'water'];
-const filterOptions = computed(() => [
-  { value: 'all' as const, label: 'All', color: 'teal-8' },
-  ...CONTRIBUTION_FILTER_VALUES.map((t) => ({ value: t, label: getTypeLabel(t), color: getTypeColor(t) })),
-]);
+const filterOptions = computed(() =>
+  CONTRIBUTION_FILTER_VALUES.map((t) => ({ value: t, label: getTypeLabel(t), color: getTypeColor(t) })),
+);
 
 function getReviewStatusLabel(status: ReviewStatus): string {
   switch (status) {
@@ -600,5 +634,49 @@ function getReviewStatusColor(status: ReviewStatus): string {
   white-space: nowrap;
   text-overflow: ellipsis;
   vertical-align: middle;
+}
+
+/* ── Mobile card view (QTable grid mode, <600px) ── */
+.contribution-card__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.contribution-card__row:last-child {
+  border-bottom: none;
+}
+.contribution-card__label {
+  color: #78909c;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.contribution-card__value {
+  color: #263238;
+  font-size: 0.85rem;
+  text-align: right;
+  word-break: break-word;
+}
+
+@media (max-width: 599px) {
+  .profile-container {
+    width: 100vw;
+    height: 100vh;
+    max-height: none;
+  }
+  .bright-panel {
+    border-radius: 0;
+  }
+  .bottom-section {
+    padding: 12px !important;
+  }
+  .profile-header {
+    padding: 10px !important;
+  }
 }
 </style>

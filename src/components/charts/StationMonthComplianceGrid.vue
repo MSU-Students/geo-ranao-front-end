@@ -1,7 +1,7 @@
 <template>
   <div class="compliance-grid">
     <div class="compliance-grid__scroller">
-      <div class="compliance-grid__inner" :style="{ gridTemplateColumns: `140px repeat(${months.length}, 1fr)` }">
+      <div class="compliance-grid__inner" :style="{ gridTemplateColumns: `${labelColWidth}px repeat(${months.length}, 1fr)` }">
         <div class="compliance-grid__corner" />
         <div v-for="m in months" :key="'h' + m" class="compliance-grid__month-header">{{ m.split(' ')[0] }}</div>
 
@@ -18,6 +18,7 @@
             v-for="(cell, ci) in row.cells"
             :key="row.siteId + ci"
             class="compliance-grid__cell"
+            :class="{ 'compliance-grid__cell--row-active': selectedSiteId === row.siteId }"
             :style="{ background: cell.status === 'no-data' ? NO_DATA_COLOR : STATUS_COLORS[cell.status] }"
             :title="`${row.siteId} — ${months[ci]}: ${cell.value !== null ? cell.value.toFixed(decimals) + unit : 'No data'} (${cell.status === 'no-data' ? 'No data' : STATUS_LABELS[cell.status]})`"
           />
@@ -39,7 +40,15 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useQuasar } from 'quasar';
 import { STATUS_COLORS, STATUS_LABELS, STATUS_LEVELS, type StatusLevel } from 'src/composables/useWaterQualityModel';
+
+const $q = useQuasar();
+// Narrower on phones so all 13 month columns actually fit without needing
+// to scroll to see the rest of the grid — 140px for station names leaves
+// almost nothing for 13 columns on a ~390px screen.
+const labelColWidth = computed(() => ($q.screen.lt.sm ? 64 : 140));
 
 export interface ComplianceCell {
   status: StatusLevel | 'no-data';
@@ -72,7 +81,11 @@ const NO_DATA_COLOR = '#78909c';
 .compliance-grid__scroller {
   max-height: 420px;
   overflow-y: auto;
-  overflow-x: hidden;
+  /* auto, not hidden, as a fallback — but the real fix is constraining
+     .compliance-grid__inner below so the grid shrinks to fit instead of
+     overflowing in the first place. With overflow-x: hidden, anything that
+     didn't fit was just unreachable rather than scrollable. */
+  overflow-x: auto;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
 }
@@ -81,6 +94,12 @@ const NO_DATA_COLOR = '#78909c';
   display: grid;
   gap: 2px;
   padding: 4px;
+  /* Without this, a CSS grid sizes itself to its content's natural width —
+     13 `1fr` columns each still claim their max-content size instead of
+     actually sharing the scroller's available width, which is what made
+     most of the grid unreachable on narrow screens. */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .compliance-grid__corner {
@@ -125,11 +144,30 @@ const NO_DATA_COLOR = '#78909c';
 .compliance-grid__row-label--active {
   color: #4dd0c8;
   font-weight: 700;
+  box-shadow: inset 0 0 0 2px #4dd0c8;
 }
 
 .compliance-grid__cell {
   min-height: 20px;
   border-radius: 2px;
+  box-sizing: border-box;
+}
+
+/* The selected station's whole row stays outlined across every month cell —
+   the row label is sticky and always visible, but this keeps the row itself
+   traceable while scrolling horizontally through 13 months of cells too. */
+.compliance-grid__cell--row-active {
+  box-shadow: inset 0 0 0 2px #4dd0c8;
+}
+
+@media (max-width: 599px) {
+  .compliance-grid__row-label {
+    font-size: 0.58rem;
+    padding: 4px 4px;
+  }
+  .compliance-grid__month-header {
+    font-size: 0.52rem;
+  }
 }
 
 .status-dot {
