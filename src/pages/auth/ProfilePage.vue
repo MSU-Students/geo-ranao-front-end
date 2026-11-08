@@ -76,7 +76,9 @@
         <q-separator color="grey-3" />
 
         <!-- ══ MY CONTRIBUTIONS (this researcher's own submissions — real data) ══ -->
-        <div class="bottom-section col column q-pa-lg">
+        <div class="bottom-section col column q-pa-lg relative-position">
+          <WaterLoadingOverlay :active="contributionsLoading && !contributionsError" label="Loading your submissions…" />
+
           <div class="row items-center q-mb-md">
             <q-icon name="assignment_ind" size="20px" class="q-mr-xs text-teal-9" />
             <span class="text-subtitle1 text-weight-bold text-teal-9">My Contributions</span>
@@ -111,7 +113,6 @@
               <q-table
                 :rows="filteredFishContributions"
                 :columns="fishColumns"
-                :loading="contributionsLoading"
                 row-key="id"
                 flat
                 bordered
@@ -155,7 +156,6 @@
               <q-table
                 :rows="waterContributions"
                 :columns="waterColumns"
-                :loading="contributionsLoading"
                 row-key="id"
                 flat
                 bordered
@@ -194,6 +194,7 @@ import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import BackButton from 'src/components/BackButton.vue';
 import UploadDataDialog from 'src/components/UploadDataDialog.vue';
+import WaterLoadingOverlay from 'src/components/WaterLoadingOverlay.vue';
 import { useAuthStore } from 'src/stores/auth';
 import {
   fetchFishObservations,

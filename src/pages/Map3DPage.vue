@@ -1806,4 +1806,35 @@ function onResize() {
   box-shadow: 0 0 12px rgba(0, 229, 255, 0.4) !important;
   transform: translateY(-1px);
 }
+
+/* ── RESPONSIVE ─────────────────────────────────────────────────────────────
+   .action-drawer (left) has min-width:160px and .info-card (right, always
+   visible for the depth legend) has min-width:200px. On desktop that's fine
+   — on a phone under ~450px wide, left:16 + drawer + right:16 + info-card
+   adds up to more than the screen, so the open controls drawer runs straight
+   into the depth legend. Capping both sides to half the viewport (minus a
+   margin) guarantees they can never meet, whatever their content. */
+@media (max-width: 768px) {
+  .left-hud {
+    left: 10px;
+  }
+  .action-drawer {
+    min-width: 0;
+    max-width: calc(50vw - 26px);
+  }
+  .drawer-btn {
+    min-width: 0;
+    width: 100%;
+  }
+  .right-hud {
+    right: 10px;
+  }
+  .info-card {
+    min-width: 0;
+    max-width: calc(50vw - 26px);
+  }
+  .nav-pad-container {
+    left: 10px;
+  }
+}
 </style>

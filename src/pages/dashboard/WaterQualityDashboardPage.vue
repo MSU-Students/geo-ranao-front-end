@@ -1,6 +1,11 @@
 <template>
   <q-page class="q-pa-md flex flex-center relative-position overflow-hidden dashboard-page">
     <BackButton to="/map" />
+    <WaterLoadingOverlay
+      :active="readingsLoading || filterLoading"
+      :label="readingsLoading ? 'Loading water quality data…' : 'Updating…'"
+      :z-index="60"
+    />
 
     <div class="page-content full-width q-pa-md">
       <!-- Header -->
@@ -1183,6 +1188,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import BackButton from 'src/components/BackButton.vue';
+import WaterLoadingOverlay from 'src/components/WaterLoadingOverlay.vue';
+import { useBriefLoading } from 'src/composables/useBriefLoading';
 import YearPicker from 'src/components/YearPicker.vue';
 import TrendSparkline from 'src/components/charts/TrendSparkline.vue';
 import ParameterTrendChart from 'src/components/charts/ParameterTrendChart.vue';
@@ -1848,6 +1855,27 @@ const aaMonthInYear = ref(selectedMonthInYear.value);
 const aaStationId = ref<string | null>(null);
 const aaParamKey = ref<string | null>(allWaterQualityParams[0]!.key);
 const aaDepth = ref(0);
+
+// Most of these changes recompute derived chart data synchronously from
+// readingsLookup/rawReadings — too fast for a loading indicator to ever be
+// seen — so this fakes a brief, deliberate "Updating…" overlay instead,
+// confirming the filter change actually registered. Covers both Overview
+// and Advanced Analytics filters; only one tab is visible at a time, so a
+// change on the hidden tab's filters toggling this in the background is
+// harmless.
+const filterLoading = useBriefLoading([
+  selectedParamKey,
+  selectedYear,
+  selectedMonthInYear,
+  selectedStationId,
+  selectedDepthM,
+  aaYear,
+  aaMonthInYear,
+  aaStationId,
+  aaParamKey,
+  aaDepth,
+  analyticsVizType,
+]);
 
 const aaMonthIndex = computed(() => readingMonthIndex(aaYear.value, aaMonthInYear.value));
 const aaParam = computed(() => allWaterQualityParams.find((p) => p.key === aaParamKey.value) ?? null);

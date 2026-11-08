@@ -7,6 +7,13 @@
     <!-- Leaflet Map Container -->
     <div ref="mapContainer" class="absolute-full map-container" />
 
+    <WaterLoadingOverlay
+      :active="mapLoading"
+      :label="fishDataLoading || waterDataLoading ? 'Loading map…' : 'Updating…'"
+      :size="80"
+      :z-index="40"
+    />
+
     <!-- Toggle Button -->
     <transition name="fade-btn" appear>
       <q-btn
@@ -28,6 +35,7 @@
     <transition name="fade-btn" appear>
       <q-btn
         class="recenter-btn"
+        :class="{ 'recenter-btn--panel-open': showPanel || !!(selectedFish || selectedWaterSite) }"
         round
         unelevated
         size="md"
@@ -822,11 +830,11 @@
 
     <!-- ═══ FISH YEAR FILTER (Bottom-Center) ═══ -->
     <div
-      v-if="fishAvailableYears.length > 0 && showFishYearBar"
+      v-if="fishAvailableYears.length > 0 && showFishYearBar && fishYearBarAllowed"
       class="fish-year-control-bar"
       :class="fishYearBarShiftClass"
     >
-      <div class="row items-center q-gutter-x-sm no-wrap">
+      <div class="row items-center q-gutter-x-sm no-wrap fish-year-bar-inner">
         <!-- Year label -->
         <div class="text-caption text-weight-bold text-grey-8 no-wrap" style="white-space:nowrap">
           <q-icon name="set_meal" color="teal-8" size="xs" class="q-mr-xs" />Fish Year:
@@ -900,7 +908,7 @@
     <!-- Reopen pill — shown only while the bar above is manually collapsed -->
     <transition name="fade-btn" appear>
       <q-btn
-        v-if="fishAvailableYears.length > 0 && !showFishYearBar"
+        v-if="fishAvailableYears.length > 0 && !showFishYearBar && fishYearBarAllowed"
         class="fish-year-reopen-btn"
         :class="fishYearBarShiftClass"
         round
@@ -948,6 +956,8 @@ import { useQuasar } from 'quasar';
 import { useAuthStore } from 'src/stores/auth';
 import StationSummaryDialog from 'src/components/StationSummaryDialog.vue';
 import LayerToggleItem from 'src/components/LayerToggleItem.vue';
+import WaterLoadingOverlay from 'src/components/WaterLoadingOverlay.vue';
+import { useBriefLoading } from 'src/composables/useBriefLoading';
 import { computeStationSummaryRows, type StationSummaryRow } from 'src/composables/useStationSummary';
 import lakeMunicipalitiesRaw from 'src/data/lake-municipalities.json';
 import {
@@ -1374,6 +1384,10 @@ function toMapFish(obs: FishObservation, zones: MunicipalZone[]): Fish | null {
   return fish;
 }
 
+// Gate the map's loading overlay on both this and waterDataLoading below —
+// the map shows fish AND water markers together, so it isn't "rendered"
+// until both datasets are in, not just whichever resolves first.
+const fishDataLoading = ref(true);
 onMounted(async () => {
   try {
     const [observations, zones] = await Promise.all([
@@ -1389,6 +1403,8 @@ onMounted(async () => {
       .filter((f): f is Fish => f !== null);
   } catch (err) {
     console.error('Failed to load fish observations:', err);
+  } finally {
+    fishDataLoading.value = false;
   }
 });
 
@@ -1439,6 +1455,16 @@ const fishAvailableYears = computed<number[]>(() =>
 // be collapsed so it doesn't take up space while the control/detail panels
 // are also open on a smaller screen.
 const showFishYearBar = ref(true);
+
+// On mobile there's only ever room for one floating thing near the bottom
+// of the map at a time, and the bar is only really useful alongside the
+// fish list/dashboard anyway — so instead of continuing to reposition it
+// around whatever else is open, it (and its reopen pill) simply don't show
+// at all on a phone unless the control panel/dashboard is open. Desktop is
+// unaffected — there's room for it regardless of the panel state there.
+const fishYearBarAllowed = computed(
+  () => $q.screen.width > 768 || showPanel.value,
+);
 
 // Picks one shift class instead of letting both apply at once — the two
 // individual offsets (control-panel vs detail-panel) don't add up correctly
@@ -1551,6 +1577,22 @@ interface WaterQualitySite {
 const waterQualitySites = ref<WaterQualitySite[]>([]);
 const selectedWaterSite = ref<WaterQualitySite | null>(null);
 
+// On mobile, .control-panel and .detail-panel both become bottom sheets at
+// the same bottom:12/height:50vh position (see the @media block) since
+// there's no side-by-side room like on desktop. Letting both stay open at
+// once there would stack two near-full-width sheets exactly on top of each
+// other. Desktop has room for both (that's what fishYearBarShiftClass's
+// "--shifted-both" case above is for), so this only closes the list panel
+// on narrow screens.
+watch(
+  () => selectedFish.value || selectedWaterSite.value,
+  (detail) => {
+    if (detail && $q.screen.width <= 768) {
+      showPanel.value = false;
+    }
+  },
+);
+
 // Selecting a site zooms/pans to it, scaled by how badly it needs attention
 // — a critical site "sizes up" more than a routine one, matching the
 // pulse/badge emphasis on its marker. Only ever zooms in, never out, so
@@ -1661,6 +1703,7 @@ const readingsLookup = ref<ReadingLookup>(new Map());
 // sample count and a trend need each reading's own date/depth, not just the
 // lookup's already-bucketed-by-month values.
 const rawReadings = ref<WaterQualityReading[]>([]);
+const waterDataLoading = ref(true);
 onMounted(async () => {
   try {
     const readings = await fetchWaterQualityReadings({ status: 'APPROVED' });
@@ -1677,8 +1720,29 @@ onMounted(async () => {
     recolorWaterLayers();
   } catch (err) {
     console.error('Failed to load water quality readings:', err);
+  } finally {
+    waterDataLoading.value = false;
   }
 });
+
+// Most filter changes below just recolor/refilter markers already on the
+// map synchronously — too fast for a loading indicator to ever be seen —
+// so this fakes a brief, deliberate overlay instead, confirming the filter
+// change actually registered.
+const mapFilterLoading = useBriefLoading([
+  fishYear,
+  fishYearMode,
+  selectedYear,
+  selectedMonthInYear,
+  selectedDepthM,
+  activeFilter,
+  selectedSpeciesFilter,
+  selectedSiteFilter,
+  selectedColorParamKey,
+]);
+const mapLoading = computed(
+  () => fishDataLoading.value || waterDataLoading.value || mapFilterLoading.value,
+);
 
 // Station Summary dialog — same aggregation the Water Quality Dashboard's
 // own Summary button uses (useStationSummary.ts), driven by this page's own
@@ -3922,9 +3986,14 @@ function buildMunicipalityMarkers() {
      380px-wide side panel — on a phone that's off-screen entirely (a phone
      narrower than ~470px can't fit both the button and that offset). The
      mobile .control-panel above moves to the bottom half of the screen
-     instead of the left side, so there's nothing left to dodge up here. */
+     instead of the left side, so there's nothing left to dodge up here.
+     !important: the unshifted ".add-data-btn--shifted { left: 408px }"
+     rule is declared further down the file (desktop section), so at equal
+     specificity it would otherwise win by source order even though this
+     media query's condition is also true. Same reasoning applies to every
+     !important below in this block. */
   .add-data-btn--shifted {
-    left: 16px;
+    left: 16px !important;
   }
   /* Same reasoning — the panel toggle doesn't need to jump to the opposite
      edge on mobile, since the panel it's revealing no longer covers this
@@ -3943,16 +4012,60 @@ function buildMunicipalityMarkers() {
   .fish-year-reopen-btn.fish-year-control-bar--shifted-left,
   .fish-year-reopen-btn.fish-year-control-bar--shifted-right,
   .fish-year-reopen-btn.fish-year-control-bar--shifted-both {
-    left: 50%;
+    left: 50% !important;
   }
   .fish-year-control-bar,
   .fish-year-reopen-btn {
     max-width: calc(100vw - 24px);
   }
+  /* The bar's content (label, dropdown, Year/Cumulative toggle, count) is a
+     single no-wrap row that's wider than the pill on a phone. Without this,
+     it has nowhere to go but to spill out past the pill's rounded
+     background — visually overlapping whatever map UI sits beside it. Let
+     it scroll inside the pill instead of overflowing it; the children keep
+     their natural width (no squishing/wrapping) and the whole bar scrolls
+     as one strip. */
+  .fish-year-control-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .fish-year-control-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .fish-year-bar-inner > * {
+    flex-shrink: 0;
+  }
+  .fish-year-select {
+    min-width: 92px !important;
+  }
   .fish-year-control-bar--shifted-left,
   .fish-year-control-bar--shifted-right,
   .fish-year-control-bar--shifted-both {
-    bottom: calc(50vh + 12px);
+    /* !important: the plain ".fish-year-control-bar { bottom: 24px }" base
+       rule sits further down the file and is a separate-but-equally-
+       specific selector that's also present on this element (both classes
+       apply at once) — it would otherwise win and keep the bar pinned to
+       the very bottom, directly under the open panel. */
+    bottom: calc(50vh + 12px) !important;
+  }
+  /* control-panel/detail-panel become near-full-width bottom sheets on
+     mobile (above), covering the same bottom-12/50vh strip the recenter
+     button sits in (bottom:92px) — so it would float on top of whichever
+     sheet is open. Recentering isn't a priority action while a sheet
+     covers half the map anyway, so it's simplest to just hide it. */
+  .recenter-btn--panel-open {
+    display: none;
+  }
+  /* Desktop shifts the legend left by 366px to clear a 380px-wide *side*
+     panel. On mobile the panel is a *bottom* sheet instead (it no longer
+     occupies this top-right corner), and 366px of shift on a narrow phone
+     pushes the legend almost entirely off the left edge — straight into
+     the toggle button/control panel over there. Same fix as
+     .add-data-btn--shifted/.toggle-btn--shifted above: there's nothing to
+     dodge, so cancel the desktop shift. */
+  .contour-legend--shifted {
+    right: 12px;
   }
 }
 
