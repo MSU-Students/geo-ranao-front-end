@@ -1725,6 +1725,15 @@ onMounted(async () => {
   }
 });
 
+// Only the on/off state of each layer, not its opacity — an opacity slider
+// is dragged continuously, and covering the map with the loading overlay on
+// every tick would hide the very fade you're trying to judge. A signature
+// string (rather than watching mapLayers directly) also means a slider drag
+// never touches this source at all, regardless of deep watching elsewhere.
+const layerActiveSignature = computed(() =>
+  mapLayers.value.map((l) => `${l.id}:${l.active}`).join('|'),
+);
+
 // Most filter changes below just recolor/refilter markers already on the
 // map synchronously — too fast for a loading indicator to ever be seen —
 // so this fakes a brief, deliberate overlay instead, confirming the filter
@@ -1739,6 +1748,8 @@ const mapFilterLoading = useBriefLoading([
   selectedSpeciesFilter,
   selectedSiteFilter,
   selectedColorParamKey,
+  selectedBaseLayer,
+  layerActiveSignature,
 ]);
 const mapLoading = computed(
   () => fishDataLoading.value || waterDataLoading.value || mapFilterLoading.value,

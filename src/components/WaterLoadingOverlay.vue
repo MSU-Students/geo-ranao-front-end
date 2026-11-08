@@ -60,8 +60,11 @@ const gradientId = `water-loader-gradient-${Math.random().toString(36).slice(2, 
 </script>
 
 <style scoped>
+/* Fixed to the viewport, not the (possibly much taller, scrollable) page it's
+   placed in — so it always lands centered on whatever is actually on screen,
+   not centered inside the full scrollable content height. */
 .water-loader {
-  position: absolute;
+  position: fixed;
   inset: 0;
   display: flex;
   align-items: center;

@@ -1,6 +1,11 @@
 <template>
   <q-page class="q-pa-md flex flex-center relative-position overflow-hidden dashboard-page">
     <BackButton to="/map" />
+    <WaterLoadingOverlay
+      :active="dashboardLoading"
+      :label="loading ? 'Loading fish observations…' : 'Updating…'"
+      :z-index="60"
+    />
 
     <!-- Main Content -->
     <div class="page-content full-width q-pa-md" style="max-width: 1300px">
@@ -654,6 +659,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import BackButton from 'components/BackButton.vue';
+import WaterLoadingOverlay from 'components/WaterLoadingOverlay.vue';
 import ParameterTrendChart from 'components/charts/ParameterTrendChart.vue';
 import {
   fetchFishObservations,
@@ -681,6 +687,7 @@ import {
   trendSpecies,
 } from 'src/composables/useFishDashboardState';
 import { fishYear, fishYearMode } from 'src/composables/useFishYearState';
+import { useBriefLoading } from 'src/composables/useBriefLoading';
 import { resolveFishMunicipality, yearOf } from 'src/composables/useFishMunicipality';
 import { loadMunicipalZones, type MunicipalZone } from 'src/composables/useMunicipalZones';
 import {
@@ -765,6 +772,32 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+// Filter changes below recompute derived chart data synchronously from the
+// already-fetched observations — too fast for a loading indicator to ever
+// be seen — so this fakes a brief, deliberate overlay instead, confirming
+// the filter change actually registered.
+const filterLoading = useBriefLoading([
+  activeFilter,
+  search,
+  distYear,
+  distMunicipality,
+  distCategory,
+  timelineAYear,
+  timelineBYear,
+  timelineAMuni,
+  timelineBMuni,
+  timelineASpecies,
+  timelineAMetric,
+  timelineBSpecies,
+  timelineBMetric,
+  trendMunicipality,
+  trendCategory,
+  trendSpecies,
+  fishYear,
+  fishYearMode,
+]);
+const dashboardLoading = computed(() => loading.value || filterLoading.value);
 
 // ── Global year filter dropdown options ──
 const globalYearOptions = computed(() => {

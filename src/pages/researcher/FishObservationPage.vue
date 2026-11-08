@@ -10,6 +10,7 @@
     <div class="absolute-full bg-overlay" />
 
     <BackButton to="/researcher" />
+    <WaterLoadingOverlay :active="submitting" label="Submitting…" />
 
     <!-- Main Content -->
     <div class="page-content full-width q-pa-md" style="max-width: 900px">
@@ -542,6 +543,7 @@ import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 import BackButton from 'src/components/BackButton.vue';
+import WaterLoadingOverlay from 'src/components/WaterLoadingOverlay.vue';
 import { submitFishObservation, type ConservationStatus } from 'src/composables/useFishObservations';
 import { extractErrorMessage } from 'src/utils/errors';
 

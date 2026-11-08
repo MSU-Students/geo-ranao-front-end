@@ -11,14 +11,21 @@ export function useBriefLoading(sources: WatchSource<unknown>[], minDurationMs =
   const loading = ref(false);
   let timer: ReturnType<typeof setTimeout> | null = null;
 
-  watch(sources, () => {
-    loading.value = true;
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      loading.value = false;
-      timer = null;
-    }, minDurationMs);
-  });
+  // deep: true so a source whose ref wraps an array/object (e.g. the map's
+  // mapLayers list, mutated in place per-layer rather than reassigned) still
+  // triggers this — a shallow watch only fires on `.value` reassignment.
+  watch(
+    sources,
+    () => {
+      loading.value = true;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        loading.value = false;
+        timer = null;
+      }, minDurationMs);
+    },
+    { deep: true },
+  );
 
   return loading;
 }
