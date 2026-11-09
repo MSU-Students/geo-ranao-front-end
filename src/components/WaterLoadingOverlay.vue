@@ -13,15 +13,21 @@
         :style="{ top: fishTop + '%', animationDuration: fishDuration + 's' }"
       >
         <svg viewBox="0 0 100 50" class="water-loader__fish-svg">
+          <!-- Nose points toward x=100 (the direction of travel for the ltr
+               keyframe below) — forked tail trails behind at the low-x end,
+               so the whole fish reads head-first instead of nose and tail
+               both sitting on the same side. -->
           <g class="water-loader__fish-tail">
-            <path d="M72 25 L96 8 L96 42 Z" />
+            <path d="M22 25 L2 6 L10 25 L2 44 Z" />
           </g>
           <path
             class="water-loader__fish-body"
-            d="M74 25 C74 8 52 2 26 9 C33 15 33 20 27 25 C33 30 33 35 26 41 C52 48 74 42 74 25 Z"
+            d="M90 25 C88 12 65 8 45 10 C30 11 22 16 20 25 C22 34 30 39 45 40 C65 42 88 38 90 25 Z"
           />
-          <path class="water-loader__fish-fin" d="M46 10 C50 4 58 3 62 6 C56 10 52 12 46 10 Z" />
-          <circle class="water-loader__fish-eye" cx="58" cy="18" r="2.8" />
+          <path class="water-loader__fish-fin" d="M55 10 C50 2 38 0 32 4 C40 8 48 11 55 10 Z" />
+          <path class="water-loader__fish-fin" d="M68 32 C65 40 55 44 48 40 C55 35 62 32 68 32 Z" />
+          <circle class="water-loader__fish-eye-white" cx="78" cy="19" r="4" />
+          <circle class="water-loader__fish-eye" cx="79" cy="19" r="2" />
         </svg>
       </div>
 
@@ -360,13 +366,17 @@ onBeforeUnmount(clearFishTimers);
   opacity: 0.85;
 }
 
+.water-loader__fish-eye-white {
+  fill: #f0fdfa;
+}
+
 .water-loader__fish-eye {
   fill: #0f172a;
 }
 
 .water-loader__fish-tail {
   fill: #0e7490;
-  transform-origin: 76px 25px;
+  transform-origin: 22px 25px;
   animation: water-loader-fish-wag 0.4s ease-in-out infinite alternate;
 }
 

@@ -50,8 +50,24 @@
 
     <!-- Floating Control Panel (Left Side — Toggleable, BRIGHT THEME) -->
     <transition name="slide-panel">
-      <div v-if="showPanel" class="control-panel">
+      <div
+        v-if="showPanel"
+        class="control-panel"
+        :class="{ 'control-panel--expanded': panelExpanded }"
+        :style="panelDragDeltaY ? { transform: `translateY(${panelDragDeltaY}px)`, transition: 'none' } : {}"
+      >
         <q-card class="bright-panel full-height column no-wrap">
+          <!-- Drag handle (mobile bottom-sheet gesture — see onPanelDrag* above) -->
+          <div
+            class="panel-drag-handle"
+            @pointerdown="onPanelDragStart"
+            @pointermove="onPanelDragMove"
+            @pointerup="onPanelDragEnd"
+            @pointercancel="onPanelDragEnd"
+          >
+            <div class="panel-drag-handle__bar" />
+          </div>
+
           <!-- Panel Header -->
           <q-card-section class="q-pb-xs">
             <div class="row items-center no-wrap">
@@ -74,6 +90,19 @@
                 </div>
                 <div class="text-grey-6 text-caption">Ecological Dashboard</div>
               </div>
+              <q-space />
+              <q-btn
+                v-if="$q.screen.lt.sm"
+                flat
+                round
+                dense
+                icon="close"
+                color="grey-7"
+                class="panel-exit-btn"
+                @click="showPanel = false"
+              >
+                <q-tooltip>Close</q-tooltip>
+              </q-btn>
             </div>
           </q-card-section>
 
@@ -1269,6 +1298,47 @@ async function loadBathymetryPoints() {
 }
 
 const showPanel = ref(false);
+
+// ═══ MOBILE PANEL DRAG (bottom-sheet gesture) ═══
+// Desktop's .control-panel is a side panel with no drag concept — these only
+// mean anything on mobile, where it's a bottom sheet (see the @media block).
+// Dragging the handle down past a threshold dismisses the panel like a swipe-
+// to-close gesture; dragging up expands it from the default half-height to
+// a near-full-height sheet so a long fish/water list doesn't need as much
+// internal scrolling. Decided at release (not continuously resized while
+// dragging) — only the downward direction gets a live transform follow, for
+// direct visual feedback that a close is in progress; growing the sheet
+// upward in real time would need animating `height` every frame instead of
+// a cheap transform, which isn't worth it for a discrete two-state toggle.
+const panelExpanded = ref(false);
+const panelDragging = ref(false);
+const panelDragDeltaY = ref(0);
+let panelDragStartY = 0;
+
+function onPanelDragStart(e: PointerEvent) {
+  panelDragging.value = true;
+  panelDragStartY = e.clientY;
+  panelDragDeltaY.value = 0;
+}
+function onPanelDragMove(e: PointerEvent) {
+  if (!panelDragging.value) return;
+  panelDragDeltaY.value = Math.max(0, e.clientY - panelDragStartY);
+}
+function onPanelDragEnd(e: PointerEvent) {
+  if (!panelDragging.value) return;
+  const delta = e.clientY - panelDragStartY;
+  panelDragging.value = false;
+  panelDragDeltaY.value = 0;
+  if (delta > 80) {
+    showPanel.value = false;
+    panelExpanded.value = false;
+  } else if (delta < -60) {
+    panelExpanded.value = true;
+  } else if (delta > 30) {
+    panelExpanded.value = false;
+  }
+}
+
 const mapContainer = ref<HTMLElement | null>(null);
 let map: L.Map | null = null;
 
@@ -3991,6 +4061,41 @@ function buildMunicipalityMarkers() {
     bottom: 12px;
     left: 12px;
     height: 50vh;
+    transition: height 0.25s ease-out, transform 0.2s ease-out;
+    touch-action: none;
+  }
+  /* Dragged open via the handle below — a taller sheet so a long fish/water
+     list needs less internal scrolling, short of the full viewport so the
+     map (and the handle itself, to drag back down) stays reachable above it. */
+  .control-panel.control-panel--expanded {
+    height: 88vh;
+  }
+  .panel-drag-handle {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    padding: 8px 0 4px;
+    cursor: grab;
+    touch-action: none;
+  }
+  .panel-drag-handle__bar {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.18);
+  }
+  /* Fish/Water/Layers tabs take up a fixed chunk of the fixed-height sheet
+     regardless of content — shrinking them leaves more room for the actual
+     list below without needing to drag the sheet to full height first. */
+  .panel-tabs :deep(.q-tab) {
+    min-height: 40px;
+    padding: 4px 2px;
+  }
+  .panel-tabs :deep(.q-tab__icon) {
+    font-size: 20px;
+  }
+  .panel-tabs :deep(.q-tab__label) {
+    font-size: 0.68rem;
   }
   .detail-panel {
     width: calc(100% - 24px);
@@ -4076,6 +4181,13 @@ function buildMunicipalityMarkers() {
      covers half the map anyway, so it's simplest to just hide it. */
   .recenter-btn--panel-open {
     display: none;
+  }
+  /* The recenter button's bottom:92px (desktop) assumed more clearance below
+     it than Leaflet's own bottom-right zoom control + attribution strip
+     actually need (zoom control alone is 64px tall) — on mobile's narrower
+     corner the two end up touching/overlapping instead of clearly separated. */
+  .recenter-btn {
+    bottom: 120px;
   }
   /* Desktop shifts the legend left by 366px to clear a 380px-wide *side*
      panel. On mobile the panel is a *bottom* sheet instead (it no longer

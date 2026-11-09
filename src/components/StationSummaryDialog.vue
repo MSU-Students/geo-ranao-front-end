@@ -37,6 +37,7 @@
           row-key="stationId"
           dark
           flat
+          :grid="$q.screen.lt.sm"
           :rows-per-page-options="[12, 25, 0]"
           :pagination="{ rowsPerPage: 12, sortBy: 'sampleCount', descending: true }"
         >
@@ -64,6 +65,36 @@
               </span>
             </q-td>
           </template>
+
+          <!-- Narrow screens (<600px) switch to one card per station instead
+               of a 6-column table — "Nearest Municipality" plus a progress
+               bar in "% of Total Sampling" left almost nothing visible past
+               the first two columns on a phone. -->
+          <template #item="scopeProps">
+            <q-card flat bordered class="summary-card-item q-mb-sm full-width" dark>
+              <q-card-section class="q-gutter-xs">
+                <div v-for="col in scopeProps.cols" :key="col.name" class="summary-card-item__row">
+                  <span class="summary-card-item__label">{{ col.label }}</span>
+                  <div v-if="col.name === 'percentOfTotal'" class="row items-center no-wrap">
+                    <q-linear-progress
+                      :value="col.value / 100"
+                      color="teal-4"
+                      track-color="grey-8"
+                      class="q-mr-sm"
+                      style="width: 60px"
+                      rounded
+                    />
+                    {{ col.value.toFixed(1) }}%
+                  </div>
+                  <span v-else-if="col.name === 'trend'" :class="trendClass(scopeProps.row.trend)">
+                    <q-icon :name="trendIcon(scopeProps.row.trend)" size="18px" class="q-mr-xs" />
+                    {{ col.value }}
+                  </span>
+                  <span v-else class="summary-card-item__value">{{ col.value }}</span>
+                </div>
+              </q-card-section>
+            </q-card>
+          </template>
         </q-table>
 
         <div class="text-caption text-grey-5 q-mt-sm">
@@ -78,10 +109,13 @@
 </template>
 
 <script setup lang="ts">
+import { useQuasar } from 'quasar';
 import { allWaterQualityParams } from 'src/composables/useWaterQualityModel';
 import type { StationSummaryRow } from 'src/composables/useStationSummary';
 
 export type { StationSummaryRow };
+
+const $q = useQuasar();
 
 // paramKey is a controlled prop (not a direct import of either page's own
 // shared parameter ref) specifically so this dialog can be reused by pages
@@ -149,5 +183,36 @@ function trendClass(trend: StationSummaryRow['trend']): string {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* ── Mobile card view (QTable grid mode, <600px) ── */
+.summary-card-item {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+.summary-card-item__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.summary-card-item__row:last-child {
+  border-bottom: none;
+}
+.summary-card-item__label {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.summary-card-item__value {
+  color: #fff;
+  font-size: 0.85rem;
+  text-align: right;
+  word-break: break-word;
 }
 </style>

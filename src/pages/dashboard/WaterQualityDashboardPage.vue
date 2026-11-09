@@ -1402,11 +1402,14 @@ const activeView = ref<'overview' | 'advanced'>('overview');
 const parameterOverviewExpanded = ref(false);
 
 // Reading Period/Parameter/Depth/Classification/Station bar, docked to the
-// bottom of the viewport (see .controls-bar) — open by default so every
-// control is laid out and visible without an extra click, which a floating
-// FAB used to require. The handle still lets it be minimized if it's in the
-// way of the chart below it.
-const controlsPanelOpen = ref(true);
+// bottom of the viewport (see .controls-bar) — open by default on desktop so
+// every control is laid out and visible without an extra click, which a
+// floating FAB used to require. On mobile it starts collapsed instead — the
+// bar sits right at the top of the page there and was pushing the actual
+// dashboard content (and the charts people came for) below the fold before
+// they'd scrolled past it even once. The handle still lets it be reopened
+// or minimized either way.
+const controlsPanelOpen = ref(!$q.screen.lt.sm);
 
 // ═══ TYPE OF ANALYTICS VISUALIZATION ═══
 // Every option below renders a real chart — grouped into 3 sections by the
